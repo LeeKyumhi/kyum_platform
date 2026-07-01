@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Environment
+.env
+**/.env
+
+# Build outputs
+app/frontend/.next/
+app/backend/build/
+app/backend/.gradle/
+
+# Gradle
+**/.gradle/
+**/build/
+
+# Node
+app/frontend/node_modules/
+
+# Logs
+*.log
