@@ -1,0 +1,167 @@
+package com.guidematch.guide;
+
+import com.guidematch.guide.dto.CreateGuideProfileRequest;
+import com.guidematch.storage.SupabaseStorageClient;
+import com.guidematch.user.User;
+import com.guidematch.user.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * 가이드 프로필 관련 비즈니스 로직.
+ */
+@Service
+public class GuideProfileService {
+
+    private final GuideProfileRepository guideProfileRepository;
+    private final UserRepository userRepository;
+    private final SupabaseStorageClient storageClient;
+    private final String bucket;
+
+    public GuideProfileService(GuideProfileRepository guideProfileRepository,
+                               UserRepository userRepository,
+                               SupabaseStorageClient storageClient,
+                               @Value("${supabase.storage.credentials-bucket}") String bucket) {
+        this.guideProfileRepository = guideProfileRepository;
+        this.userRepository = userRepository;
+        this.storageClient = storageClient;
+        this.bucket = bucket;
+    }
+
+    /**
+     * 가이드 프로필 생성.
+     * @Transactional = 이 메서드 안의 DB 작업들을 하나의 묶음으로 처리.
+     *   중간에 실패하면 전부 취소(rollback)되어 "절반만 저장"되는 사고를 막는다.
+     */
+    @Transactional
+    public GuideProfile create(Long userId, CreateGuideProfileRequest request) {
+        // 한 사용자당 가이드 프로필은 하나만
+        if (guideProfileRepository.existsByUserId(userId)) {
+            throw new IllegalArgumentException("이미 가이드 프로필이 존재합니다.");
+        }
+
+        // 통화가 비어있으면 기본 KRW
+        String currency = (request.currency() == null || request.currency().isBlank())
+                ? "KRW"
+                : request.currency();
+
+        GuideProfile profile = new GuideProfile(
+                userId,
+                request.headline(),
+                request.introduction(),
+                request.hourlyRate(),
+                currency,
+                request.region()
+        );
+
+        request.languages().forEach(l ->
+                profile.addLanguage(new GuideLanguage(l.language(), l.level()))
+        );
+
+        if (request.mbti() != null && !request.mbti().isBlank()) {
+            profile.setMbti(request.mbti().toUpperCase());
+        }
+        if (request.interests() != null) {
+            profile.setInterestList(request.interests());
+        }
+
+        return guideProfileRepository.save(profile);
+    }
+
+    /**
+     * 내 가이드 프로필 조회.
+     */
+    @Transactional(readOnly = true)
+    public GuideProfile getByUserId(Long userId) {
+        return guideProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new IllegalArgumentException("가이드 프로필이 없습니다."));
+    }
+
+    /**
+     * 가이드 검색 (목록). region이 주어지면 그 지역만, 아니면 전체 활동 중 가이드.
+     */
+    @Transactional(readOnly = true)
+    public List<GuideProfile> search(String region) {
+        if (region != null && !region.isBlank()) {
+            return guideProfileRepository.findByActiveTrueAndRegionIgnoreCase(region);
+        }
+        return guideProfileRepository.findByActiveTrue();
+    }
+
+    /**
+     * 가이드 프로필 단건 조회 (상세).
+     */
+    @Transactional(readOnly = true)
+    public GuideProfile getById(Long id) {
+        return guideProfileRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("가이드를 찾을 수 없습니다."));
+    }
+
+    /**
+     * 가이드(사용자)의 이름을 가져온다. 목록/상세에 표시하기 위함.
+     */
+    @Transactional(readOnly = true)
+    public String getGuideName(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getFullName)
+                .orElse("알 수 없음");
+    }
+
+    /**
+     * 프로필 사진 업로드. 파일을 Storage에 올리고 그 URL을 프로필에 저장한다.
+     */
+    @Transactional
+    public GuideProfile uploadAvatar(Long userId, MultipartFile file) {
+        GuideProfile profile = getByUserId(userId);
+
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("업로드할 사진이 없습니다.");
+        }
+
+        // 자격증과 같은 버킷을 쓰되, avatars/ 폴더로 구분
+        String path = "avatars/guide-" + profile.getId() + "/" + UUID.randomUUID() + getExtension(file.getOriginalFilename());
+
+        String url;
+        try {
+            url = storageClient.uploadPublic(bucket, path, file.getBytes(), file.getContentType());
+        } catch (IOException e) {
+            throw new RuntimeException("사진을 읽는 중 오류가 발생했습니다.", e);
+        }
+
+        profile.setAvatarUrl(url);
+        return guideProfileRepository.save(profile);
+    }
+
+    /**
+     * MBTI · 관심사 업데이트.
+     */
+    @Transactional
+    public GuideProfile updatePersonality(Long userId, String mbti, java.util.List<String> interests) {
+        GuideProfile profile = getByUserId(userId);
+        if (mbti != null) profile.setMbti(mbti.isBlank() ? null : mbti.toUpperCase());
+        if (interests != null) profile.setInterestList(interests);
+        return guideProfileRepository.save(profile);
+    }
+
+    /**
+     * 가이드 활동 상태 변경 (활동 중 ↔ 일시 중단).
+     */
+    @Transactional
+    public GuideProfile setActive(Long userId, boolean active) {
+        GuideProfile profile = getByUserId(userId);
+        profile.setActive(active);
+        return guideProfileRepository.save(profile);
+    }
+
+    private String getExtension(String filename) {
+        if (filename == null) return "";
+        int dot = filename.lastIndexOf('.');
+        return (dot >= 0) ? filename.substring(dot) : "";
+    }
+}

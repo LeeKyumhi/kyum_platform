@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# 환경 변수 (DB 비밀번호 등 민감 정보)
+.env

@@ -1,0 +1,42 @@
+server:
+  port: 8080          # 백엔드 API 서버가 열리는 포트 (http://localhost:8080)
+
+spring:
+  application:
+    name: guide-match
+
+  # 파일 업로드 최대 크기 (기본 1MB는 문서엔 작아서 10MB로 늘림)
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+  # DB 접속 정보 — 실제 값은 .env 파일에서 읽어온다 (코드에 비밀번호를 직접 안 적음)
+  datasource:
+    url: ${SUPABASE_DB_URL}
+    username: ${SUPABASE_DB_USER}
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  # JPA 설정 아래에 JWT 설정 추가
+  jpa:
+    hibernate:
+      # update = 자바 엔티티(테이블 설계)를 보고 DB에 테이블을 자동 생성/수정
+      # (개발 초기엔 편리. 나중에 운영 단계에선 migration 방식으로 바꿀 예정)
+      ddl-auto: update
+    show-sql: true     # 실행되는 SQL을 콘솔에 출력 (학습/디버깅용)
+    properties:
+      hibernate:
+        format_sql: true
+
+# JWT(로그인 토큰) 설정
+jwt:
+  secret: ${JWT_SECRET}        # 토큰 서명에 쓰는 비밀키 (.env에서 읽음)
+  expiration-ms: 86400000      # 토큰 유효시간: 24시간 (밀리초 단위)
+
+# Supabase Storage(파일 보관소) 설정
+supabase:
+  url: ${SUPABASE_URL}
+  service-key: ${SUPABASE_SERVICE_KEY}
+  storage:
+    credentials-bucket: credentials   # 자격증 파일을 저장할 버킷 이름

@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #F8F8FF;
+  --surface: #FFFFFF;
+  --primary: #4F46E5;
+  --primary-dark: #3730A3;
+  --primary-light: #EEF2FF;
+  --amber: #F59E0B;
+  --emerald: #10B981;
+  --red: #EF4444;
+  --border: #E5E7EB;
+  --text: #111827;
+  --muted: #6B7280;
+  --radius: 12px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow: 0 4px 16px rgba(79,70,229,0.08), 0 1px 4px rgba(0,0,0,0.06);
+  --shadow-lg: 0 12px 32px rgba(79,70,229,0.12), 0 4px 8px rgba(0,0,0,0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  color: var(--text);
+  background: var(--bg);
+  font-family: 'Inter', 'Noto Sans KR', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Custom Component Layer ────────────────────────── */
+@layer components {
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100 shadow-sm;
+  }
+  .card-hover {
+    @apply card transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 hover:border-indigo-100;
+  }
+
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition-all duration-150 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary-lg {
+    @apply btn-primary px-7 py-3.5 text-base rounded-xl;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all duration-150 hover:bg-gray-50 hover:border-gray-300 active:scale-95;
+  }
+  .btn-secondary-lg {
+    @apply btn-secondary px-7 py-3.5 text-base rounded-xl;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900;
+  }
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-all hover:bg-red-100;
+  }
+
+  /* Inputs */
+  .input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100;
+  }
+  .input-label {
+    @apply block text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1.5;
+  }
+
+  /* Badges */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .badge-indigo  { @apply badge bg-indigo-50 text-indigo-700; }
+  .badge-emerald { @apply badge bg-emerald-50 text-emerald-700; }
+  .badge-amber   { @apply badge bg-amber-50 text-amber-700; }
+  .badge-red     { @apply badge bg-red-50 text-red-700; }
+  .badge-gray    { @apply badge bg-gray-100 text-gray-600; }
+
+  /* Page shell */
+  .page {
+    @apply min-h-screen pt-20 pb-16;
+  }
+  .container-sm {
+    @apply mx-auto w-full max-w-lg px-4;
+  }
+  .container-md {
+    @apply mx-auto w-full max-w-3xl px-4;
+  }
+  .container-lg {
+    @apply mx-auto w-full max-w-5xl px-4;
+  }
+
+  /* Section headings */
+  .section-title {
+    @apply text-2xl font-bold text-gray-900;
+  }
+  .section-subtitle {
+    @apply mt-1 text-sm text-gray-500;
+  }
+
+  /* Divider */
+  .divider {
+    @apply my-6 border-t border-gray-100;
+  }
+}
+
+/* ── Scrollbar ─────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #9CA3AF; }
+
+/* ── Animations ────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-up {
+  animation: fadeUp 0.4s ease both;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}

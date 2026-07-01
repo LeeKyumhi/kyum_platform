@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.3.5'
+    id 'io.spring.dependency-management' version '1.1.6'
+}
+
+group = 'com.guidematch'
+version = '0.0.1-SNAPSHOT'
+
+// 이 프로젝트는 Java 21(LTS)로 컴파일한다. (toolchain = 사용할 자바 버전 고정)
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // REST API(웹) 기능
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // DB 접근(JPA) — 자바 객체 <-> DB 테이블 자동 매핑
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // 보안 — 비밀번호 암호화(BCrypt), 인증/인가 기반
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    // 입력값 검증 — @Email, @NotBlank 같은 어노테이션
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+
+    // WebSocket(실시간 통신) + STOMP
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
+
+    // PostgreSQL 드라이버 — 자바가 Postgres와 대화하는 통역기 (실행 시에만 필요)
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // .env 파일을 읽어 환경변수처럼 쓰게 해주는 도구 (DB 비밀번호 보관용)
+    implementation 'me.paulschwarz:spring-dotenv:4.0.0'
+
+    // JWT(출입증 토큰) 생성/검증 라이브러리
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
+    // 테스트 도구
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
