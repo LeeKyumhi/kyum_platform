@@ -25,6 +25,8 @@ export default function TravelerHome() {
 
   const links = [
     { href: "/guides",               icon: "🔍", title: l.link1title, desc: l.link1desc },
+    { href: "/explore",              icon: "🗺️", title: t.explore.title, desc: t.explore.subtitle },
+    { href: "/trips",                icon: "🧳", title: t.itinerary.title, desc: t.itinerary.subtitle },
     { href: "/traveler/bookings",    icon: "📋", title: l.link2title, desc: l.link2desc },
     { href: "/traveler/following",   icon: "❤️", title: t.personality.followingTitle, desc: t.personality.following },
     { href: "/traveler/profile",     icon: "✨", title: t.travelerProfile.link, desc: t.travelerProfile.linkDesc },

@@ -14,6 +14,9 @@ public record GuideDetailResponse(
         Integer hourlyRate,
         String currency,
         String region,
+        String city,
+        Double latitude,
+        Double longitude,
         String avatarUrl,
         double avgRating,
         long reviewCount,
@@ -41,6 +44,7 @@ public record GuideDetailResponse(
         return new GuideDetailResponse(
                 profile.getId(), guideName, profile.getHeadline(), profile.getIntroduction(),
                 profile.getHourlyRate(), profile.getCurrency(), profile.getRegion(),
+                profile.getCity(), profile.getLatitude(), profile.getLongitude(),
                 profile.getAvatarUrl(), avgRating, reviewCount, followerCount, isFollowing,
                 profile.getMbti(), profile.getInterestList(), langs, creds
         );

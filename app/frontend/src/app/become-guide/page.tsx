@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
+import CitySelect from "@/components/CitySelect";
 
 const LEVELS_KEYS = ["NATIVE", "FLUENT", "INTERMEDIATE", "BASIC"] as const;
 const CURRENCIES  = ["KRW", "USD", "EUR", "JPY"];
@@ -26,6 +27,7 @@ export default function BecomeGuidePage() {
   const lp      = t.personality;
 
   const [form, setForm] = useState({ headline: "", introduction: "", hourlyRate: "", currency: "KRW", region: "" });
+  const [coords, setCoords] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
   const [languages, setLanguages] = useState<Language[]>([{ language: "", level: "FLUENT" }]);
   const [mbti, setMbti]           = useState("");
   const [interests, setInterests] = useState<string[]>([]);
@@ -44,7 +46,12 @@ export default function BecomeGuidePage() {
     try {
       await api("/api/guide-profiles", {
         method: "POST", auth: true,
-        body: { ...form, hourlyRate: Number(form.hourlyRate), languages, mbti: mbti || null, interests },
+        body: {
+          ...form,
+          hourlyRate: Number(form.hourlyRate),
+          city: form.region, latitude: coords.lat, longitude: coords.lng,
+          languages, mbti: mbti || null, interests,
+        },
       });
       router.push("/guide/manage");
     } catch (err) {
@@ -80,9 +87,14 @@ export default function BecomeGuidePage() {
                   value={form.introduction} onChange={onChange} rows={4} className="input resize-none" />
               </div>
               <div>
-                <label className="input-label">{l.regionLabel}</label>
-                <input name="region" placeholder={l.regionPlaceholder}
-                  value={form.region} onChange={onChange} required className="input" />
+                <label className="input-label">{t.location.cityLabel}</label>
+                <CitySelect
+                  value={form.region}
+                  onChange={(city, lat, lng) => {
+                    setForm((f) => ({ ...f, region: city }));
+                    setCoords({ lat, lng });
+                  }}
+                />
               </div>
             </div>
           </div>

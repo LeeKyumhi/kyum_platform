@@ -40,7 +40,7 @@ public class GuidePostService {
     }
 
     @Transactional
-    public GuidePost create(Long userId, String content, MultipartFile image) {
+    public GuidePost create(Long userId, String content, String category, MultipartFile image) {
         GuideProfile profile = profileRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("가이드 프로필이 없습니다."));
 
@@ -54,7 +54,8 @@ public class GuidePostService {
             }
         }
 
-        return postRepository.save(new GuidePost(profile.getId(), content, imageUrl));
+        String normalizedCategory = (category != null && !category.isBlank()) ? category.trim() : null;
+        return postRepository.save(new GuidePost(profile.getId(), content, imageUrl, normalizedCategory));
     }
 
     @Transactional(readOnly = true)
@@ -76,8 +77,10 @@ public class GuidePostService {
                         .map(profile -> {
                             String name = userRepository.findById(profile.getUserId())
                                     .map(User::getFullName).orElse("Unknown");
+                            List<String> languages = profile.getLanguages().stream()
+                                    .map(GuideLanguage::getLanguage).toList();
                             return GuidePostWithGuideResponse.from(
-                                    post, profile, name,
+                                    post, profile, name, languages,
                                     interactionService.likeCount(post.getId()),
                                     interactionService.commentCount(post.getId()),
                                     interactionService.isLiked(currentUserId, post.getId())
@@ -85,6 +88,12 @@ public class GuidePostService {
                         }).orElse(null))
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    /** 게시글 조회수 1 증가 (피드 노출 임프레션). 비로그인도 호출 가능. */
+    @Transactional
+    public void recordView(Long postId) {
+        postRepository.incrementViewCount(postId);
     }
 
     @Transactional

@@ -1,23 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import CitySelect from "@/components/CitySelect";
 
 type Language = { language: string; level: string };
 type Guide = {
   id: number; guideName: string; headline: string; hourlyRate: number; currency: string;
-  region: string; avatarUrl: string | null; avgRating: number; reviewCount: number;
-  followerCount: number; mbti: string | null; interests: string[]; languages: Language[];
+  region: string; city: string | null; avatarUrl: string | null; avgRating: number; reviewCount: number;
+  followerCount: number; bookingCount: number; mbti: string | null; interests: string[]; languages: Language[];
 };
 type FeedPost = {
   id: number; guideProfileId: number; guideName: string; guideAvatarUrl: string | null;
-  guideHeadline: string; guideRegion: string; content: string; imageUrl: string | null;
-  createdAt: string; likeCount: number; commentCount: number; isLiked: boolean;
+  guideHeadline: string; guideRegion: string; guideLanguages: string[]; content: string; imageUrl: string | null;
+  viewCount: number; createdAt: string; likeCount: number; commentCount: number; isLiked: boolean;
 };
+type SortKey = "default" | "popular" | "bookings" | "rating";
+type PostSortKey = "recent" | "recommended" | "popular" | "views";
 type PostComment = { id: number; postId: number; userId: number; userName: string; content: string; createdAt: string };
+
+// 세션 동안 조회수를 중복 카운트하지 않도록 이미 본 게시글 ID를 기억 (모듈 레벨)
+const viewedPostIds = new Set<number>();
 
 function GuideAvatar({ src, name, size = "md" }: { src: string | null; name: string; size?: "sm" | "md" }) {
   const cls = size === "sm"
@@ -67,7 +73,25 @@ function PostCard({ post, onLikeChange }: { post: FeedPost; onLikeChange: (id: n
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const articleRef = useRef<HTMLElement | null>(null);
   const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+
+  // 조회수: 카드가 화면에 들어오면(임프레션) 1회 카운트 (세션 내 중복 방지)
+  useEffect(() => {
+    const el = articleRef.current;
+    if (!el || viewedPostIds.has(post.id)) return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting && !viewedPostIds.has(post.id)) {
+          viewedPostIds.add(post.id);
+          api(`/api/posts/${post.id}/view`, { method: "POST" }).catch(() => viewedPostIds.delete(post.id));
+          observer.disconnect();
+        }
+      }
+    }, { threshold: 0.5 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [post.id]);
 
   async function toggleLike() {
     if (!getToken()) { router.push("/login"); return; }
@@ -112,13 +136,16 @@ function PostCard({ post, onLikeChange }: { post: FeedPost; onLikeChange: (id: n
   }
 
   return (
-    <article className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+    <article ref={articleRef} className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
       {/* Guide header */}
       <div className="flex items-center gap-3 p-4">
         <GuideAvatar src={post.guideAvatarUrl} name={post.guideName} size="sm" />
         <div className="flex-1 min-w-0">
           <p className="font-semibold text-gray-900 text-sm leading-tight">{post.guideName}</p>
-          <p className="text-xs text-gray-400 mt-0.5 truncate">📍 {post.guideRegion}</p>
+          <p className="text-xs text-gray-400 truncate mt-0.5">
+            📍 {post.guideRegion}
+            {post.guideLanguages.length > 0 && <span className="text-gray-300"> · 🗣 {post.guideLanguages.join(", ")}</span>}
+          </p>
         </div>
         <Link
           href={`/guides/${post.guideProfileId}`}
@@ -153,6 +180,12 @@ function PostCard({ post, onLikeChange }: { post: FeedPost; onLikeChange: (id: n
           <span className="text-xl leading-none">💬</span>
           {post.commentCount > 0 && <span className="font-medium text-gray-700">{post.commentCount}</span>}
         </button>
+        {post.viewCount > 0 && (
+          <span className="flex items-center gap-1.5 text-sm text-gray-400 ml-auto">
+            <span className="text-base leading-none">👁</span>
+            <span className="font-medium text-gray-500">{post.viewCount.toLocaleString()}</span>
+          </span>
+        )}
       </div>
 
       {/* Content */}
@@ -213,20 +246,23 @@ export default function GuidesPage() {
 
   // Guides tab state
   const [guides, setGuides]       = useState<Guide[]>([]);
-  const [inputRegion, setInputRegion] = useState("");
-  const [region, setRegion]       = useState("");
+  const [city, setCity]           = useState("");   // 선택된 도시 필터 (key)
   const [guidesLoading, setGuidesLoading] = useState(true);
   const [guidesError, setGuidesError]     = useState("");
+  const [sortKey, setSortKey]     = useState<SortKey>("default");
+  const [langFilter, setLangFilter] = useState("");
 
   // Posts tab state
   const [posts, setPosts]         = useState<FeedPost[]>([]);
   const [postsLoading, setPostsLoading] = useState(false);
   const [postsLoaded, setPostsLoaded]   = useState(false);
+  const [postLangFilter, setPostLangFilter] = useState("");
+  const [postSortKey, setPostSortKey]       = useState<PostSortKey>("recent");
 
-  async function loadGuides(regionFilter = "") {
+  async function loadGuides(cityFilter = "") {
     setGuidesLoading(true); setGuidesError("");
     try {
-      const q = regionFilter ? `?region=${encodeURIComponent(regionFilter)}` : "";
+      const q = cityFilter ? `?city=${encodeURIComponent(cityFilter)}` : "";
       setGuides(await api<Guide[]>(`/api/guides${q}`));
     } catch (err) {
       setGuidesError(err instanceof Error ? err.message : t.common.error);
@@ -250,16 +286,63 @@ export default function GuidesPage() {
     if (k === "posts") loadPosts();
   }
 
-  function onSearch(e: React.FormEvent) {
-    e.preventDefault(); setRegion(inputRegion); loadGuides(inputRegion);
-  }
-  function clearSearch() { setInputRegion(""); setRegion(""); loadGuides(""); }
+  function onCityChange(key: string) { setCity(key); loadGuides(key); }
+  function clearSearch() { setCity(""); loadGuides(""); }
 
   function handleLikeChange(postId: number, liked: boolean, likeCount: number) {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: liked, likeCount } : p));
   }
 
   const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+
+  // 로드된 가이드에서 사용 언어 목록 도출 (하드코딩 X)
+  const availableLanguages = useMemo(() => {
+    const set = new Set<string>();
+    guides.forEach((g) => g.languages.forEach((lv) => set.add(lv.language)));
+    return Array.from(set).sort();
+  }, [guides]);
+
+  // 언어 필터 + 정렬 적용 (클라이언트)
+  const visibleGuides = useMemo(() => {
+    let list = guides;
+    if (langFilter) {
+      list = list.filter((g) => g.languages.some((lv) => lv.language === langFilter));
+    }
+    if (sortKey !== "default") {
+      list = [...list].sort((a, b) => {
+        if (sortKey === "popular")  return b.followerCount - a.followerCount;
+        if (sortKey === "bookings") return b.bookingCount - a.bookingCount;
+        if (sortKey === "rating")   return b.avgRating - a.avgRating || b.reviewCount - a.reviewCount;
+        return 0;
+      });
+    }
+    return list;
+  }, [guides, langFilter, sortKey]);
+
+  // 게시글에 등장하는 가이드 언어 목록 도출
+  const availablePostLanguages = useMemo(() => {
+    const set = new Set<string>();
+    posts.forEach((p) => p.guideLanguages.forEach((lng) => set.add(lng)));
+    return Array.from(set).sort();
+  }, [posts]);
+
+  // 언어 필터 + 정렬 적용 (클라이언트)
+  //  · 추천순 = 좋아요*2 + 댓글*2 + 조회수 (참여도 블렌드)
+  //  · 인기순 = 좋아요 · 조회순 = 조회수 · 최신순 = 작성일
+  const visiblePosts = useMemo(() => {
+    let list = posts;
+    if (postLangFilter) {
+      list = list.filter((p) => p.guideLanguages.includes(postLangFilter));
+    }
+    if (postSortKey !== "recent") {
+      const score = (p: FeedPost) =>
+        postSortKey === "popular" ? p.likeCount
+        : postSortKey === "views" ? p.viewCount
+        : p.likeCount * 2 + p.commentCount * 2 + p.viewCount; // recommended
+      list = [...list].sort((a, b) => score(b) - score(a) || +new Date(b.createdAt) - +new Date(a.createdAt));
+    }
+    return list;
+  }, [posts, postLangFilter, postSortKey]);
 
   return (
     <main className="page px-4">
@@ -277,101 +360,121 @@ export default function GuidesPage() {
         {/* ── 가이드 탭 ── */}
         {tab === "guides" && (
           <>
-            <form onSubmit={onSearch} className="mb-6 flex gap-2">
-              <div className="relative flex-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">📍</span>
-                <input placeholder={l.searchPlaceholder} value={inputRegion}
-                  onChange={(e) => setInputRegion(e.target.value)} className="input pl-9" />
-                {inputRegion && (
-                  <button type="button" onClick={clearSearch}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">✕</button>
-                )}
-              </div>
-              <button type="submit" className="btn-primary px-6">{l.searchBtn}</button>
-            </form>
+            <div className="mb-6">
+              <CitySelect value={city} onChange={(key) => onCityChange(key)} />
+            </div>
 
-            {region && (
-              <div className="mb-5 flex items-center gap-2">
+            {city && (
+              <div className="mb-4 flex items-center gap-2">
                 <span className="text-sm text-gray-500">{l.filterLabel}</span>
-                <span className="badge-indigo">{region}
+                <span className="badge-indigo">{city}
                   <button onClick={clearSearch} className="ml-1 opacity-60 hover:opacity-100">✕</button>
                 </span>
               </div>
             )}
 
+            {/* 언어 필터 + 정렬 */}
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <select
+                value={langFilter}
+                onChange={(e) => setLangFilter(e.target.value)}
+                className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="">🌐 {l.langAll}</option>
+                {availableLanguages.map((lng) => (
+                  <option key={lng} value={lng}>{lng}</option>
+                ))}
+              </select>
+              <select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              >
+                <option value="default">↕ {l.sortDefault}</option>
+                <option value="popular">🔥 {l.sortPopular}</option>
+                <option value="bookings">📅 {l.sortBookings}</option>
+                <option value="rating">⭐ {l.sortRating}</option>
+              </select>
+            </div>
+
             {guidesLoading && (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="card p-5 animate-pulse">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-full bg-gray-100" />
-                      <div className="flex-1">
-                        <div className="h-4 bg-gray-100 rounded w-24 mb-1.5" />
-                        <div className="h-3 bg-gray-100 rounded w-16" />
-                      </div>
+              <div className="flex flex-col gap-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="card p-4 animate-pulse flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-full bg-gray-100 flex-shrink-0" />
+                    <div className="flex-1">
+                      <div className="h-4 bg-gray-100 rounded w-32 mb-2" />
+                      <div className="h-3 bg-gray-100 rounded w-48 mb-2" />
+                      <div className="h-3 bg-gray-100 rounded w-24" />
                     </div>
-                    <div className="h-3 bg-gray-100 rounded w-full mb-1.5" />
-                    <div className="h-3 bg-gray-100 rounded w-3/4" />
+                    <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                      <div className="h-4 bg-gray-100 rounded w-16" />
+                      <div className="h-3 bg-gray-100 rounded w-10" />
+                    </div>
                   </div>
                 ))}
               </div>
             )}
             {guidesError && <p className="text-red-600 text-sm">{guidesError}</p>}
-            {!guidesLoading && !guidesError && guides.length === 0 && (
+            {!guidesLoading && !guidesError && visibleGuides.length === 0 && (
               <div className="text-center py-16">
                 <div className="text-4xl mb-3">🔍</div>
                 <p className="text-gray-500">{l.empty}</p>
-                {region && <button onClick={clearSearch} className="mt-3 text-sm text-indigo-600 hover:underline">{l.showAll}</button>}
+                {(city || langFilter) && (
+                  <button
+                    onClick={() => { setLangFilter(""); clearSearch(); }}
+                    className="mt-3 text-sm text-indigo-600 hover:underline"
+                  >
+                    {l.showAll}
+                  </button>
+                )}
               </div>
             )}
             {!guidesLoading && (
-              <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {guides.map((g) => (
-                  <Link key={g.id} href={`/guides/${g.id}`} className="card-hover p-5 block">
-                    <div className="flex items-start gap-3 mb-3">
-                      <GuideAvatar src={g.avatarUrl} name={g.guideName} />
-                      <div className="flex-1 min-w-0">
-                        <h2 className="font-bold text-gray-900 truncate">{g.guideName}</h2>
-                        <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">📍 {g.region}</p>
-                      </div>
-                      <span className="text-indigo-600 font-semibold text-sm whitespace-nowrap">
-                        {g.hourlyRate.toLocaleString()}
-                        <span className="text-xs text-gray-400 font-normal">/{g.currency}{l.perHour}</span>
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600 mb-3 line-clamp-2 leading-relaxed">{g.headline}</p>
-                    {/* MBTI + top interests */}
-                    {(g.mbti || g.interests.length > 0) && (
-                      <div className="flex flex-wrap gap-1 mb-3">
+              <div className="flex flex-col gap-3">
+                {visibleGuides.map((g) => (
+                  <Link key={g.id} href={`/guides/${g.id}`} className="card-hover p-4 flex items-center gap-4">
+                    <GuideAvatar src={g.avatarUrl} name={g.guideName} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h2 className="font-bold text-gray-900">{g.guideName}</h2>
                         {g.mbti && (
                           <span className="rounded-md bg-violet-100 text-violet-700 px-2 py-0.5 text-xs font-bold">{g.mbti}</span>
                         )}
-                        {g.interests.slice(0, 3).map((k) => (
-                          <span key={k} className="rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs">
-                            {t.interests[k as keyof typeof t.interests] ?? k}
-                          </span>
-                        ))}
                       </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-wrap gap-1">
+                      <p className="text-xs text-gray-500 mt-0.5">📍 {g.city ?? g.region}</p>
+                      <p className="text-sm text-gray-600 line-clamp-1 leading-relaxed mt-1">{g.headline}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {g.languages.slice(0, 2).map((lv, i) => (
                           <span key={i} className="badge-indigo text-xs">
                             {lv.language}
                             <span className="opacity-60"> · {t.level[lv.level as keyof typeof t.level] ?? lv.level}</span>
                           </span>
                         ))}
-                        {g.languages.length > 2 && <span className="badge-gray text-xs">+{g.languages.length - 2}</span>}
+                        {g.interests.slice(0, 2).map((k) => (
+                          <span key={k} className="rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs">
+                            {t.interests[k as keyof typeof t.interests] ?? k}
+                          </span>
+                        ))}
                       </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <span className="text-indigo-600 font-semibold text-sm whitespace-nowrap">
+                        {g.hourlyRate.toLocaleString()}
+                        <span className="text-xs text-gray-400 font-normal"> {g.currency}{l.perHour}</span>
+                      </span>
+                      {g.reviewCount > 0 && (
+                        <span className="flex items-center gap-0.5">
+                          <span className="text-amber-400 text-sm">★</span>
+                          <span className="text-sm font-semibold text-gray-800">{g.avgRating.toFixed(1)}</span>
+                        </span>
+                      )}
                       <div className="flex items-center gap-2">
+                        {g.bookingCount > 0 && (
+                          <span className="text-xs text-gray-400">📅 {g.bookingCount}</span>
+                        )}
                         {g.followerCount > 0 && (
                           <span className="text-xs text-gray-400">👥 {g.followerCount}</span>
-                        )}
-                        {g.reviewCount > 0 && (
-                          <span className="flex items-center gap-0.5">
-                            <span className="text-amber-400 text-sm">★</span>
-                            <span className="text-sm font-semibold text-gray-800">{g.avgRating.toFixed(1)}</span>
-                          </span>
                         )}
                       </div>
                     </div>
@@ -385,6 +488,32 @@ export default function GuidesPage() {
         {/* ── 게시글 탭 ── */}
         {tab === "posts" && (
           <>
+            {/* 가이드 언어 필터 + 정렬 (가이드 찾기 탭과 동일한 드롭다운 스타일) */}
+            {!postsLoading && posts.length > 0 && (
+              <div className="max-w-[468px] mx-auto mb-4 flex flex-wrap items-center gap-2">
+                <select
+                  value={postLangFilter}
+                  onChange={(e) => setPostLangFilter(e.target.value)}
+                  className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                >
+                  <option value="">🗣 {l.langAll}</option>
+                  {availablePostLanguages.map((lng) => (
+                    <option key={lng} value={lng}>{lng}</option>
+                  ))}
+                </select>
+                <select
+                  value={postSortKey}
+                  onChange={(e) => setPostSortKey(e.target.value as PostSortKey)}
+                  className="rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                >
+                  <option value="recent">🕘 {l.postSortRecent}</option>
+                  <option value="recommended">✨ {l.postSortRecommended}</option>
+                  <option value="popular">🔥 {l.postSortPopular}</option>
+                  <option value="views">👁 {l.postSortViews}</option>
+                </select>
+              </div>
+            )}
+
             {postsLoading && (
               <div className="max-w-[468px] mx-auto flex flex-col gap-4">
                 {[...Array(3)].map((_, i) => (
@@ -413,9 +542,17 @@ export default function GuidesPage() {
               </div>
             )}
 
-            {!postsLoading && posts.length > 0 && (
+            {!postsLoading && posts.length > 0 && visiblePosts.length === 0 && (
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">🗂️</div>
+                <p className="text-gray-500 text-sm">{l.feedEmpty}</p>
+                <button onClick={() => setPostLangFilter("")} className="mt-3 text-sm text-indigo-600 hover:underline">{l.langAll}</button>
+              </div>
+            )}
+
+            {!postsLoading && visiblePosts.length > 0 && (
               <div className="max-w-[468px] mx-auto flex flex-col gap-1 sm:gap-4">
-                {posts.map((p) => (
+                {visiblePosts.map((p) => (
                   <PostCard key={p.id} post={p} onLikeChange={handleLikeChange} />
                 ))}
               </div>

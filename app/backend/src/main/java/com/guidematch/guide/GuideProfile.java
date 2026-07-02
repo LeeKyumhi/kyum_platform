@@ -42,6 +42,17 @@ public class GuideProfile {
     @Column(nullable = false)
     private String region;
 
+    /** 정형화된 도시 (신규 표준 필드). 기존 free-text region은 레거시로 유지. */
+    @Column(name = "city")
+    private String city;
+
+    /** 위치 좌표 (GPS/거리순 정렬용). 선택. */
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     @Column(name = "avatar_url")
     private String avatarUrl;
 
@@ -100,6 +111,16 @@ public class GuideProfile {
     public Integer getHourlyRate() { return hourlyRate; }
     public String getCurrency() { return currency; }
     public String getRegion() { return region; }
+    public String getCity() { return city; }
+    public Double getLatitude() { return latitude; }
+    public Double getLongitude() { return longitude; }
+    /** 도시/좌표 갱신. region 컬럼은 레거시 표시용으로 함께 채워둔다. */
+    public void updateLocation(String city, Double latitude, Double longitude) {
+        this.city = city;
+        this.latitude = latitude;
+        this.longitude = longitude;
+        if (city != null && !city.isBlank()) this.region = city;
+    }
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public boolean isActive() { return active; }

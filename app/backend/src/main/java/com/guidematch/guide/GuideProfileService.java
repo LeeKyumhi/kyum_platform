@@ -70,7 +70,18 @@ public class GuideProfileService {
         if (request.interests() != null) {
             profile.setInterestList(request.interests());
         }
+        if (request.city() != null && !request.city().isBlank()) {
+            profile.updateLocation(request.city(), request.latitude(), request.longitude());
+        }
 
+        return guideProfileRepository.save(profile);
+    }
+
+    /** 가이드 위치(도시+좌표) 업데이트. */
+    @Transactional
+    public GuideProfile updateLocation(Long userId, String city, Double latitude, Double longitude) {
+        GuideProfile profile = getByUserId(userId);
+        profile.updateLocation(city, latitude, longitude);
         return guideProfileRepository.save(profile);
     }
 

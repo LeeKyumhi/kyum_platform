@@ -36,7 +36,8 @@ export default function SignupPage() {
     <main className="page flex items-center justify-center px-4">
       <div className="w-full max-w-sm animate-fade-up">
         <div className="mb-8 text-center">
-          <span className="text-3xl">🌏</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="peerup" className="mx-auto h-20 w-auto" />
           <h1 className="mt-3 text-2xl font-bold text-gray-900">{l.title}</h1>
           <p className="mt-1 text-sm text-gray-500">{l.sub}</p>
         </div>

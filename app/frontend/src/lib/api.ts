@@ -3,11 +3,9 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
-const TOKEN_KEY = "accessToken";
+const TOKEN_KEY    = "accessToken";
+const USER_NAME_KEY = "userName";
 
-// --- JWT 토큰 보관 (브라우저 localStorage 사용) ---
-// 참고: localStorage는 간단하지만 XSS 공격에 노출될 수 있어,
-// 나중에 보안을 강화할 땐 httpOnly 쿠키 방식으로 바꾸는 걸 고려한다.
 export function saveToken(token: string) {
   if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
 }
@@ -18,7 +16,19 @@ export function getToken(): string | null {
 }
 
 export function clearToken() {
-  if (typeof window !== "undefined") localStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_NAME_KEY);
+  }
+}
+
+export function saveUserName(name: string) {
+  if (typeof window !== "undefined") localStorage.setItem(USER_NAME_KEY, name);
+}
+
+export function getUserName(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(USER_NAME_KEY);
 }
 
 type ApiOptions = {

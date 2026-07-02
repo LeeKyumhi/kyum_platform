@@ -28,6 +28,11 @@ public record CreateGuideProfileRequest(
         @NotBlank(message = "활동 지역은 필수입니다.")
         String region,
 
+        // 정형화된 위치 (선택). 프론트 CitySelect가 채움. region엔 도시명이 함께 들어온다.
+        String city,
+        Double latitude,
+        Double longitude,
+
         @NotEmpty(message = "가능 언어를 최소 1개 입력하세요.")
         @Valid
         List<LanguageDto> languages,

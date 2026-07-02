@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api, apiUpload, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
-import SlotCalendar from "@/components/SlotCalendar";
+import CitySelect from "@/components/CitySelect";
 
 const CRED_KEYS = ["EDUCATION", "CERTIFICATE", "LICENSE"] as const;
 const MBTI_TYPES = [
@@ -16,39 +16,27 @@ const MBTI_TYPES = [
   ["ISTP","ISFP","ESTP","ESFP"],
 ] as const;
 
-type Profile    = { id: number; headline: string; region: string; hourlyRate: number; currency: string; avatarUrl: string | null; active: boolean; mbti: string | null; interests: string[] };
+type Profile    = { id: number; headline: string; region: string; city: string | null; hourlyRate: number; currency: string; avatarUrl: string | null; active: boolean; mbti: string | null; interests: string[] };
 type Credential = { id: number; type: string; title: string; fileUrl: string };
-type GuidePost  = { id: number; content: string; imageUrl: string | null; createdAt: string };
-type AvailableSlot = { id: number; guideProfileId: number; startAt: string; endAt: string };
 
 export default function GuideManagePage() {
   const router      = useRouter();
-  const { t, lang } = useLanguage();
+  const { t } = useLanguage();
   const l           = t.guideManage;
-  const lp          = t.guidePosts;
   const lper        = t.personality;
 
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [credentials, setCredentials] = useState<Credential[]>([]);
-  const [posts, setPosts]             = useState<GuidePost[]>([]);
-  const [slots, setSlots]             = useState<AvailableSlot[]>([]);
   const [error, setError]             = useState("");
   const [noProfile, setNoProfile]     = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [togglingActive, setTogglingActive]   = useState(false);
-
 
   // Personality (MBTI + interests)
   const [editingPersonality, setEditingPersonality] = useState(false);
   const [editMbti, setEditMbti]         = useState("");
   const [editInterests, setEditInterests] = useState<string[]>([]);
   const [savingPersonality, setSavingPersonality] = useState(false);
-
-  // Post form
-  const [postContent, setPostContent]   = useState("");
-  const [postImage, setPostImage]       = useState<File | null>(null);
-  const [postImagePreview, setPostImagePreview] = useState<string | null>(null);
-  const [postSubmitting, setPostSubmitting]     = useState(false);
 
   // Credential form
   const [credType, setCredType]   = useState("CERTIFICATE");
@@ -61,23 +49,13 @@ export default function GuideManagePage() {
     setCredentials(creds);
   }, []);
 
-  const loadPosts = useCallback(async (profileId: number) => {
-    const data = await api<GuidePost[]>(`/api/guides/${profileId}/posts`);
-    setPosts(data);
-  }, []);
-
-  const loadSlots = useCallback(async (profileId: number) => {
-    const data = await api<AvailableSlot[]>(`/api/guides/${profileId}/slots`);
-    setSlots(data);
-  }, []);
-
   const loadProfile = useCallback(async () => {
     try {
       const p = await api<Profile>("/api/guide-profiles/me", { auth: true });
       setProfile(p);
-      await Promise.all([loadCredentials(), loadPosts(p.id), loadSlots(p.id)]);
+      await loadCredentials();
     } catch { setNoProfile(true); }
-  }, [loadCredentials, loadPosts, loadSlots]);
+  }, [loadCredentials]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -104,17 +82,29 @@ export default function GuideManagePage() {
     finally { setSavingPersonality(false); }
   }
 
-  async function onToggleActive() {
-    if (!profile) return;
+  async function onSetActive(next: boolean) {
+    if (!profile || profile.active === next) return;
     setError(""); setTogglingActive(true);
     try {
       const updated = await api<Profile>("/api/guide-profiles/me/active", {
         method: "PATCH", auth: true,
-        body: { active: !profile.active },
+        body: { active: next },
       });
       setProfile(updated);
     } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
     finally { setTogglingActive(false); }
+  }
+
+  async function onSetLocation(city: string, lat: number | null, lng: number | null) {
+    if (!profile || !city) return;
+    setError("");
+    try {
+      const updated = await api<Profile>("/api/guide-profiles/me/location", {
+        method: "PATCH", auth: true,
+        body: { city, latitude: lat, longitude: lng },
+      });
+      setProfile(updated);
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
   }
 
   async function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -126,58 +116,6 @@ export default function GuideManagePage() {
       setProfile(updated);
     } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
     finally { setAvatarUploading(false); }
-  }
-
-  function onPostImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null;
-    setPostImage(file);
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPostImagePreview(url);
-    } else {
-      setPostImagePreview(null);
-    }
-  }
-
-  async function onPostSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!postContent.trim() || !profile) return;
-    setError(""); setPostSubmitting(true);
-    try {
-      const fd = new FormData();
-      fd.append("content", postContent.trim());
-      if (postImage) fd.append("image", postImage);
-      await apiUpload<GuidePost>("/api/guide-profiles/me/posts", fd, { auth: true });
-      setPostContent(""); setPostImage(null); setPostImagePreview(null);
-      await loadPosts(profile.id);
-    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
-    finally { setPostSubmitting(false); }
-  }
-
-  async function onDeletePost(postId: number) {
-    if (!confirm(lp.deleteConfirm)) return;
-    try {
-      await api(`/api/guide-profiles/me/posts/${postId}`, { method: "DELETE", auth: true });
-      setPosts((prev) => prev.filter((p) => p.id !== postId));
-    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
-  }
-
-  async function onAddSlot(startAt: string, endAt: string) {
-    if (!profile) return;
-    setError("");
-    await api("/api/guide-profiles/me/slots", {
-      method: "POST", auth: true,
-      body: { startAt, endAt },
-    });
-    await loadSlots(profile.id);
-  }
-
-  async function onDeleteSlot(slotId: number) {
-    if (!profile) return;
-    try {
-      await api(`/api/guide-profiles/me/slots/${slotId}`, { method: "DELETE", auth: true });
-      setSlots((prev) => prev.filter((s) => s.id !== slotId));
-    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
   }
 
   async function onCredentialSubmit(e: React.FormEvent) {
@@ -222,23 +160,45 @@ export default function GuideManagePage() {
 
         {/* Profile card */}
         <div className="card p-6 mb-5">
-          <div className="flex items-start justify-between mb-1">
-            <h2 className="font-semibold text-gray-900">{profile.headline}</h2>
+          <h2 className="font-semibold text-gray-900 mb-2">{profile.headline}</h2>
+          {/* 예약 상태 세그먼트 토글 */}
+          <div className="inline-flex rounded-full bg-gray-100 p-1 mb-1">
             <button
-              onClick={onToggleActive}
+              onClick={() => onSetActive(true)}
               disabled={togglingActive}
-              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-60 ${
                 profile.active
-                  ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-              } disabled:opacity-60`}
+                  ? "bg-emerald-500 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
             >
-              <span className={`h-2 w-2 rounded-full ${profile.active ? "bg-emerald-500" : "bg-gray-400"}`} />
-              {togglingActive ? "..." : profile.active ? l.activeOn : l.activeOff}
+              <span className={`h-2 w-2 rounded-full ${profile.active ? "bg-white" : "bg-gray-300"}`} />
+              {l.activeOn}
+            </button>
+            <button
+              onClick={() => onSetActive(false)}
+              disabled={togglingActive}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-60 ${
+                !profile.active
+                  ? "bg-gray-700 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <span className={`h-2 w-2 rounded-full ${!profile.active ? "bg-white" : "bg-gray-300"}`} />
+              {l.activeOff}
             </button>
           </div>
           <p className="text-xs text-gray-400 mb-1">{l.activeHint}</p>
-          <p className="text-sm text-gray-500 mb-4">📍 {profile.region} · {profile.hourlyRate.toLocaleString()} {profile.currency}/hr</p>
+          <p className="text-sm text-gray-500 mb-3">📍 {profile.city ?? profile.region} · {profile.hourlyRate.toLocaleString()} {profile.currency}/hr</p>
+
+          {/* 활동 도시 변경 */}
+          <div className="mb-4">
+            <label className="input-label">{t.location.cityLabel}</label>
+            <CitySelect
+              value={profile.city ?? ""}
+              onChange={(city, lat, lng) => onSetLocation(city, lat, lng)}
+            />
+          </div>
 
           <div className="flex items-center gap-5">
             <div className="relative">
@@ -333,78 +293,6 @@ export default function GuideManagePage() {
                 </button>
                 <button onClick={() => setEditingPersonality(false)} className="btn-ghost text-sm py-2 px-4">취소</button>
               </div>
-            </div>
-          )}
-        </div>
-
-        {/* Available Slots */}
-        <div className="card p-6 mb-5">
-          <h2 className="font-semibold text-gray-900 mb-4">📅 {t.availability.sectionTitle}</h2>
-          <SlotCalendar
-            mode="guide"
-            slots={slots}
-            onAddSlot={onAddSlot}
-            onDeleteSlot={onDeleteSlot}
-          />
-        </div>
-
-        {/* Post composer */}
-        <div className="card p-6 mb-5">
-          <h2 className="font-semibold text-gray-900 mb-4">{lp.manageTitle}</h2>
-
-          <form onSubmit={onPostSubmit} className="rounded-xl bg-gray-50 border border-gray-100 p-4 mb-5">
-            <textarea
-              placeholder={lp.postPlaceholder}
-              value={postContent}
-              onChange={(e) => setPostContent(e.target.value)}
-              rows={3}
-              required
-              className="input resize-none mb-3"
-            />
-            {postImagePreview && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={postImagePreview} alt="preview"
-                className="mb-3 w-full max-h-60 rounded-xl object-cover" />
-            )}
-            <div className="flex items-center gap-3">
-              <label className="btn-ghost text-sm cursor-pointer px-3 py-1.5">
-                {postImage ? lp.imageBtnChange : lp.imageBtnAdd}
-                <input type="file" accept="image/*" onChange={onPostImageChange} className="hidden" />
-              </label>
-              <span className="text-xs text-gray-400 flex-1">{postImage ? postImage.name : lp.imageHint}</span>
-              <button type="submit" disabled={postSubmitting || !postContent.trim()} className="btn-primary text-sm py-2 px-4">
-                {postSubmitting ? lp.submitting : lp.submitBtn}
-              </button>
-            </div>
-          </form>
-
-          {/* Post list */}
-          {posts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">{lp.manageEmpty}</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {posts.map((p) => (
-                <div key={p.id} className="rounded-xl border border-gray-100 overflow-hidden">
-                  {p.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.imageUrl} alt="" className="w-full h-48 object-cover" />
-                  )}
-                  <div className="p-4">
-                    <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed mb-2">{p.content}</p>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-gray-400">
-                        {new Date(p.createdAt).toLocaleDateString(lang === "ko" ? "ko-KR" : "en-US")}
-                      </span>
-                      <button
-                        onClick={() => onDeletePost(p.id)}
-                        className="text-xs text-red-400 hover:text-red-600 font-medium"
-                      >
-                        {lp.deleteBtn}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>

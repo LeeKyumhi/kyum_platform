@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, clearToken, getToken } from "@/lib/api";
 import { clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
+import SlotCalendar from "@/components/SlotCalendar";
 
 type Me = { id: number; fullName: string };
+type Profile = { id: number; headline: string };
+type AvailableSlot = { id: number; guideProfileId: number; startAt: string; endAt: string };
 
 export default function GuideHome() {
   const router = useRouter();
@@ -15,20 +18,47 @@ export default function GuideHome() {
   const l = t.guideHome;
 
   const [me, setMe] = useState<Me | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [hasProfile, setHasProfile] = useState<boolean | null>(null);
+  const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [error, setError] = useState("");
+
+  const loadSlots = useCallback(async (profileId: number) => {
+    const data = await api<AvailableSlot[]>(`/api/guides/${profileId}/slots`);
+    setSlots(data);
+  }, []);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
     api<Me>("/api/users/me", { auth: true }).then(setMe).catch(() => router.replace("/login"));
-    api("/api/guide-profiles/me", { auth: true }).then(() => setHasProfile(true)).catch(() => setHasProfile(false));
-  }, [router]);
+    api<Profile>("/api/guide-profiles/me", { auth: true })
+      .then((p) => {
+        setProfile(p);
+        setHasProfile(true);
+        loadSlots(p.id);
+      })
+      .catch(() => setHasProfile(false));
+  }, [router, loadSlots]);
 
   function onLogout() { clearToken(); clearMode(); router.push("/"); }
 
-  const guideLinks = [
-    { href: "/guide/manage",   icon: "✏️",  title: l.link1title, desc: l.link1desc },
-    { href: "/guide/requests", icon: "📬",  title: l.link2title, desc: l.link2desc },
-  ];
+  async function onAddSlot(startAt: string, endAt: string) {
+    if (!profile) return;
+    setError("");
+    await api("/api/guide-profiles/me/slots", {
+      method: "POST", auth: true,
+      body: { startAt, endAt },
+    });
+    await loadSlots(profile.id);
+  }
+
+  async function onDeleteSlot(slotId: number) {
+    if (!profile) return;
+    try {
+      await api(`/api/guide-profiles/me/slots/${slotId}`, { method: "DELETE", auth: true });
+      setSlots((prev) => prev.filter((s) => s.id !== slotId));
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+  }
 
   return (
     <main className="page px-4">
@@ -37,12 +67,16 @@ export default function GuideHome() {
           <span className="badge-indigo py-1 px-3 text-sm">{l.badge}</span>
           <Link href="/select-mode" className="text-sm text-indigo-600 hover:underline font-medium">{l.switchMode}</Link>
         </div>
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">
             {l.greeting}{me ? `, ${me.fullName}` : ""}! 👋
           </h1>
           <p className="mt-1 text-gray-500 text-sm">{l.sub}</p>
         </div>
+
+        {error && (
+          <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 border border-red-100">{error}</div>
+        )}
 
         {hasProfile === false && (
           <div className="card p-6 mb-5 border border-indigo-100 bg-indigo-50/50 text-center">
@@ -52,24 +86,67 @@ export default function GuideHome() {
             <Link href="/become-guide" className="btn-primary">{l.noProfileBtn}</Link>
           </div>
         )}
+
         {hasProfile === null && (
           <div className="flex flex-col gap-3 mb-5">
-            {[1, 2].map((i) => <div key={i} className="card p-5 animate-pulse h-20" />)}
+            {[1, 2, 3].map((i) => <div key={i} className="card p-5 animate-pulse h-20" />)}
           </div>
         )}
+
         {hasProfile && (
-          <div className="flex flex-col gap-3 mb-8">
-            {guideLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="card-hover p-5 flex items-center gap-4">
-                <span className="text-2xl">{link.icon}</span>
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">{link.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{link.desc}</p>
+          <>
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <Link href="/guide/manage" className="card-hover p-4 flex items-center gap-3">
+                <span className="text-xl">✏️</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{l.link1title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{l.link1desc}</p>
                 </div>
-                <span className="text-gray-300">→</span>
               </Link>
-            ))}
-          </div>
+              <Link href="/guide/requests" className="card-hover p-4 flex items-center gap-3">
+                <span className="text-xl">📬</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{l.link2title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{l.link2desc}</p>
+                </div>
+              </Link>
+            </div>
+            <Link href="/guide/posts" className="card-hover p-4 flex items-center gap-4 mb-6">
+              <span className="text-xl">📷</span>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900 text-sm">{l.link3title}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{l.link3desc}</p>
+              </div>
+              <span className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-lg font-light flex-shrink-0">+</span>
+            </Link>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              <Link href="/explore" className="card-hover p-4 flex items-center gap-3">
+                <span className="text-xl">🗺️</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{t.explore.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t.explore.subtitle}</p>
+                </div>
+              </Link>
+              <Link href="/trips" className="card-hover p-4 flex items-center gap-3">
+                <span className="text-xl">🧳</span>
+                <div>
+                  <p className="font-semibold text-gray-900 text-sm">{t.itinerary.title}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{t.itinerary.subtitle}</p>
+                </div>
+              </Link>
+            </div>
+
+            <div className="card p-6 mb-5">
+              <h2 className="font-semibold text-gray-900 mb-4">📅 {t.availability.sectionTitle}</h2>
+              <SlotCalendar
+                mode="guide"
+                slots={slots}
+                onAddSlot={onAddSlot}
+                onDeleteSlot={onDeleteSlot}
+              />
+            </div>
+
+          </>
         )}
 
         <div className="divider" />

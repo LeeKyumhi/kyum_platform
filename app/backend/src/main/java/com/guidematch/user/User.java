@@ -44,6 +44,16 @@ public class User {
     /** 국적 (선택 입력) */
     private String nationality;
 
+    /** 여행자 위치: 정형화된 도시 + 좌표 (선택). */
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     /** MBTI (선택, 예: ENFP) */
     @Column(length = 4)
     private String mbti;
@@ -104,6 +114,15 @@ public class User {
 
     public void setNationality(String nationality) {
         this.nationality = nationality;
+    }
+
+    public String getCity() { return city; }
+    public Double getLatitude() { return latitude; }
+    public Double getLongitude() { return longitude; }
+    public void updateLocation(String city, Double latitude, Double longitude) {
+        this.city = city;
+        this.latitude = latitude;
+        this.longitude = longitude;
     }
 
     public String getMbti() { return mbti; }

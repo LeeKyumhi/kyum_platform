@@ -13,6 +13,9 @@ public record GuideProfileResponse(
         Integer hourlyRate,
         String currency,
         String region,
+        String city,
+        Double latitude,
+        Double longitude,
         String avatarUrl,
         boolean active,
         String mbti,
@@ -29,7 +32,8 @@ public record GuideProfileResponse(
         return new GuideProfileResponse(
                 profile.getId(), profile.getUserId(), profile.getHeadline(),
                 profile.getIntroduction(), profile.getHourlyRate(), profile.getCurrency(),
-                profile.getRegion(), profile.getAvatarUrl(), profile.isActive(),
+                profile.getRegion(), profile.getCity(), profile.getLatitude(), profile.getLongitude(),
+                profile.getAvatarUrl(), profile.isActive(),
                 profile.getMbti(), profile.getInterestList(), langs
         );
     }

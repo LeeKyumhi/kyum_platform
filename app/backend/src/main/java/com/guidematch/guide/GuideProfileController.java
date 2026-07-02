@@ -76,6 +76,19 @@ public class GuideProfileController {
 
     record PersonalityRequest(String mbti, List<String> interests) {}
 
+    /** 활동 위치(도시 + 좌표) 업데이트 */
+    @PatchMapping("/me/location")
+    public GuideProfileResponse updateLocation(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody LocationRequest request
+    ) {
+        GuideProfile profile = guideProfileService.updateLocation(
+                userId, request.city(), request.latitude(), request.longitude());
+        return GuideProfileResponse.from(profile);
+    }
+
+    record LocationRequest(String city, Double latitude, Double longitude) {}
+
     /** 내 프로필 사진 업로드 */
     @PostMapping(value = "/me/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public GuideProfileResponse uploadAvatar(

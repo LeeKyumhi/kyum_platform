@@ -31,6 +31,13 @@ public class GuidePostController {
         return postService.listAll(userId);
     }
 
+    /** 게시글 조회수 증가 (공개, 비로그인 포함). 피드에 노출될 때 호출. */
+    @PostMapping("/api/posts/{postId}/view")
+    public ResponseEntity<Void> recordView(@PathVariable Long postId) {
+        postService.recordView(postId);
+        return ResponseEntity.noContent().build();
+    }
+
     /** 특정 가이드의 게시글 목록 (공개) */
     @GetMapping("/api/guides/{guideProfileId}/posts")
     public List<GuidePostResponse> list(
@@ -45,9 +52,10 @@ public class GuidePostController {
     public ResponseEntity<GuidePostResponse> create(
             @AuthenticationPrincipal Long userId,
             @RequestParam("content") String content,
+            @RequestParam(value = "category", required = false) String category,
             @RequestParam(value = "image", required = false) MultipartFile image
     ) {
-        GuidePost post = postService.create(userId, content, image);
+        GuidePost post = postService.create(userId, content, category, image);
         return ResponseEntity.status(HttpStatus.CREATED).body(GuidePostResponse.from(post));
     }
 

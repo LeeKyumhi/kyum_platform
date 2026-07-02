@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getToken, clearToken } from "@/lib/api";
+import { getToken, clearToken, getUserName } from "@/lib/api";
 import { getMode, clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
 import type { Lang } from "@/lib/i18n";
@@ -21,14 +21,17 @@ export default function Navbar() {
 
   const [loggedIn, setLoggedIn]   = useState(false);
   const [mode, setMode]           = useState<string | null>(null);
+  const [userName, setUserName]   = useState<string | null>(null);
   const [scrolled, setScrolled]   = useState(false);
   const [menuOpen, setMenuOpen]   = useState(false);
   const [langOpen, setLangOpen]   = useState(false);
   const langRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setLoggedIn(!!getToken());
+    const token = !!getToken();
+    setLoggedIn(token);
     setMode(getMode());
+    setUserName(token ? getUserName() : null);
   }, [pathname]);
 
   useEffect(() => {
@@ -74,11 +77,13 @@ export default function Navbar() {
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
         {/* Logo */}
         <Link href="/"
-          className="flex items-center gap-2 font-bold text-lg hover:opacity-80 transition-opacity">
-          <span className="text-2xl">🌏</span>
-          <span className={`${isTransparent ? "text-white" : "text-gray-900"} transition-colors`}>
-            PeerUp
-          </span>
+          className="flex items-center hover:opacity-80 transition-opacity">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt="peerup"
+            className={`h-10 w-auto ${isTransparent ? "drop-shadow-[0_1px_4px_rgba(0,0,0,0.35)]" : ""}`}
+          />
         </Link>
 
         {/* Desktop nav */}
@@ -88,7 +93,17 @@ export default function Navbar() {
           {loggedIn ? (
             <>
               <Link href={dashboardHref} className={ghostCls}>{t.nav.dashboard}</Link>
-              <button onClick={onLogout} className={ghostCls}>{t.nav.logout}</button>
+              <Link
+                href="/profile"
+                className={`relative flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm transition-opacity hover:opacity-80 flex-shrink-0 ml-1 ${
+                  isTransparent
+                    ? "bg-white/20 text-white ring-2 ring-white/40"
+                    : "bg-indigo-600 text-white ring-2 ring-indigo-100"
+                }`}
+                title={userName ?? ""}
+              >
+                {userName ? userName.slice(0, 1).toUpperCase() : "?"}
+              </Link>
             </>
           ) : (
             <>
@@ -144,6 +159,12 @@ export default function Navbar() {
             <>
               <Link href={dashboardHref} className="btn-ghost justify-start py-3" onClick={() => setMenuOpen(false)}>
                 {t.nav.dashboard}
+              </Link>
+              <Link href="/profile" className="btn-ghost justify-start py-3 flex items-center gap-3" onClick={() => setMenuOpen(false)}>
+                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex-shrink-0">
+                  {userName ? userName.slice(0, 1).toUpperCase() : "?"}
+                </span>
+                <span>{userName ?? t.nav.dashboard}</span>
               </Link>
               <button onClick={onLogout} className="btn-ghost justify-start py-3 text-red-500 hover:text-red-600 hover:bg-red-50">
                 {t.nav.logout}

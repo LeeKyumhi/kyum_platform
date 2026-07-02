@@ -53,6 +53,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/followers/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/slots").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()
+                        // 게시글 조회수 증가는 비로그인 방문자도 카운트 (임프레션)
+                        .requestMatchers(HttpMethod.POST, "/api/posts/*/view").permitAll()
+                        // 도시 목록·위치 역지오코딩·지역 장소 검색은 비로그인도 사용 (도시 선택/둘러보기 UI)
+                        .requestMatchers(HttpMethod.GET, "/api/cities", "/api/geo/**", "/api/places").permitAll()
                         // 그 외 모든 요청은 유효한 토큰(로그인)이 있어야 접근 가능
                         .anyRequest().authenticated()
                 )

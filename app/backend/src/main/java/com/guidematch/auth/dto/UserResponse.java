@@ -12,6 +12,9 @@ public record UserResponse(
         String email,
         String fullName,
         String nationality,
+        String city,
+        Double latitude,
+        Double longitude,
         String mbti,
         java.util.List<String> interests
 ) {
@@ -21,6 +24,9 @@ public record UserResponse(
                 user.getEmail(),
                 user.getFullName(),
                 user.getNationality(),
+                user.getCity(),
+                user.getLatitude(),
+                user.getLongitude(),
                 user.getMbti(),
                 user.getInterestList()
         );

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
+import CitySelect from "@/components/CitySelect";
 
 const MBTI_TYPES = [
   ["INTJ", "INTP", "ENTJ", "ENTP"],
@@ -14,7 +15,7 @@ const MBTI_TYPES = [
   ["ISTP", "ISFP", "ESTP", "ESFP"],
 ] as const;
 
-type Me = { id: number; fullName: string; email: string; mbti: string | null; interests: string[] };
+type Me = { id: number; fullName: string; email: string; city: string | null; mbti: string | null; interests: string[] };
 
 export default function TravelerProfilePage() {
   const router = useRouter();
@@ -55,6 +56,20 @@ export default function TravelerProfilePage() {
     } finally { setSaving(false); }
   }
 
+  async function onSetLocation(city: string, lat: number | null, lng: number | null) {
+    if (!me || !city) return;
+    setError("");
+    try {
+      const updated = await api<Me>("/api/users/me/location", {
+        method: "PATCH", auth: true,
+        body: { city, latitude: lat, longitude: lng },
+      });
+      setMe(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t.common.error);
+    }
+  }
+
   function startEdit() {
     if (!me) return;
     setEditMbti(me.mbti ?? "");
@@ -88,6 +103,15 @@ export default function TravelerProfilePage() {
               <p className="text-sm text-gray-400">{me.email}</p>
             </div>
           </div>
+        </div>
+
+        {/* 여행 도시 */}
+        <div className="card p-6 mb-5">
+          <h2 className="font-semibold text-gray-900 mb-4">📍 {t.location.cityLabel}</h2>
+          <CitySelect
+            value={me.city ?? ""}
+            onChange={(city, lat, lng) => onSetLocation(city, lat, lng)}
+          />
         </div>
 
         {/* MBTI + 관심사 */}
