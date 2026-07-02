@@ -5,6 +5,9 @@
 # Environment
 .env
 **/.env
+.env.local
+**/.env*.local
+!**/.env.local.example
 
 # Build outputs
 app/frontend/.next/
