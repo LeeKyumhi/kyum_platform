@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 
+export type District = { ko: string; en: string; zh: string };
+
 export type City = {
   key: string;
   nameKo: string;
@@ -11,12 +13,25 @@ export type City = {
   nameZh: string;
   lat: number;
   lng: number;
+  districts?: District[];
 };
 
 type ReverseResp = { nearestCity: City | null; kakaoRegion: string | null; kakaoEnabled: boolean };
 
 // 도시 목록은 자주 안 바뀌므로 모듈 캐시로 재요청 방지
 let cachedCities: City[] | null = null;
+let citiesPromise: Promise<City[]> | null = null;
+
+/** 도시 목록 로드(캐시 공유). CitySelect / DistrictSelect 둘 다 사용. */
+export function loadCities(): Promise<City[]> {
+  if (cachedCities) return Promise.resolve(cachedCities);
+  if (!citiesPromise) {
+    citiesPromise = api<City[]>("/api/cities")
+      .then((data) => { cachedCities = data; return data; })
+      .catch(() => { citiesPromise = null; return []; });
+  }
+  return citiesPromise;
+}
 
 export function cityLabel(c: City, lang: string) {
   return lang === "ko" ? c.nameKo : lang === "zh" ? c.nameZh : c.nameEn;
@@ -43,9 +58,7 @@ export default function CitySelect({
 
   useEffect(() => {
     if (cachedCities) return;
-    api<City[]>("/api/cities")
-      .then((data) => { cachedCities = data; setCities(data); })
-      .catch(() => {});
+    loadCities().then(setCities);
   }, []);
 
   function onSelect(key: string) {

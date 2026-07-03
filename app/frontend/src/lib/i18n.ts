@@ -19,8 +19,20 @@ const t = {
   ko: {
     /* Navbar */
     nav: {
+      home: "홈",
       findGuide: "가이드 찾기",
+      explore: "탐색",
+      trips: "여행 일정",
       dashboard: "대시보드",
+      guideHome: "가이드 홈",
+      travelerHome: "여행자 홈",
+      bookings: "내 예약",
+      following: "팔로잉",
+      requests: "예약 요청",
+      posts: "내 게시글",
+      manage: "프로필 관리",
+      switchMode: "모드 전환",
+      profile: "프로필",
       login: "로그인",
       signup: "회원가입",
       logout: "로그아웃",
@@ -65,6 +77,12 @@ const t = {
       ctaSub: "가입도, 둘러보기도 모두 무료입니다.",
       ctaBtn1: "가이드 둘러보기",
       ctaBtn2: "회원가입",
+      exploreCities: "인기 여행지",
+      spotsTitle: "한국의 명소, 현지인과 함께",
+      spotsSub: "교과서 속 명소부터 로컬만 아는 골목까지 — 가이드와 함께 진짜 한국을 경험하세요.",
+      followTitle: "팔로우 & 소통",
+      followDesc: "마음에 드는 가이드를 팔로우하고 새 소식과 게시글을 받아보세요.",
+      goLink: "바로가기 →",
       footerText: "© 2026 PeerUp · 한국 현지인과 나만의 여행을",
     },
 
@@ -131,6 +149,8 @@ const t = {
       geoDenied: "위치 권한이 거부되었습니다.",
       geoError: "위치를 가져올 수 없습니다.",
       geoUnsupported: "이 브라우저는 위치를 지원하지 않습니다.",
+      selectDistrict: "세부 지역(구)",
+      allDistricts: "전체 지역",
     },
 
     /* Explore places */
@@ -516,8 +536,20 @@ const t = {
 
   en: {
     nav: {
+      home: "Home",
       findGuide: "Find a Guide",
+      explore: "Explore",
+      trips: "Trips",
       dashboard: "Dashboard",
+      guideHome: "Guide Home",
+      travelerHome: "Traveler Home",
+      bookings: "My Bookings",
+      following: "Following",
+      requests: "Requests",
+      posts: "My Posts",
+      manage: "Manage Profile",
+      switchMode: "Switch mode",
+      profile: "Profile",
       login: "Log in",
       signup: "Sign up",
       logout: "Log out",
@@ -560,6 +592,12 @@ const t = {
       ctaSub: "Browse guides for free. No signup required to explore.",
       ctaBtn1: "Browse Guides",
       ctaBtn2: "Sign Up Free",
+      exploreCities: "Popular destinations",
+      spotsTitle: "Korea's best spots, with a local",
+      spotsSub: "From must-see landmarks to hidden alleys only locals know — experience the real Korea with your guide.",
+      followTitle: "Follow & connect",
+      followDesc: "Follow the guides you like and keep up with their latest posts and updates.",
+      goLink: "Open →",
       footerText: "© 2026 PeerUp · Peer up with locals for your personal trip",
     },
 
@@ -624,6 +662,8 @@ const t = {
       geoDenied: "Location permission denied.",
       geoError: "Couldn't get your location.",
       geoUnsupported: "This browser doesn't support location.",
+      selectDistrict: "District",
+      allDistricts: "All areas",
     },
 
     /* Explore places */
@@ -994,8 +1034,20 @@ const t = {
 
   zh: {
     nav: {
+      home: "首页",
       findGuide: "找导游",
+      explore: "探索",
+      trips: "行程",
       dashboard: "控制台",
+      guideHome: "向导主页",
+      travelerHome: "旅行者主页",
+      bookings: "我的预订",
+      following: "关注",
+      requests: "预约请求",
+      posts: "我的帖子",
+      manage: "资料管理",
+      switchMode: "切换模式",
+      profile: "我的",
       login: "登录",
       signup: "注册",
       logout: "退出",
@@ -1038,6 +1090,12 @@ const t = {
       ctaSub: "注册和浏览都完全免费。",
       ctaBtn1: "浏览导游",
       ctaBtn2: "免费注册",
+      exploreCities: "热门目的地",
+      spotsTitle: "韩国名胜，与本地人同行",
+      spotsSub: "从必看地标到只有本地人才知道的小巷——与向导一起体验真正的韩国。",
+      followTitle: "关注与互动",
+      followDesc: "关注喜欢的向导，随时获取他们的最新动态和帖子。",
+      goLink: "前往 →",
       footerText: "© 2026 PeerUp · 与本地人一起开启专属之旅",
     },
 
@@ -1102,6 +1160,8 @@ const t = {
       geoDenied: "位置权限被拒绝。",
       geoError: "无法获取位置。",
       geoUnsupported: "此浏览器不支持定位。",
+      selectDistrict: "区",
+      allDistricts: "全部地区",
     },
 
     /* Explore places */

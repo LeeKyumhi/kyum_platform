@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
+import DistrictSelect from "@/components/DistrictSelect";
 
 type Place = {
   id: string;
@@ -35,10 +36,11 @@ const CATEGORIES = [
 ] as const;
 
 export default function ExplorePage() {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
   const le = t.explore;
 
   const [city, setCity]         = useState("");
+  const [district, setDistrict] = useState("");
   const [category, setCategory] = useState<string>("attraction");
   const [places, setPlaces]     = useState<Place[]>([]);
   const [kakaoOn, setKakaoOn]   = useState(true);
@@ -48,7 +50,8 @@ export default function ExplorePage() {
     if (!city) { setPlaces([]); return; }
     let cancelled = false;
     setLoading(true);
-    api<PlacesResponse>(`/api/places?city=${encodeURIComponent(city)}&category=${category}`)
+    const districtParam = district ? `&district=${encodeURIComponent(district)}` : "";
+    api<PlacesResponse>(`/api/places?city=${encodeURIComponent(city)}&category=${category}${districtParam}&lang=${lang}`)
       .then((res) => {
         if (cancelled) return;
         setPlaces(res.places);
@@ -57,7 +60,7 @@ export default function ExplorePage() {
       .catch(() => { if (!cancelled) setPlaces([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [city, category]);
+  }, [city, district, category]);
 
   return (
     <main className="page px-4">
@@ -68,9 +71,10 @@ export default function ExplorePage() {
         </div>
         <p className="text-sm text-gray-400 mb-5">{le.subtitle}</p>
 
-        {/* 도시 선택 */}
-        <div className="card p-5 mb-5">
-          <CitySelect value={city} onChange={(c) => setCity(c)} />
+        {/* 도시 + 세부 지역(구) 선택 */}
+        <div className="card p-5 mb-5 space-y-2">
+          <CitySelect value={city} onChange={(c) => { setCity(c); setDistrict(""); }} />
+          <DistrictSelect city={city} value={district} onChange={setDistrict} />
         </div>
 
         {!city ? (

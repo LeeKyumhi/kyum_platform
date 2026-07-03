@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
-import Navbar from "@/components/Navbar";
+import Sidebar from "@/components/Sidebar";
 import LanguagePicker from "@/components/LanguagePicker";
 
 export const metadata: Metadata = {
@@ -16,9 +16,10 @@ export default function RootLayout({
     <html lang="ko">
       <body>
         <LanguageProvider>
-          <Navbar />
+          <Sidebar />
           <LanguagePicker />
-          {children}
+          {/* Offset for the fixed left rail (desktop) + mobile top/bottom bars */}
+          <div className="md:pl-64">{children}</div>
         </LanguageProvider>
       </body>
     </html>

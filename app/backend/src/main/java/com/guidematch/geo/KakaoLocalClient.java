@@ -70,6 +70,39 @@ public class KakaoLocalClient {
         }
     }
 
+    /**
+     * 지역명(예: "서울 강남구")을 대표 좌표로 지오코딩. 실패하면 null.
+     * 1) 주소검색(address.json) → 2) 키워드검색(keyword.json) 폴백.
+     * @return [lat, lng] 또는 null
+     */
+    public double[] geocodeRegion(String query) {
+        if (!isEnabled() || query == null || query.isBlank()) return null;
+        double[] c = tryGeocode("https://dapi.kakao.com/v2/local/search/address.json?query={q}&size=1", query);
+        if (c != null) return c;
+        return tryGeocode("https://dapi.kakao.com/v2/local/search/keyword.json?query={q}&size=1", query);
+    }
+
+    private double[] tryGeocode(String uri, String query) {
+        try {
+            GeoSearchResponse res = restClient.get()
+                    .uri(uri, query)
+                    .header("Authorization", "KakaoAK " + restApiKey)
+                    .retrieve()
+                    .body(GeoSearchResponse.class);
+            if (res != null && res.documents() != null && !res.documents().isEmpty()) {
+                GeoDoc d = res.documents().get(0);
+                Double x = parseDouble(d.x()), y = parseDouble(d.y());
+                if (x != null && y != null) return new double[]{y, x}; // [lat, lng]
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    private record GeoSearchResponse(List<GeoDoc> documents) {}
+
+    private record GeoDoc(@JsonProperty("x") String x, @JsonProperty("y") String y) {}
+
     private static List<Place> toPlaces(PlaceSearchResponse res) {
         if (res == null || res.documents() == null) return List.of();
         return res.documents().stream().map(d -> new Place(

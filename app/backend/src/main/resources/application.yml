@@ -44,3 +44,7 @@ supabase:
 # Kakao Map REST API (역지오코딩/장소검색). 키가 없으면 GPS 자동감지만 비활성, 앱은 정상 동작.
 kakao:
   rest-api-key: ${KAKAO_REST_API_KEY:}
+
+# Google Cloud Translation API v2. 키가 없으면 장소명이 한국어 원문 그대로 표시됨.
+google:
+  translate-api-key: ${GOOGLE_TRANSLATE_API_KEY:}

@@ -86,9 +86,9 @@ body {
   .badge-red     { @apply badge bg-red-50 text-red-700; }
   .badge-gray    { @apply badge bg-gray-100 text-gray-600; }
 
-  /* Page shell */
+  /* Page shell — mobile: clear top bar + bottom tab bar; desktop: left rail, slim top gap */
   .page {
-    @apply min-h-screen pt-20 pb-16;
+    @apply min-h-screen pt-20 pb-24 md:pt-10 md:pb-16;
   }
   .container-sm {
     @apply mx-auto w-full max-w-lg px-4;

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
+import DistrictSelect from "@/components/DistrictSelect";
 import TripMap from "@/components/TripMap";
 
 type Item = {
@@ -82,6 +83,7 @@ export default function TripBuilderPage() {
   // 장소 담기 패널
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerCat, setPickerCat]   = useState("attraction");
+  const [pickerDistrict, setPickerDistrict] = useState("");
   const [places, setPlaces]         = useState<Place[]>([]);
   const [placesLoading, setPlacesLoading] = useState(false);
   const [kakaoOn, setKakaoOn]       = useState(true);
@@ -159,12 +161,13 @@ export default function TripBuilderPage() {
     if (!pickerOpen || !city) { setPlaces([]); return; }
     let cancelled = false;
     setPlacesLoading(true);
-    api<PlacesResponse>(`/api/places?city=${encodeURIComponent(city)}&category=${pickerCat}`)
+    const districtParam = pickerDistrict ? `&district=${encodeURIComponent(pickerDistrict)}` : "";
+    api<PlacesResponse>(`/api/places?city=${encodeURIComponent(city)}&category=${pickerCat}${districtParam}&lang=${lang}`)
       .then((res) => { if (!cancelled) { setPlaces(res.places); setKakaoOn(res.kakaoEnabled); } })
       .catch(() => { if (!cancelled) setPlaces([]); })
       .finally(() => { if (!cancelled) setPlacesLoading(false); });
     return () => { cancelled = true; };
-  }, [pickerOpen, city, pickerCat]);
+  }, [pickerOpen, city, pickerCat, pickerDistrict]);
 
   async function onSave() {
     setSaving(true); setSaved(false); setError("");
@@ -229,7 +232,7 @@ export default function TripBuilderPage() {
             placeholder={li.tripTitlePh} className="input w-full text-lg font-semibold" />
           <div>
             <label className="text-xs text-gray-500">{li.cityOptional}</label>
-            <div className="mt-1"><CitySelect value={city} onChange={(c) => setCity(c)} /></div>
+            <div className="mt-1"><CitySelect value={city} onChange={(c) => { setCity(c); setPickerDistrict(""); }} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -325,6 +328,7 @@ export default function TripBuilderPage() {
                 <p className="text-center text-gray-400 text-xs py-4">{li.pickCityForPlaces}</p>
               ) : (
                 <>
+                  <DistrictSelect city={city} value={pickerDistrict} onChange={setPickerDistrict} className="mb-2 text-sm" />
                   <div className="flex gap-1.5 overflow-x-auto pb-2 mb-2">
                     {PLACE_CATS.map((c) => (
                       <button key={c.key} onClick={() => setPickerCat(c.key)}
