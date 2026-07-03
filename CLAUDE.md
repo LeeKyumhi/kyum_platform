@@ -3,7 +3,7 @@
 ## What This App Is
 A C2C local guide matching platform for foreign travelers in Korea. Travelers browse and book local Korean guides for personalized tours. Guides set their own profiles, rates, and availability.
 
-**Status**: MVP in active development. Core + social features complete. Next priorities: reviews/ratings, real-time chat, payment.
+**Status**: MVP in active development. Core + social + location + translation features complete. Next priorities: real-time chat, payment.
 
 ---
 
@@ -27,7 +27,8 @@ A C2C local guide matching platform for foreign travelers in Korea. Travelers br
 | Backend | Spring Boot 3.3.5, Java 21, Spring Security, JWT |
 | Database | PostgreSQL via Supabase, JPA `ddl-auto: update` |
 | File Storage | Supabase Storage |
-| Maps/Location | Kakao Map REST API (reverse geocoding; Phase 2 place search) — key `KAKAO_REST_API_KEY` in `.env`, optional |
+| Maps/Location | Kakao Map REST API (reverse geocoding + place search) — `KAKAO_REST_API_KEY` in `app/backend/.env` |
+| Translation | Google Cloud Translation API v2 — `GOOGLE_TRANSLATE_API_KEY` in `app/backend/.env` |
 | Auth | JWT (24h expiry), BCrypt passwords, stored in localStorage |
 
 **Ports**: Frontend → 3000, Backend → 8080
@@ -45,37 +46,50 @@ kyum_platform/
 ├── app/
 │   ├── frontend/src/
 │   │   ├── app/
-│   │   │   ├── page.tsx                      # Landing (login-aware CTA)
+│   │   │   ├── page.tsx                      # Landing — 흰 배경, feature tiles, 한국 명소 갤러리, CTA
+│   │   │   ├── explore/page.tsx              # 장소 탐색 (도시+구 선택 → 카테고리 탭 → 장소 카드)
+│   │   │   ├── trips/page.tsx                # 여행 일정 목록 + 생성
+│   │   │   ├── trips/[id]/page.tsx           # 일정 빌더 (일차 탭, ▲▼ 정렬, 장소 담기, TripMap)
 │   │   │   ├── profile/page.tsx              # User profile (avatar, stats, edit/logout)
 │   │   │   ├── guides/
-│   │   │   │   ├── page.tsx                  # Feed with PostCard (like/comment)
+│   │   │   │   ├── page.tsx                  # 가이드 목록 + 게시글 피드 (탭 전환)
 │   │   │   │   └── [id]/page.tsx             # Guide detail + slot booking
 │   │   │   ├── guide/
 │   │   │   │   ├── page.tsx                  # Guide dashboard
 │   │   │   │   ├── manage/page.tsx           # Guide settings (slots, interests)
 │   │   │   │   └── posts/page.tsx            # Guide's own posts (compose + delete)
-│   │   │   ├── become-guide/page.tsx         # Guide signup (MBTI, interests)
-│   │   │   ├── review/[bookingId]/page.tsx   # Star-rating + comment form (traveler)
 │   │   │   ├── traveler/
 │   │   │   │   ├── page.tsx                  # Traveler home
-│   │   │   │   └── profile/page.tsx          # Traveler MBTI + interests
-│   │   │   └── traveler/following/page.tsx
+│   │   │   │   ├── profile/page.tsx          # Traveler MBTI + interests
+│   │   │   │   ├── bookings/page.tsx         # 내 예약 목록
+│   │   │   │   └── following/page.tsx        # 팔로잉 목록
+│   │   │   ├── become-guide/page.tsx
+│   │   │   └── review/[bookingId]/page.tsx
 │   │   ├── components/
-│   │   │   ├── Navbar.tsx                    # 3-lang picker + avatar → /profile
-│   │   │   ├── LanguagePicker.tsx
-│   │   │   └── InterestPicker.tsx            # Shared categorized interest picker
+│   │   │   ├── Sidebar.tsx                   # ★ 메인 내비 — 데스크탑 left rail + 모바일 top/bottom bar
+│   │   │   ├── CitySelect.tsx                # 도시 드롭다운 + GPS 버튼; loadCities() 캐시 공유
+│   │   │   ├── DistrictSelect.tsx            # 구(district) 드롭다운 — 도시에 구 있을 때만 렌더
+│   │   │   ├── TripMap.tsx                   # 카카오 지도 — 일차 장소 핀 + 폴리라인
+│   │   │   ├── LanguagePicker.tsx            # 첫 방문 언어 선택 모달
+│   │   │   └── InterestPicker.tsx            # 관심사 선택 (30개 6카테고리)
+│   │   ├── context/
+│   │   │   └── LanguageContext.tsx           # lang, setLang, t, showPicker, dismissPicker
 │   │   └── lib/
-│   │       ├── i18n.ts                       # ko/en/zh, 30 interests, 6 categories
+│   │       ├── i18n.ts                       # ko/en/zh 번역 키 (모든 키 3개 언어 필수)
 │   │       ├── interests.ts                  # InterestKey type + INTEREST_CATEGORIES
-│   │       ├── api.ts                        # saveUserName / getUserName helpers added
-│   │       └── mode.ts
+│   │       ├── api.ts                        # fetch wrapper, getToken, saveUserName/getUserName
+│   │       └── mode.ts                       # getMode / clearMode (localStorage)
 │   └── backend/src/main/java/com/guidematch/
 │       ├── auth/         # JWT, User entity, signup/login
-│       ├── guide/        # GuideProfile, GuidePost, slots; avgRating + reviewCount on GuideProfile
+│       ├── guide/        # GuideProfile, GuidePost, slots, follow, avgRating+reviewCount
 │       ├── booking/      # Booking entity + flow
-│       ├── chat/         # ChatMessage
-│       ├── post/         # PostLike, PostComment, interactions
-│       └── review/       # Review entity, ReviewController, ReviewService, ReviewRepository
+│       ├── chat/         # ChatMessage (WebSocket + STOMP)
+│       ├── itinerary/    # Itinerary + ItineraryItem (owner-scoped CRUD)
+│       ├── review/       # Review entity + ReviewController/Service/Repository
+│       ├── geo/          # ★ KoreanCity, CityController, PlaceController, GeoController
+│       │                 #   KakaoLocalClient, GoogleTranslateClient
+│       │                 #   TranslationCache, TranslationCacheRepository, TranslationService
+│       └── storage/      # SupabaseStorageClient
 └── CLAUDE.md
 ```
 
@@ -86,37 +100,32 @@ kyum_platform/
 ### Done
 - [x] User auth (signup, login, JWT)
 - [x] Guide profile creation (languages, credentials, avatar upload)
-- [x] Guide search & browse (by region)
+- [x] Guide search & browse (city + near-me distance sort)
 - [x] Booking flow (request → accept/reject/cancel)
-- [x] 1:1 chat per booking
+- [x] 1:1 chat per booking (WebSocket/STOMP)
 - [x] Traveler/guide mode switching
-- [x] **Multi-language (ko/en/zh)** — 3-option dropdown in Navbar
-- [x] **Instagram-style posts** — full-width square images, max-w-[468px] PostCard
+- [x] **Multi-language (ko/en/zh)** — Sidebar 언어 전환 (lang 선택 → localStorage 저장)
+- [x] **Instagram-style posts** — full-width square images, PostCard
 - [x] **Post likes & comments** — ❤️ like toggle, 💬 comment thread per post
 - [x] **Available slots** — guides add date+time slots; travelers pick slots when booking
-- [x] **Guide MBTI + interests** — stored in `guide_profiles.mbti/interests`
-- [x] **Traveler MBTI + interests** — stored in `users.mbti/interests` (separate from guide)
-- [x] **Category-based interests** — 30 items in 6 categories via `InterestPicker` component
-- [x] **Landing page login-aware CTA** — shows personalized card (name, mode, dashboard link) if logged in
-- [x] **Reviews & ratings** — `POST /api/bookings/{bookingId}/review` (traveler only, 1-5 stars + comment); `GET /api/guides/{guideProfileId}/reviews`; `avgRating` + `reviewCount` on GuideProfile
-- [x] **Profile page** — `/profile` shows avatar, stats (posts/rating/followers), edit + dashboard links, logout
-- [x] **Guide posts manager** — `/guide/posts` lets guides compose (image + text + category) and delete their own posts
-- [x] **Navbar avatar** — shows first-initial avatar linked to `/profile`; `saveUserName`/`getUserName` in `api.ts`
-- [x] **Guide list layout** — full-width single-column horizontal cards (avatar · name/region/headline/tags · price/rating)
-- [x] **Guide sort & filter** — client-side language filter + sort (인기순=followers, 예약순=bookingCount, 평점순=avgRating); region still server-side search box
-- [x] **Post feed sort/filter** — guide-language filter + sort (추천순/인기순/조회순/최신순) on the posts tab; `viewCount` tracked via IntersectionObserver impression (`POST /api/posts/{id}/view`)
-- [x] **Booking-availability segmented toggle** — two-button 예약 받는 중 / 예약 중단 control (lit state) on both `/guide/manage` and `/profile`, both hit `PATCH /api/guide-profiles/me/active`
-- [x] **Location Phase 1** — structured Korean-city model (`city`/`latitude`/`longitude` on GuideProfile + User), `GET /api/cities`, GPS auto-detect via `GET /api/geo/reverse` (Kakao + nearest-city fallback), `CitySelect` component wired into become-guide/manage/traveler-profile, city-based guide search + near-me distance sort
+- [x] **MBTI + interests** — guide(`guide_profiles`) / traveler(`users`) 분리 저장
+- [x] **Reviews & ratings** — 1-5 stars + comment; avgRating + reviewCount on GuideProfile
+- [x] **Profile page** — `/profile` avatar, stats, edit, logout
+- [x] **Guide posts manager** — `/guide/posts` compose + delete
+- [x] **Guide list** — horizontal cards, client-side language filter + sort (인기/예약/평점)
+- [x] **Post feed sort/filter** — guide-language filter + sort (추천/인기/조회/최신); viewCount via IntersectionObserver
+- [x] **Booking-availability toggle** — 예약 받는 중 / 예약 중단 (guide/manage + profile)
 
-### Location-based expansion — Phases 1–3 shipped + map viz (see `~/.claude/plans/eager-crunching-leaf.md`)
-_All three phases built & verified. **Kakao REST key is live** (`KAKAO_REST_API_KEY` in app/backend/.env) — real place data + reverse geocoding confirmed E2E (`/explore` renders live places). Map route visualization added; needs a separate **JS key** (`NEXT_PUBLIC_KAKAO_JS_KEY` in app/frontend/.env.local) + domain registration — degrades to an amber note without it._
-- [x] **Phase 2** — Places: public `GET /api/places?city=&category=` proxies Kakao Local (`PlaceController` + `KakaoLocalClient.searchByCategory`/`searchByKeyword`; facets attraction/food/cafe/culture → AT4/FD6/CE7/CT1, market → keyword 전통시장; radius 20km around the city). Frontend `/explore` page (city select + category tabs + place cards) + home link cards. **Structure-verified only (kakaoEnabled:false + empty without a Kakao key); real place data needs `KAKAO_REST_API_KEY`.**
-- [x] **Phase 3** — Itinerary builder: `Itinerary`+`ItineraryItem` entities (owner-scoped, `@OneToMany` orphanRemoval — replace via in-place `clear()+addAll()`), authed CRUD `GET/POST/GET{id}/PUT{id}/DELETE{id} /api/itineraries/me` (PUT replaces meta+items wholesale, `saveAndFlush` so new item ids return). Frontend `/trips` (list + create) and `/trips/[id]` day-by-day builder — day tabs (dayCount = max of date-span / max item day / manual), per-day place list with ▲▼ reorder + memo + remove, "장소 담기" panel = **manual name entry (works without Kakao) + Kakao place search** (reuses `/api/places` by city+category). Home link cards for both roles. **Backend fully curl-verified; Kakao place picker now returns live data (key is set).**
-- [x] **Phase 3 map viz** — `TripMap` component (`src/components/TripMap.tsx`) draws the active day's route: numbered CustomOverlay pins (`.trip-map-pin` in globals.css) + indigo Polyline in stored order, `setBounds` to fit. Loads Kakao Maps JS SDK via singleton `sdkPromise` (`sdk.js?appkey=NEXT_PUBLIC_KAKAO_JS_KEY&autoload=false`). Only items with lat/lng shown (manual-typed skipped). Wired into `/trips/[id]` below the day's item list. **No extra REST calls — renders from stored coords. Verified graceful-degrades to amber note without JS key; live map render needs the JS key + `http://localhost:3000` registered as a Web platform domain.**
+### ★ Location (Phases 1–3, 완료)
+- [x] **Phase 1** — KoreanCity list, GPS reverse geocode (`GET /api/geo/reverse`), CitySelect, guide search by city
+- [x] **Phase 2** — `GET /api/places?city=&category=&district=&lang=` — Kakao place search (AT4/FD6/CE7/CT1/전통시장), radius 20km (구 선택 시 6km)
+- [x] **Phase 3** — `/trips` 일정 빌더 + `/trips/[id]` TripMap (카카오 지도 핀 + 폴리라인)
+- [x] **District drill-down** — 도시 → 구 세부 선택 (`DistrictSelect`), 10개 도시 전 구 목록, `/explore` + `/trips/[id]` 적용
+- [x] **Google Translate** — 장소명/카테고리 번역 (`TranslationService` 캐시-우선, Google Cloud Translation API v2), `?lang=` 파라미터
 
 ### Next
-- [ ] Real-time chat (WebSocket or Supabase Realtime)
-- [ ] Payment integration
+- [ ] **Real-time chat** (WebSocket or Supabase Realtime)
+- [ ] **Payment integration**
 - [ ] Signed URLs for credential files
 - [ ] JWT in httpOnly cookies
 - [ ] Production DB migrations (Flyway or Liquibase)
@@ -125,64 +134,45 @@ _All three phases built & verified. **Kakao REST key is live** (`KAKAO_REST_API_
 
 ## Key Architecture Patterns
 
+### Navigation (Sidebar)
+- `Sidebar.tsx` — `"use client"`, `useEffect`로 localStorage에서 token/mode/userName 읽음
+- 역할별 메뉴: guest(홈/가이드찾기/탐색/여행일정) / traveler(+여행자홈/내예약/팔로잉) / guide(+가이드홈/예약요청/내게시글/프로필관리)
+- 모바일 하단 탭 5개 고정; 데스크탑 `w-64 fixed left rail`
+- **Navbar.tsx 삭제됨** — Sidebar로 완전 교체. `layout.tsx`에 `<div class="md:pl-64">` 오프셋.
+- `globals.css` `.page` → `pt-20 pb-24 md:pt-10 md:pb-16` (모바일 top/bottom bar 공간)
+
+### Google Translate (장소명 번역)
+- `GoogleTranslateClient` — Cloud Translation API v2 REST (`format=text`, `zh→zh-CN`)
+- `TranslationCache` entity — DB 캐시 `(sourceText, targetLang)` unique constraint
+- `TranslationService` — 캐시 우선 → 미스만 Google 배치 호출 → 결과 저장 → 원문 폴백
+- `PlaceController` — `?lang=` 파라미터. ko이면 번역 스킵. address는 항상 한국어 유지 (택시/지도 앱 편의)
+- 프론트: `/explore`, `/trips/[id]` 모두 `&lang=${lang}` 전달
+- **비용 거의 0**: 같은 장소명은 캐시에서 반환, 무료 쿼터 500,000자/월
+
+### District (구) 선택
+- `KoreanCity.DISTRICTS` map — 10개 도시 × 구 목록 (ko/en/zh record)
+- `CityController` — `CityDto`에 `List<District>` 포함해서 `/api/cities`에서 함께 반환
+- `DistrictSelect.tsx` — city prop 바뀌면 해당 도시의 districts 렌더. 라벨=현재 lang, 값=ko (Kakao 지오코딩 기준)
+- `PlaceController` — district 파라미터 유효성 검증 → Kakao address.json 지오코딩 → 6km radius
+
 ### Auth
-- `@AuthenticationPrincipal Long userId` in controllers — returns `null` on public endpoints (do NOT throw 401)
-- Optional auth pattern: `listAll(Long currentUserId)` — pass null if unauthenticated
-- Security public routes must be declared in `SecurityConfig.java`
-
-### Interests & MBTI
-- **Guide** interests/MBTI → `guide_profiles` table, API: `PATCH /api/guide-profiles/me/personality`
-- **Traveler** interests/MBTI → `users` table, API: `PATCH /api/users/me/personality`
-- Stored as comma-separated string in TEXT column; `getInterestList()` / `setInterestList()` on entities
-- 30 interest keys defined in `src/lib/interests.ts` → `INTEREST_CATEGORIES` (6 categories × 5 items)
-- `InterestPicker` component shared across become-guide, guide/manage, traveler/profile
-
-### Posts (GuidePost)
-- `PostLike` entity: unique(post_id, user_id)
-- `PostComment` entity: post_id, user_id, content (text), created_at
-- `GuidePostResponse` / `GuidePostWithGuideResponse` include `likeCount`, `commentCount`, `isLiked`
-- `GuidePostWithGuideResponse` (feed) also includes `guideLanguages` + `viewCount`
-- Feed endpoint `GET /api/posts` and guide posts `GET /api/guide-profiles/{id}/posts` both accept optional auth
-- `GuidePost.category` column exists but is **dormant** (content-categories were removed from the UI; column kept since `ddl-auto` won't drop it)
-
-### Location / cities (Phase 1)
-- Canonical city list is **backend-owned**: `com.guidematch.geo.KoreanCity` (static ~20 cities, key + ko/en/zh names + lat/lng), served at public `GET /api/cities`. Frontend fetches it (localized names from API → no city i18n churn).
-- `GuideProfile` + `User` each have `city` / `latitude` / `longitude` (nullable). `GuideProfile.region` kept as legacy; `updateLocation()` sets `region = city` so old region-based search still works.
-- GPS: `GET /api/geo/reverse?lat=&lng=` → `KakaoLocalClient.coord2regioncode` (needs `KAKAO_REST_API_KEY`) for the precise region label, **plus** `KoreanCity.nearestTo()` (pure haversine) which always returns the nearest canonical city even without a Kakao key.
-- Location writes: `PATCH /api/guide-profiles/me/location` + `PATCH /api/users/me/location`.
-- Guide search: `GET /api/guides?city=` (matches via region fallback) and `?nearLat=&nearLng=` (haversine distance sort, `GeoUtils.distanceKm`). Legacy `?region=` still works.
-- Frontend: `src/components/CitySelect.tsx` (dropdown from `/api/cities` + "📍 내 위치" GPS button) — reused in become-guide, guide/manage, traveler/profile, guides search.
-- New public routes registered in `SecurityConfig` (`GET /api/cities`, `/api/geo/**`).
-
-### Guide list sort/filter
-- `GET /api/guides` returns `bookingCount` (ACCEPTED + COMPLETED only) alongside avgRating/reviewCount/followerCount
-- Sorting & language filtering are **client-side** over the loaded list (`useMemo` in `guides/page.tsx`); region stays server-side (`?region=`)
-- Language options derived from loaded data (`availableLanguages`), never hardcoded
-
-### Post feed sort/filter (posts tab in `guides/page.tsx`)
-- Mirrors the guide-list controls: **guide-language filter** + **sort** dropdowns, client-side over loaded feed
-- Sort keys: `recent` (default, newest) · `recommended` = `likeCount*2 + commentCount*2 + viewCount` · `popular` = likeCount · `views` = viewCount
-- Language options derived from posts' `guideLanguages` (never hardcoded)
-- **View tracking**: `POST /api/posts/{id}/view` (public, atomic `@Modifying` increment) fired via `IntersectionObserver` when a card scrolls into view; deduped per session with module-level `viewedPostIds` Set
-
-### Reviews
-- `Review` entity: booking_id, reviewer_id, guide_profile_id, rating (1–5), comment (nullable), created_at
-- One review per booking enforced in service layer
-- `GuideProfile` carries `avgRating` (Double) and `reviewCount` (int) — updated on each review write
-- Write: `POST /api/bookings/{bookingId}/review` — auth required, traveler of that booking only
-- Read: `GET /api/guides/{guideProfileId}/reviews` — public
-- Frontend: `/review/[bookingId]/page.tsx` — star hover + comment textarea
-
-### Available Slots
-- `AvailableSlot` entity: guide_profile_id, start_at, end_at (LocalDateTime, guide's local time)
-- Public read: `GET /api/guides/{guideProfileId}/slots`
-- Guide management: `POST/DELETE /api/guide-profiles/me/slots`
-- Booking UI auto-fills startAt + hours from selected slot
+- `@AuthenticationPrincipal Long userId` — public 엔드포인트에서 null 반환 (절대 401 던지지 말 것)
+- Security public routes: `SecurityConfig.java`에 반드시 등록
 
 ### i18n
-- `src/lib/i18n.ts` — single file, 3 language objects (ko/en/zh), all keys must exist in all 3
+- `src/lib/i18n.ts` — 단일 파일, ko/en/zh 3개 객체, **모든 키 3개 언어 필수**
 - `Lang` type: `"ko" | "en" | "zh"`
-- When adding new i18n keys, add to ALL 3 language blocks
+- 동적 데이터(장소명 등)는 i18n에 넣지 않고 Google Translate API로 처리
+
+### Itinerary
+- `Itinerary` + `ItineraryItem` (orphanRemoval=true) — PUT 교체 시 반드시 `clear()+addAll()` 인-플레이스
+- `saveAndFlush` 필수 — 새 item id가 응답에 포함되어야 함
+
+### Kakao API 주의사항
+- REST key `.env` 값에 **따옴표 없이** raw 값만 (따옴표 포함 시 401 `wrong appKey format`)
+- 카카오 콘솔에서 "카카오맵/로컬(OPEN_MAP_AND_LOCAL)" 서비스 ON 필수
+- JS SDK key는 REST key와 **다른 값** (`NEXT_PUBLIC_KAKAO_JS_KEY` in `app/frontend/.env.local`)
+- JS SDK: Kakao 콘솔 JS 키 → "JavaScript SDK 도메인"에 `http://localhost:3000` 등록 필수
 
 ---
 
@@ -194,19 +184,28 @@ _All three phases built & verified. **Kakao REST key is live** (`KAKAO_REST_API_
 - **Never commit `.env`** — only `.env.example`
 - **Price is snapshotted at booking time** — `hourly_rate_snapshot` must never be derived live
 - **File uploads** go to Supabase Storage only — never local disk
+- **Address는 항상 한국어 유지** — 번역 대상에서 제외 (택시/지도 앱 사용 편의)
 
 ---
 
 ## Running Locally
 
 ```bash
-# Backend
+# Backend (Java 21 필수 — 기본 java가 다른 버전이면 아래 명령 사용)
 cd app/backend
-./gradlew bootRun      # :8080 — stalls at "80% EXECUTING" when live (normal)
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+gradle bootRun      # :8080 — "80% EXECUTING"에서 멈추면 정상 (서버 실행 중)
 
 # Frontend
 cd app/frontend
-npm run dev            # :3000
+npm run dev         # :3000
 ```
 
-Copy `app/backend/.env.example` → `app/backend/.env` and fill in Supabase credentials.
+**ENV 파일 세팅:**
+- `app/backend/.env` ← `.env.example` 복사 후 값 채우기
+  - `SUPABASE_DB_URL`, `SUPABASE_DB_USER`, `SUPABASE_DB_PASSWORD`, `JWT_SECRET`
+  - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`
+  - `KAKAO_REST_API_KEY` (선택, 없으면 장소검색/GPS 비활성)
+  - `GOOGLE_TRANSLATE_API_KEY` (선택, 없으면 장소명 한국어 그대로 표시)
+- `app/frontend/.env.local`
+  - `NEXT_PUBLIC_KAKAO_JS_KEY` (선택, 없으면 지도 amber 안내로 degrade)
