@@ -7,6 +7,7 @@ import java.time.Instant;
 public record GuidePostResponse(
         Long id,
         Long guideProfileId,
+        Long authorUserId,
         String content,
         String imageUrl,
         String category,
@@ -19,6 +20,7 @@ public record GuidePostResponse(
         return new GuidePostResponse(
                 post.getId(),
                 post.getGuideProfileId(),
+                post.getAuthorUserId(),
                 post.getContent(),
                 post.getImageUrl(),
                 post.getCategory(),

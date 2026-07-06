@@ -1,9 +1,13 @@
 package com.guidematch.auth;
 
+import com.guidematch.auth.dto.ForgotPasswordRequest;
 import com.guidematch.auth.dto.LoginRequest;
+import com.guidematch.auth.dto.MessageResponse;
+import com.guidematch.auth.dto.ResetPasswordRequest;
 import com.guidematch.auth.dto.SignupRequest;
 import com.guidematch.auth.dto.TokenResponse;
 import com.guidematch.auth.dto.UserResponse;
+import com.guidematch.auth.dto.VerifyEmailRequest;
 import com.guidematch.user.User;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -49,5 +53,28 @@ public class AuthController {
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
         String token = authService.login(request);
         return ResponseEntity.ok(TokenResponse.bearer(token));
+    }
+
+    /** 가입/재발송 메일의 인증 링크가 호출하는 엔드포인트. */
+    @PostMapping("/verify-email")
+    public ResponseEntity<MessageResponse> verifyEmail(@Valid @RequestBody VerifyEmailRequest request) {
+        authService.verifyEmail(request.token());
+        return ResponseEntity.ok(new MessageResponse("이메일 인증이 완료되었습니다."));
+    }
+
+    /**
+     * 비밀번호를 잊었을 때. 계정 존재 여부를 노출하지 않기 위해
+     * 이메일 존재 여부와 무관하게 항상 같은 성공 메시지를 반환한다.
+     */
+    @PostMapping("/forgot-password")
+    public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.forgotPassword(request.email());
+        return ResponseEntity.ok(new MessageResponse("해당 이메일로 가입된 계정이 있다면 재설정 링크를 보냈습니다."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request.token(), request.newPassword());
+        return ResponseEntity.ok(new MessageResponse("비밀번호가 재설정되었습니다."));
     }
 }

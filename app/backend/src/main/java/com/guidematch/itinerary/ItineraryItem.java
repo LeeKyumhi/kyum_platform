@@ -50,6 +50,10 @@ public class ItineraryItem {
     @Column(name = "memo", columnDefinition = "text")
     private String memo;
 
+    /** 이 아이템이 예약 확정으로 자동 생성됐다면 그 예약 id. 중복 생성 방지(멱등성)용. */
+    @Column(name = "source_booking_id")
+    private Long sourceBookingId;
+
     protected ItineraryItem() {}
 
     public ItineraryItem(int dayIndex, int sortOrder, String placeId, String placeName,
@@ -75,4 +79,6 @@ public class ItineraryItem {
     public Double getLatitude() { return latitude; }
     public Double getLongitude() { return longitude; }
     public String getMemo() { return memo; }
+    public Long getSourceBookingId() { return sourceBookingId; }
+    public void setSourceBookingId(Long sourceBookingId) { this.sourceBookingId = sourceBookingId; }
 }

@@ -96,13 +96,14 @@ public class GuideProfileService {
 
     /**
      * 가이드 검색 (목록). region이 주어지면 그 지역만, 아니면 전체 활동 중 가이드.
+     * languages를 fetch join으로 함께 로딩해 목록 렌더링 시 가이드별 추가 조회를 없앤다.
      */
     @Transactional(readOnly = true)
     public List<GuideProfile> search(String region) {
         if (region != null && !region.isBlank()) {
-            return guideProfileRepository.findByActiveTrueAndRegionIgnoreCase(region);
+            return guideProfileRepository.findActiveWithLanguagesByRegion(region);
         }
-        return guideProfileRepository.findByActiveTrue();
+        return guideProfileRepository.findActiveWithLanguages();
     }
 
     /**
@@ -122,6 +123,16 @@ public class GuideProfileService {
         return userRepository.findById(userId)
                 .map(User::getFullName)
                 .orElse("알 수 없음");
+    }
+
+    /**
+     * 가이드(사용자)의 성별을 가져온다. 여행자가 성별 선호를 고려할 수 있도록 목록/상세에 표시.
+     */
+    @Transactional(readOnly = true)
+    public String getGuideGender(Long userId) {
+        return userRepository.findById(userId)
+                .map(User::getGender)
+                .orElse(null);
     }
 
     /**
@@ -167,6 +178,16 @@ public class GuideProfileService {
     public GuideProfile setActive(Long userId, boolean active) {
         GuideProfile profile = getByUserId(userId);
         profile.setActive(active);
+        return guideProfileRepository.save(profile);
+    }
+
+    /**
+     * 즉시 예약 설정 변경 (켜면 예약 요청이 수락 대기 없이 바로 확정된다).
+     */
+    @Transactional
+    public GuideProfile setInstantBooking(Long userId, boolean instantBooking) {
+        GuideProfile profile = getByUserId(userId);
+        profile.setInstantBooking(instantBooking);
         return guideProfileRepository.save(profile);
     }
 

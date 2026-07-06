@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
+import { PinIcon, CalendarIcon } from "@/components/icons";
 
 type TripSummary = {
   id: number;
@@ -61,40 +62,47 @@ export default function TripsPage() {
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
-          <h1 className="section-title">🧳 {li.title}</h1>
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
+            <h1 className="section-title">{li.title}</h1>
+          </div>
+          <p className="section-subtitle">{li.subtitle}</p>
         </div>
-        <p className="text-sm text-gray-400 mb-5">{li.subtitle}</p>
 
         {!showForm ? (
-          <button onClick={() => setShowForm(true)} className="btn-primary w-full mb-5">+ {li.newTrip}</button>
+          <button onClick={() => setShowForm(true)} className="btn-primary mb-5 w-full">
+            + {li.newTrip}
+          </button>
         ) : (
-          <div className="card p-5 mb-5 flex flex-col gap-4">
-            <h2 className="font-semibold text-gray-900">{li.formTitle}</h2>
+          <div className="card mb-5 flex flex-col gap-4 p-5">
+            <h2 className="font-bold text-stone-900">{li.formTitle}</h2>
             <div>
-              <label className="text-xs text-gray-500">{li.tripTitle}</label>
+              <label className="input-label">{li.tripTitle}</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)}
-                placeholder={li.tripTitlePh} className="input mt-1 w-full" />
+                placeholder={li.tripTitlePh} className="input" />
             </div>
             <div>
-              <label className="text-xs text-gray-500">{li.cityOptional}</label>
-              <div className="mt-1"><CitySelect value={city} onChange={(c) => setCity(c)} /></div>
+              <label className="input-label">{li.cityOptional}</label>
+              <CitySelect value={city} onChange={(c) => setCity(c)} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs text-gray-500">{li.startDate}</label>
-                <input type="date" value={startDate} onChange={(e) => setStart(e.target.value)} className="input mt-1 w-full" />
+                <label className="input-label">{li.startDate}</label>
+                <input type="date" value={startDate} onChange={(e) => setStart(e.target.value)} className="input" />
               </div>
               <div>
-                <label className="text-xs text-gray-500">{li.endDate}</label>
+                <label className="input-label">{li.endDate}</label>
                 <input type="date" value={endDate} min={startDate || undefined}
-                  onChange={(e) => setEnd(e.target.value)} className="input mt-1 w-full" />
+                  onChange={(e) => setEnd(e.target.value)} className="input" />
               </div>
             </div>
-            {error && <p className="text-sm text-red-500">{error}</p>}
+            {error && (
+              <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+            )}
             <div className="flex gap-2">
-              <button onClick={onCreate} disabled={creating || !title.trim()} className="btn-primary px-6 disabled:opacity-60">
+              <button onClick={onCreate} disabled={creating || !title.trim()} className="btn-primary px-6">
                 {creating ? li.creating : li.createBtn}
               </button>
               <button onClick={() => setShowForm(false)} className="btn-ghost px-4">{li.cancel}</button>
@@ -103,21 +111,40 @@ export default function TripsPage() {
         )}
 
         {trips === null ? (
-          <p className="text-center text-gray-400 text-sm py-10">{li.loading}</p>
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((i) => <div key={i} className="card h-20 animate-pulse p-4" />)}
+          </div>
         ) : trips.length === 0 ? (
-          <p className="text-center text-gray-400 text-sm py-10">{li.empty}</p>
+          <div className="card p-8 py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
+              🧳
+            </div>
+            <p className="text-sm text-stone-500">{li.empty}</p>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {trips.map((trip) => (
-              <Link key={trip.id} href={`/trips/${trip.id}`} className="card-hover p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">{trip.title || li.untitled}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {trip.city ? `📍 ${trip.city}` : ""}
-                    {trip.startDate ? `  ${trip.startDate}${trip.endDate ? ` ~ ${trip.endDate}` : ""}` : ""}
-                  </p>
+              <Link key={trip.id} href={`/trips/${trip.id}`} className="card-hover flex items-center gap-3 p-4">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
+                  🧳
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-bold text-stone-900">{trip.title || li.untitled}</p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-stone-400">
+                    {trip.city && (
+                      <span className="flex items-center gap-1">
+                        <PinIcon className="h-3.5 w-3.5 text-sky-400" /> {trip.city}
+                      </span>
+                    )}
+                    {trip.startDate && (
+                      <span className="flex items-center gap-1">
+                        <CalendarIcon className="h-3.5 w-3.5 text-sky-400" />
+                        {trip.startDate}{trip.endDate ? ` ~ ${trip.endDate}` : ""}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                <span className="badge-indigo flex-shrink-0 py-1">
                   {trip.itemCount} {li.placesUnit}
                 </span>
               </Link>

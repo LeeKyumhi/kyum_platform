@@ -47,4 +47,15 @@ public class ChatController {
         MessageResponse res = messageService.send(userId, bookingId, request.content());
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
+
+    /** 메시지 번역 (예약 당사자만) — 외국인 여행자 ↔ 한국인 가이드 소통용 */
+    @GetMapping("/{messageId}/translate")
+    public java.util.Map<String, String> translate(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long bookingId,
+            @PathVariable Long messageId,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "ko") String lang
+    ) {
+        return java.util.Map.of("translated", messageService.translate(userId, bookingId, messageId, lang));
+    }
 }

@@ -12,6 +12,12 @@ public interface GuidePostRepository extends JpaRepository<GuidePost, Long> {
 
     List<GuidePost> findAllByOrderByCreatedAtDesc();
 
+    // 내 게시글 전체 (author_user_id로 직접 작성한 것 + 과거 guide_profile 경유로 작성된 레거시 행 모두 포함)
+    @Query("SELECT p FROM GuidePost p WHERE p.authorUserId = :userId " +
+           "OR p.guideProfileId IN (SELECT gp.id FROM GuideProfile gp WHERE gp.userId = :userId) " +
+           "ORDER BY p.createdAt DESC")
+    List<GuidePost> findAllByAuthor(@Param("userId") Long userId);
+
     // 조회수 원자적 증가 (read-modify-write 경쟁 방지)
     @Modifying
     @Query("UPDATE GuidePost p SET p.viewCount = p.viewCount + 1 WHERE p.id = :id")

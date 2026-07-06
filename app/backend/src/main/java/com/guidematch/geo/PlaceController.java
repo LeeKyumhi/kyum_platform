@@ -86,28 +86,57 @@ public class PlaceController {
             places = kakaoClient.searchByKeyword(keyword, lat, lng, radius);
         }
 
-        // lang != "ko" 면 장소명/카테고리 번역 (캐시 우선, 원문 폴백)
-        String googleLang = GoogleTranslateClient.toGoogleLang(lang);
-        List<Place> result = places;
-        if (googleLang != null && !places.isEmpty()) {
-            List<String> names      = places.stream().map(Place::name).toList();
-            List<String> categories = places.stream().map(p -> p.category() != null ? p.category() : "").toList();
-            List<String> tNames = translationService.translate(names, googleLang);
-            List<String> tCats  = translationService.translate(categories, googleLang);
-            result = new ArrayList<>();
-            for (int i = 0; i < places.size(); i++) {
-                Place p = places.get(i);
-                result.add(new Place(
-                        p.id(), tNames.get(i),
-                        tCats.get(i).isBlank() ? p.category() : tCats.get(i),
-                        p.categoryGroupCode(), p.phone(),
-                        p.address(),   // 주소는 한국어 유지 (택시/지도 사용 편의)
-                        p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters()
-                ));
-            }
+        List<Place> result = translateIfNeeded(places, lang);
+        return new PlacesResponse(target.key(), resolvedDistrict, category, kakaoClient.isEnabled(), result);
+    }
+
+    /**
+     * 좌표 기준 주변 장소 검색 (공개). 명소 상세 페이지에서 "주변 식당/카페"용.
+     * city/구 단위가 아니라 임의의 지점(lat,lng) 중심으로 좁게(기본 2km) 검색한다.
+     */
+    @GetMapping("/api/places/nearby")
+    public PlacesResponse nearby(
+            @RequestParam double lat,
+            @RequestParam double lng,
+            @RequestParam(defaultValue = "food") String category,
+            @RequestParam(defaultValue = "ko") String lang
+    ) {
+        int radius = 2000;
+        List<Place> places;
+        String code = CATEGORY_CODES.get(category);
+        if (code != null) {
+            places = kakaoClient.searchByCategory(code, lat, lng, radius);
+        } else {
+            String keyword = KEYWORDS.getOrDefault(category, category);
+            places = kakaoClient.searchByKeyword(keyword, lat, lng, radius);
         }
 
-        return new PlacesResponse(target.key(), resolvedDistrict, category, kakaoClient.isEnabled(), result);
+        List<Place> result = translateIfNeeded(places, lang);
+        return new PlacesResponse(null, null, category, kakaoClient.isEnabled(), result);
+    }
+
+    /** lang != "ko" 면 장소명/카테고리 번역 (캐시 우선, 원문 폴백). ko거나 결과가 없으면 그대로 반환. */
+    private List<Place> translateIfNeeded(List<Place> places, String lang) {
+        String googleLang = GoogleTranslateClient.toGoogleLang(lang);
+        if (googleLang == null || places.isEmpty()) return places;
+
+        List<String> names      = places.stream().map(Place::name).toList();
+        List<String> categories = places.stream().map(p -> p.category() != null ? p.category() : "").toList();
+        List<String> tNames = translationService.translate(names, googleLang);
+        List<String> tCats  = translationService.translate(categories, googleLang);
+
+        List<Place> result = new ArrayList<>();
+        for (int i = 0; i < places.size(); i++) {
+            Place p = places.get(i);
+            result.add(new Place(
+                    p.id(), tNames.get(i),
+                    tCats.get(i).isBlank() ? p.category() : tCats.get(i),
+                    p.categoryGroupCode(), p.phone(),
+                    p.address(),   // 주소는 한국어 유지 (택시/지도 사용 편의)
+                    p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters()
+            ));
+        }
+        return result;
     }
 
     public record PlacesResponse(String city, String district, String category, boolean kakaoEnabled, List<Place> places) {}

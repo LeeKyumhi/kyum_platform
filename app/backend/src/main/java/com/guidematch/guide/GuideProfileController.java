@@ -64,6 +64,18 @@ public class GuideProfileController {
 
     record ActiveRequest(boolean active) {}
 
+    /** 즉시 예약 설정 변경 (on/off 토글) */
+    @PatchMapping("/me/instant-booking")
+    public GuideProfileResponse setInstantBooking(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody InstantBookingRequest request
+    ) {
+        GuideProfile profile = guideProfileService.setInstantBooking(userId, request.instantBooking());
+        return GuideProfileResponse.from(profile);
+    }
+
+    record InstantBookingRequest(boolean instantBooking) {}
+
     /** MBTI · 관심사 업데이트 */
     @PatchMapping("/me/personality")
     public GuideProfileResponse updatePersonality(

@@ -48,3 +48,13 @@ kakao:
 # Google Cloud Translation API v2. 키가 없으면 장소명이 한국어 원문 그대로 표시됨.
 google:
   translate-api-key: ${GOOGLE_TRANSLATE_API_KEY:}
+
+# Resend(https://resend.com) 트랜잭션 이메일. 키가 없으면 인증/재설정 메일 발송만 스킵되고 앱은 정상 동작.
+resend:
+  api-key: ${RESEND_API_KEY:}
+  # 커스텀 도메인 인증 전까지는 Resend 기본 테스트 발신자 사용 (계정 소유자 이메일로만 발송 가능)
+  from-address: ${RESEND_FROM_ADDRESS:onboarding@resend.dev}
+
+# 이메일 링크(인증/비번재설정)가 가리킬 프론트엔드 주소
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}

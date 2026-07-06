@@ -20,15 +20,19 @@ public record GuideSummaryResponse(
         long reviewCount,
         long followerCount,
         long bookingCount,
+        String gender,
+        boolean instantBooking,
         String mbti,
         List<String> interests,
-        List<LanguageItem> languages
+        List<LanguageItem> languages,
+        /** 로그인한 여행자와의 궁합 점수(0~99). 비로그인이거나 계산 근거가 없으면 null. */
+        Integer matchScore
 ) {
     public record LanguageItem(String language, LanguageLevel level) {}
 
     public static GuideSummaryResponse from(GuideProfile profile, String guideName,
                                             double avgRating, long reviewCount, long followerCount,
-                                            long bookingCount) {
+                                            long bookingCount, String guideGender, Integer matchScore) {
         List<LanguageItem> langs = profile.getLanguages().stream()
                 .map(l -> new LanguageItem(l.getLanguage(), l.getLevel()))
                 .toList();
@@ -38,7 +42,7 @@ public record GuideSummaryResponse(
                 profile.getHourlyRate(), profile.getCurrency(), profile.getRegion(),
                 profile.getCity(), profile.getLatitude(), profile.getLongitude(),
                 profile.getAvatarUrl(), avgRating, reviewCount, followerCount, bookingCount,
-                profile.getMbti(), profile.getInterestList(), langs
+                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, matchScore
         );
     }
 }

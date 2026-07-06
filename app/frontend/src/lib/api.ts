@@ -76,16 +76,17 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 export async function apiUpload<T>(
   path: string,
   formData: FormData,
-  options: { auth?: boolean } = {}
+  options: { auth?: boolean; method?: "POST" | "PUT" } = {}
 ): Promise<T> {
+  const { auth = false, method = "POST" } = options;
   const headers: Record<string, string> = {};
-  if (options.auth) {
+  if (auth) {
     const token = getToken();
     if (token) headers["Authorization"] = `Bearer ${token}`;
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    method: "POST",
+    method,
     headers,
     body: formData,
   });

@@ -51,6 +51,12 @@ public class BookingController {
         return bookingService.listForGuide(userId);
     }
 
+    /** 가이드: 대기 중 예약 요청 수 (사이드바 알림 배지용) */
+    @GetMapping("/guide/pending-count")
+    public java.util.Map<String, Long> pendingCount(@AuthenticationPrincipal Long userId) {
+        return java.util.Map.of("count", bookingService.pendingCountForGuide(userId));
+    }
+
     /** 가이드: 수락 */
     @PatchMapping("/{id}/accept")
     public BookingResponse accept(@AuthenticationPrincipal Long userId, @PathVariable Long id) {

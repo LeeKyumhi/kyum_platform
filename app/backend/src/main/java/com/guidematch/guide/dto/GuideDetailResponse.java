@@ -22,6 +22,8 @@ public record GuideDetailResponse(
         long reviewCount,
         long followerCount,
         boolean isFollowing,
+        String gender,
+        boolean instantBooking,
         String mbti,
         List<String> interests,
         List<LanguageItem> languages,
@@ -32,7 +34,7 @@ public record GuideDetailResponse(
     public static GuideDetailResponse from(GuideProfile profile, String guideName,
                                            double avgRating, long reviewCount,
                                            long followerCount, boolean isFollowing,
-                                           List<GuideCredential> credentials) {
+                                           List<GuideCredential> credentials, String guideGender) {
         List<LanguageItem> langs = profile.getLanguages().stream()
                 .map(l -> new LanguageItem(l.getLanguage(), l.getLevel()))
                 .toList();
@@ -46,7 +48,7 @@ public record GuideDetailResponse(
                 profile.getHourlyRate(), profile.getCurrency(), profile.getRegion(),
                 profile.getCity(), profile.getLatitude(), profile.getLongitude(),
                 profile.getAvatarUrl(), avgRating, reviewCount, followerCount, isFollowing,
-                profile.getMbti(), profile.getInterestList(), langs, creds
+                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, creds
         );
     }
 }

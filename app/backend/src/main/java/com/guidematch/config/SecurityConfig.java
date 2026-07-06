@@ -49,14 +49,16 @@ public class SecurityConfig {
                         // WebSocket 핸드셰이크 (실제 인증은 STOMP CONNECT 인터셉터에서 처리)
                         .requestMatchers("/ws/**").permitAll()
                         // 가이드 검색/조회(GET)는 비로그인 여행자도 둘러볼 수 있게 공개
-                        .requestMatchers(HttpMethod.GET, "/api/guides", "/api/guides/**", "/api/posts").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/guides", "/api/guides/**", "/api/posts", "/api/courses").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/followers/count").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/slots").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()
                         // 게시글 조회수 증가는 비로그인 방문자도 카운트 (임프레션)
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/view").permitAll()
+                        // 게시글/리뷰는 공개 콘텐츠 — 번역도 비로그인 방문자가 사용 가능
+                        .requestMatchers(HttpMethod.GET, "/api/posts/*/translate", "/api/reviews/*/translate").permitAll()
                         // 도시 목록·위치 역지오코딩·지역 장소 검색은 비로그인도 사용 (도시 선택/둘러보기 UI)
-                        .requestMatchers(HttpMethod.GET, "/api/cities", "/api/geo/**", "/api/places").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/cities", "/api/geo/**", "/api/places", "/api/places/nearby").permitAll()
                         // 그 외 모든 요청은 유효한 토큰(로그인)이 있어야 접근 가능
                         .anyRequest().authenticated()
                 )

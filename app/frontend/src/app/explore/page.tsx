@@ -6,6 +6,8 @@ import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
 import DistrictSelect from "@/components/DistrictSelect";
+import { PinIcon } from "@/components/icons";
+import PlaceDetailModal from "@/components/PlaceDetailModal";
 
 type Place = {
   id: string;
@@ -45,6 +47,7 @@ export default function ExplorePage() {
   const [places, setPlaces]     = useState<Place[]>([]);
   const [kakaoOn, setKakaoOn]   = useState(true);
   const [loading, setLoading]   = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   useEffect(() => {
     if (!city) { setPlaces([]); return; }
@@ -62,36 +65,42 @@ export default function ExplorePage() {
     return () => { cancelled = true; };
   }, [city, district, category]);
 
+  const activeCat = CATEGORIES.find((c) => c.key === category) ?? CATEGORIES[0];
+
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
-          <h1 className="section-title">🗺️ {le.title}</h1>
+        {/* Header */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
+            <h1 className="section-title">{le.title}</h1>
+          </div>
+          <p className="section-subtitle">{le.subtitle}</p>
         </div>
-        <p className="text-sm text-gray-400 mb-5">{le.subtitle}</p>
 
         {/* 도시 + 세부 지역(구) 선택 */}
-        <div className="card p-5 mb-5 space-y-2">
+        <div className="card mb-5 flex flex-col gap-2.5 p-5">
           <CitySelect value={city} onChange={(c) => { setCity(c); setDistrict(""); }} />
           <DistrictSelect city={city} value={district} onChange={setDistrict} />
         </div>
 
         {!city ? (
-          <p className="text-center text-gray-400 text-sm py-10">{le.pickCity}</p>
+          <div className="card p-8 py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
+              🗺️
+            </div>
+            <p className="text-sm text-stone-500">{le.pickCity}</p>
+          </div>
         ) : (
           <>
             {/* 카테고리 탭 */}
-            <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+            <div className="mb-4 flex gap-2 overflow-x-auto pb-2">
               {CATEGORIES.map((c) => (
                 <button
                   key={c.key}
                   onClick={() => setCategory(c.key)}
-                  className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium border transition-all ${
-                    category === c.key
-                      ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                      : "bg-white text-gray-500 border-gray-200 hover:border-indigo-300 hover:text-indigo-600"
-                  }`}
+                  className={category === c.key ? "chip-active" : "chip"}
                 >
                   {c.icon} {le[c.labelKey]}
                 </button>
@@ -99,44 +108,54 @@ export default function ExplorePage() {
             </div>
 
             {!kakaoOn && (
-              <p className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700 mb-4">
+              <p className="mb-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700">
                 ⚠️ {le.kakaoDisabled}
               </p>
             )}
 
             {loading ? (
-              <p className="text-center text-gray-400 text-sm py-10">{le.loading}</p>
+              <div className="flex flex-col gap-3">
+                {[1, 2, 3, 4].map((i) => <div key={i} className="card h-24 animate-pulse p-4" />)}
+              </div>
             ) : places.length === 0 ? (
-              <p className="text-center text-gray-400 text-sm py-10">{le.empty}</p>
+              <div className="card p-8 py-16 text-center">
+                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
+                  {activeCat.icon}
+                </div>
+                <p className="text-sm text-stone-500">{le.empty}</p>
+              </div>
             ) : (
               <div className="flex flex-col gap-3">
                 {places.map((p) => (
-                  <div key={p.id} className="card p-4 flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-gray-900 truncate">{p.name}</p>
-                      {p.category && (
-                        <p className="text-xs text-gray-400 mt-0.5 truncate">{p.category}</p>
-                      )}
-                      {p.address && (
-                        <p className="text-sm text-gray-500 mt-1 truncate">📍 {p.address}</p>
-                      )}
-                      <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                        {p.distanceMeters != null && (
-                          <span>{(p.distanceMeters / 1000).toFixed(1)}km</span>
+                  <div
+                    key={p.id}
+                    onClick={() => setSelectedPlace(p)}
+                    className="card cursor-pointer p-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
+                        {activeCat.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-bold text-stone-900">{p.name}</p>
+                        {p.category && (
+                          <p className="mt-0.5 truncate text-xs text-stone-400">{p.category}</p>
                         )}
-                        {p.phone && <span>{p.phone}</span>}
+                        {p.address && (
+                          <p className="mt-1 flex items-center gap-1 text-sm text-stone-500">
+                            <PinIcon className="h-3.5 w-3.5 flex-shrink-0 text-sky-400" />
+                            <span className="truncate">{p.address}</span>
+                          </p>
+                        )}
+                        <div className="mt-1.5 flex items-center gap-3 text-xs text-stone-400">
+                          {p.distanceMeters != null && (
+                            <span className="font-semibold text-sky-500">{(p.distanceMeters / 1000).toFixed(1)}km</span>
+                          )}
+                          {p.phone && <span>{p.phone}</span>}
+                        </div>
                       </div>
+                      <span className="mt-1 flex-shrink-0 text-xs text-stone-300">›</span>
                     </div>
-                    {p.placeUrl && (
-                      <a
-                        href={p.placeUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="btn-secondary text-xs whitespace-nowrap px-3 py-1.5 flex-shrink-0"
-                      >
-                        {le.openMap}
-                      </a>
-                    )}
                   </div>
                 ))}
               </div>
@@ -144,6 +163,10 @@ export default function ExplorePage() {
           </>
         )}
       </div>
+
+      {selectedPlace && (
+        <PlaceDetailModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />
+      )}
     </main>
   );
 }

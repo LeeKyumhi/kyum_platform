@@ -18,6 +18,7 @@ public record GuideProfileResponse(
         Double longitude,
         String avatarUrl,
         boolean active,
+        boolean instantBooking,
         String mbti,
         List<String> interests,
         List<LanguageResponse> languages
@@ -33,7 +34,7 @@ public record GuideProfileResponse(
                 profile.getId(), profile.getUserId(), profile.getHeadline(),
                 profile.getIntroduction(), profile.getHourlyRate(), profile.getCurrency(),
                 profile.getRegion(), profile.getCity(), profile.getLatitude(), profile.getLongitude(),
-                profile.getAvatarUrl(), profile.isActive(),
+                profile.getAvatarUrl(), profile.isActive(), profile.isInstantBooking(),
                 profile.getMbti(), profile.getInterestList(), langs
         );
     }

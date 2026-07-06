@@ -18,8 +18,13 @@ public class GuidePost {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "guide_profile_id", nullable = false)
+    // 가이드가 작성한 게시글이면 채워짐(레거시 포함). 여행자가 쓴 게시글은 null.
+    @Column(name = "guide_profile_id")
     private Long guideProfileId;
+
+    // 작성자 user_id. 신규 게시글(가이드/여행자 모두)은 항상 채워짐. 마이그레이션 전 레거시 행은 null일 수 있음.
+    @Column(name = "author_user_id")
+    private Long authorUserId;
 
     @Column(columnDefinition = "text", nullable = false)
     private String content;
@@ -45,8 +50,9 @@ public class GuidePost {
 
     protected GuidePost() {}
 
-    public GuidePost(Long guideProfileId, String content, String imageUrl, String category) {
+    public GuidePost(Long guideProfileId, Long authorUserId, String content, String imageUrl, String category) {
         this.guideProfileId = guideProfileId;
+        this.authorUserId = authorUserId;
         this.content = content;
         this.imageUrl = imageUrl;
         this.category = category;
@@ -54,6 +60,7 @@ public class GuidePost {
 
     public Long getId() { return id; }
     public Long getGuideProfileId() { return guideProfileId; }
+    public Long getAuthorUserId() { return authorUserId; }
     public String getContent() { return content; }
     public String getImageUrl() { return imageUrl; }
     public String getCategory() { return category; }

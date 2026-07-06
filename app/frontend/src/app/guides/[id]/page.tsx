@@ -6,6 +6,11 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import SlotCalendar from "@/components/SlotCalendar";
+import TripMap from "@/components/TripMap";
+import {
+  StarIcon, PinIcon, HeartIcon, ChatIcon, CheckBadgeIcon,
+  CalendarIcon, ChevronLeftIcon,
+} from "@/components/icons";
 
 type Language   = { language: string; level: string };
 type Credential = { id: number; type: string; title: string; fileUrl: string };
@@ -13,22 +18,47 @@ type GuideDetail = {
   id: number; guideName: string; headline: string; introduction: string | null;
   hourlyRate: number; currency: string; region: string; avatarUrl: string | null;
   avgRating: number; reviewCount: number; followerCount: number; isFollowing: boolean;
-  mbti: string | null; interests: string[];
+  mbti: string | null; interests: string[]; gender: string | null; instantBooking: boolean;
   languages: Language[]; credentials: Credential[];
 };
-type Review   = { id: number; reviewerName: string; rating: number; comment: string | null; createdAt: string };
+type Review   = { id: number; reviewerName: string; rating: number; comment: string | null; tags: string[]; createdAt: string };
+type ReviewStats = {
+  average: number; count: number;
+  distribution: Record<string, number>;
+  tagCounts: Record<string, number>;
+};
 type GuidePost = {
   id: number; content: string; imageUrl: string | null; createdAt: string;
   likeCount: number; commentCount: number; isLiked: boolean;
 };
 type AvailableSlot = { id: number; guideProfileId: number; startAt: string; endAt: string };
+type CourseWaypoint = {
+  id: number; sortOrder: number; placeId: string | null; placeName: string;
+  category: string | null; address: string | null; latitude: number | null; longitude: number | null;
+};
+type TourCourse = {
+  id: number; title: string; description: string | null; city: string | null;
+  durationHours: number; price: number; currency: string; maxPeople: number; imageUrl: string | null;
+  waypoints: CourseWaypoint[];
+};
 type PostComment = { id: number; postId: number; userId: number; userName: string; content: string; createdAt: string };
+
+// 별점 분포 막대 너비 — Tailwind는 문자열 보간으로 만든 임의값 클래스를 정적으로 못 읽으므로
+// 10% 단위로 미리 적어둔 리터럴 클래스 중에서 골라 쓴다 (동적 문자열 조합 금지).
+const BAR_WIDTH_CLASSES: Record<number, string> = {
+  0: "w-0", 10: "w-[10%]", 20: "w-[20%]", 30: "w-[30%]", 40: "w-[40%]", 50: "w-[50%]",
+  60: "w-[60%]", 70: "w-[70%]", 80: "w-[80%]", 90: "w-[90%]", 100: "w-full",
+};
+function barWidthClass(pct: number) {
+  const bucket = Math.min(100, Math.max(0, Math.round(pct / 10) * 10));
+  return BAR_WIDTH_CLASSES[bucket];
+}
 
 function Stars({ n, total = 5 }: { n: number; total?: number }) {
   return (
-    <span>
+    <span className="inline-flex items-center gap-0.5">
       {Array.from({ length: total }).map((_, i) => (
-        <span key={i} className={i < n ? "text-amber-400" : "text-gray-200"}>★</span>
+        <StarIcon key={i} className={`h-4 w-4 ${i < n ? "text-amber-400" : "text-stone-200"}`} />
       ))}
     </span>
   );
@@ -43,6 +73,7 @@ function PostCard({
 }) {
   const { t, lang } = useLanguage();
   const lp = t.guidePosts;
+  const lc = t.chat;
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -50,6 +81,28 @@ function PostCard({
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+
+  // 게시글 번역: 이 카드는 한 게시글만 다루므로 단일 상태로 캐시
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [showTranslation, setShowTranslation] = useState(false);
+  const [translating, setTranslating] = useState(false);
+
+  async function toggleTranslate() {
+    if (translation !== null) {
+      setShowTranslation((v) => !v);
+      return;
+    }
+    setTranslating(true);
+    try {
+      const res = await api<{ translated: string }>(`/api/posts/${post.id}/translate?lang=${lang}`);
+      setTranslation(res.translated);
+      setShowTranslation(true);
+    } catch {
+      setTranslation("");
+    } finally {
+      setTranslating(false);
+    }
+  }
 
   async function toggleLike() {
     if (!getToken()) { router.push("/login"); return; }
@@ -93,7 +146,7 @@ function PostCard({
   }
 
   return (
-    <article className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm">
+    <article className="card overflow-hidden">
       {/* Image */}
       {post.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
@@ -105,44 +158,59 @@ function PostCard({
         <button
           onClick={toggleLike}
           className={`flex items-center gap-1.5 text-sm transition-colors ${
-            post.isLiked ? "text-red-500" : "text-gray-400 hover:text-red-400"
+            post.isLiked ? "text-sky-500" : "text-stone-400 hover:text-sky-400"
           }`}
         >
-          <span className="text-xl leading-none">{post.isLiked ? "❤️" : "🤍"}</span>
-          {post.likeCount > 0 && <span className="font-medium text-gray-700">{post.likeCount}</span>}
+          <HeartIcon className="h-6 w-6" filled={post.isLiked} />
+          {post.likeCount > 0 && <span className="font-semibold text-stone-700">{post.likeCount}</span>}
         </button>
         <button
           onClick={toggleComments}
-          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-indigo-500 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-stone-400 hover:text-stone-700 transition-colors"
         >
-          <span className="text-xl leading-none">💬</span>
-          {post.commentCount > 0 && <span className="font-medium text-gray-700">{post.commentCount}</span>}
+          <ChatIcon className="h-6 w-6" />
+          {post.commentCount > 0 && <span className="font-semibold text-stone-700">{post.commentCount}</span>}
         </button>
       </div>
 
       {/* Content */}
       <div className="px-4 pb-3">
-        <p className="text-sm text-gray-800 whitespace-pre-line leading-relaxed mt-1">
-          <span className="font-semibold mr-1">{guideName}</span>
+        <p className="text-sm text-stone-800 whitespace-pre-line leading-relaxed mt-1">
+          <span className="font-bold mr-1">{guideName}</span>
           {post.content}
         </p>
-        <p className="mt-2 text-xs text-gray-400">
+        {showTranslation && translation && (
+          <p className="mt-1.5 border-t border-stone-100 pt-1.5 text-[13px] leading-relaxed text-sky-600">
+            🌐 {translation}
+          </p>
+        )}
+        <button
+          onClick={toggleTranslate}
+          className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
+        >
+          {translating
+            ? lc.translating
+            : showTranslation && translation
+              ? lc.hideTranslation
+              : lc.translateBtn}
+        </button>
+        <p className="mt-2 text-xs text-stone-400">
           {new Date(post.createdAt).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
         </p>
       </div>
 
       {/* Comments */}
       {showComments && (
-        <div className="border-t border-gray-50 px-4 pb-4">
+        <div className="border-t border-stone-50 px-4 pb-4">
           {commentsLoaded && comments.length === 0 && (
-            <p className="text-xs text-gray-400 py-3 text-center">{lp.noComments}</p>
+            <p className="text-xs text-stone-400 py-3 text-center">{lp.noComments}</p>
           )}
           {comments.length > 0 && (
             <ul className="pt-3 flex flex-col gap-2">
               {comments.map((c) => (
                 <li key={c.id} className="text-sm">
-                  <span className="font-semibold text-gray-900 mr-1">{c.userName}</span>
-                  <span className="text-gray-700">{c.content}</span>
+                  <span className="font-bold text-stone-900 mr-1">{c.userName}</span>
+                  <span className="text-stone-700">{c.content}</span>
                 </li>
               ))}
             </ul>
@@ -152,13 +220,13 @@ function PostCard({
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               placeholder={lp.commentPlaceholder}
-              className="flex-1 text-sm border-none bg-gray-50 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              className="flex-1 text-sm border-none bg-stone-100 rounded-full px-4 py-2 focus:outline-none focus:ring-2 focus:ring-sky-200"
               disabled={submitting}
             />
             <button
               type="submit"
               disabled={!commentText.trim() || submitting}
-              className="text-sm text-indigo-600 font-semibold disabled:opacity-40 hover:text-indigo-800 transition-colors flex-shrink-0"
+              className="text-sm text-sky-500 font-semibold disabled:opacity-40 hover:text-sky-700 transition-colors flex-shrink-0"
             >
               {lp.commentSubmit}
             </button>
@@ -180,10 +248,36 @@ export default function GuideDetailPage() {
 
   const [guide, setGuide]     = useState<GuideDetail | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewStats, setReviewStats] = useState<ReviewStats | null>(null);
   const [posts, setPosts]     = useState<GuidePost[]>([]);
   const [slots, setSlots]     = useState<AvailableSlot[]>([]);
+  const [courses, setCourses] = useState<TourCourse[]>([]);
+  const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
   const [error, setError]     = useState("");
   const [followLoading, setFollowLoading] = useState(false);
+  const [dmLoading, setDmLoading] = useState(false);
+
+  // 리뷰 번역: reviewId → 번역문 / 표시 여부 캐시
+  const [reviewTranslations, setReviewTranslations] = useState<Record<number, string>>({});
+  const [reviewShown, setReviewShown]               = useState<Record<number, boolean>>({});
+  const [reviewTranslating, setReviewTranslating]   = useState<Record<number, boolean>>({});
+
+  async function toggleReviewTranslate(reviewId: number) {
+    if (reviewTranslations[reviewId] !== undefined) {
+      setReviewShown((prev) => ({ ...prev, [reviewId]: !prev[reviewId] }));
+      return;
+    }
+    setReviewTranslating((prev) => ({ ...prev, [reviewId]: true }));
+    try {
+      const res = await api<{ translated: string }>(`/api/reviews/${reviewId}/translate?lang=${lang}`);
+      setReviewTranslations((prev) => ({ ...prev, [reviewId]: res.translated }));
+      setReviewShown((prev) => ({ ...prev, [reviewId]: true }));
+    } catch {
+      setReviewTranslations((prev) => ({ ...prev, [reviewId]: "" }));
+    } finally {
+      setReviewTranslating((prev) => ({ ...prev, [reviewId]: false }));
+    }
+  }
 
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
   const [useManual, setUseManual]       = useState(false);
@@ -194,12 +288,15 @@ export default function GuideDetailPage() {
   const [bookingMsg, setBookingMsg]   = useState("");
   const [bookingError, setBookingError] = useState("");
   const [submitting, setSubmitting]   = useState(false);
+  const [bookingResult, setBookingResult] = useState<"REQUESTED" | "ACCEPTED" | null>(null);
 
   useEffect(() => {
     api<GuideDetail>(`/api/guides/${id}`).then(setGuide).catch((e) => setError(e.message));
     api<Review[]>(`/api/guides/${id}/reviews`).then(setReviews).catch(() => {});
+    api<ReviewStats>(`/api/guides/${id}/review-stats`).then(setReviewStats).catch(() => {});
     api<GuidePost[]>(`/api/guides/${id}/posts`).then(setPosts).catch(() => {});
     api<AvailableSlot[]>(`/api/guides/${id}/slots`).then(setSlots).catch(() => {});
+    api<TourCourse[]>(`/api/guides/${id}/courses`).then(setCourses).catch(() => {});
   }, [id]);
 
   async function onFollow() {
@@ -216,6 +313,18 @@ export default function GuideDetailPage() {
       }
     } catch { /* ignore */ }
     finally { setFollowLoading(false); }
+  }
+
+  // 예약 전 문의 — 대화방을 얻어(없으면 생성) 메시지 화면으로 이동
+  async function onMessage() {
+    if (!getToken()) { router.push("/login"); return; }
+    setDmLoading(true);
+    try {
+      const c = await api<{ id: number }>("/api/conversations", {
+        method: "POST", body: { guideProfileId: Number(id) }, auth: true,
+      });
+      router.push(`/messages/${c.id}`);
+    } catch { setDmLoading(false); /* 본인 프로필 등 — 이동하지 않고 버튼만 되돌린다 */ }
   }
 
   function handleLikeChange(postId: number, liked: boolean, likeCount: number) {
@@ -248,13 +357,23 @@ export default function GuideDetailPage() {
 
   async function onBookingSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setBookingError(""); setSubmitting(true);
+    setBookingError("");
+    if (!startAt || new Date(startAt).getTime() <= Date.now()) {
+      setBookingError(l.futureDateError);
+      return;
+    }
+    const hoursNum = Number(hours);
+    if (!Number.isInteger(hoursNum) || hoursNum <= 0) {
+      setBookingError(l.hoursError);
+      return;
+    }
+    setSubmitting(true);
     try {
-      await api("/api/bookings", {
+      const res = await api<{ status: string }>("/api/bookings", {
         method: "POST", auth: true,
-        body: { guideId: Number(id), startAt: new Date(startAt).toISOString(), hours: Number(hours), message: bookingMsg },
+        body: { guideId: Number(id), startAt: new Date(startAt).toISOString(), hours: hoursNum, message: bookingMsg },
       });
-      router.push("/traveler/bookings");
+      setBookingResult(res.status === "ACCEPTED" ? "ACCEPTED" : "REQUESTED");
     } catch (err) {
       setBookingError(err instanceof Error ? err.message : t.common.error);
     } finally { setSubmitting(false); }
@@ -262,80 +381,122 @@ export default function GuideDetailPage() {
 
   if (error) return (
     <main className="page px-4"><div className="container-sm">
-      <p className="text-red-600 mb-4">{error}</p>
-      <Link href="/guides" className="text-indigo-600 hover:underline text-sm">{l.back}</Link>
+      <p className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+      <Link href="/guides" className="inline-flex items-center gap-1 text-sm font-semibold text-sky-500 hover:underline">
+        <ChevronLeftIcon className="h-4 w-4" /> {l.back}
+      </Link>
     </div></main>
   );
   if (!guide) return (
     <main className="page flex items-center justify-center">
-      <div className="text-gray-400 text-sm">{t.common.loading}</div>
+      <div className="text-stone-400 text-sm">{t.common.loading}</div>
     </main>
   );
 
   const totalPrice = guide.hourlyRate * (Number(hours) || 0);
   const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const isVerified = guide.credentials.length > 0;
 
   return (
     <main className="page px-4">
       <div className="mx-auto max-w-4xl">
-        <Link href="/guides" className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:underline mb-6">
+        <Link
+          href="/guides"
+          className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-3 text-sm font-semibold text-stone-500 transition-colors hover:text-stone-900"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-stone-200 bg-white shadow-sm">
+            <ChevronLeftIcon className="h-4 w-4" />
+          </span>
           {l.back}
         </Link>
 
-        <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-8">
+        <div className="lg:grid lg:grid-cols-[1fr_340px] lg:gap-8">
           {/* Left column */}
           <div>
-            {/* Guide header — always visible */}
-            <div className="card p-6 mb-0 rounded-b-none border-b-0">
-              <div className="flex gap-5 items-start">
-                {guide.avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={guide.avatarUrl} alt={guide.guideName}
-                    className="w-20 h-20 rounded-2xl object-cover ring-2 ring-indigo-100 shadow-sm flex-shrink-0" />
-                ) : (
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white text-3xl font-bold flex-shrink-0">
-                    {guide.guideName.slice(0, 1)}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h1 className="text-xl font-bold text-gray-900">{guide.guideName}</h1>
-                      <p className="text-gray-600 text-sm mt-0.5">{guide.headline}</p>
+            {/* Guide header — Airbnb-style banner + overlapping avatar */}
+            <div className="card mb-5 overflow-hidden">
+              <div className="h-28 bg-gradient-to-r from-sky-200 via-cyan-100 to-teal-100 md:h-32" />
+              <div className="px-5 pb-6 md:px-7">
+                <div className="-mt-10 flex items-end justify-between gap-3 md:-mt-12">
+                  {guide.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={guide.avatarUrl} alt={guide.guideName}
+                      className="h-20 w-20 flex-shrink-0 rounded-3xl object-cover shadow-md ring-4 ring-white md:h-24 md:w-24" />
+                  ) : (
+                    <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-sky-400 to-cyan-400 text-3xl font-bold text-white shadow-md ring-4 ring-white md:h-24 md:w-24">
+                      {guide.guideName.slice(0, 1)}
                     </div>
+                  )}
+                  <div className="mb-1 flex flex-shrink-0 items-center gap-2">
+                    {/* 예약 전에도 물어볼 수 있는 1:1 메시지 */}
+                    <button
+                      onClick={onMessage}
+                      disabled={dmLoading}
+                      className="flex items-center gap-1.5 rounded-full bg-sky-500 px-4 py-2 text-xs font-bold text-white transition-all hover:bg-sky-600 active:scale-95 disabled:opacity-60"
+                    >
+                      <ChatIcon className="h-3.5 w-3.5" /> {t.dm.messageBtn}
+                    </button>
                     <button
                       onClick={onFollow}
                       disabled={followLoading}
-                      className={`flex-shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold border transition-colors ${
+                      className={`rounded-full px-5 py-2 text-xs font-bold transition-all ${
                         guide.isFollowing
-                          ? "bg-indigo-600 text-white border-indigo-600"
-                          : "bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50"
+                          ? "bg-stone-900 text-white hover:bg-stone-700"
+                          : "border border-stone-300 bg-white text-stone-800 hover:border-stone-900"
                       } disabled:opacity-60`}
                     >
                       {guide.isFollowing ? t.personality.unfollowBtn : t.personality.followBtn}
                     </button>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-                    <span className="text-gray-500 flex items-center gap-1">📍 {guide.region}</span>
-                    <span className="text-gray-500">
-                      <span className="font-semibold text-gray-800">{guide.followerCount}</span>
+                </div>
+
+                <div className="mt-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="text-2xl font-extrabold tracking-tight text-stone-900">{guide.guideName}</h1>
+                    {isVerified && (
+                      <span className="badge-emerald py-1">
+                        <CheckBadgeIcon className="h-4 w-4" /> {l.verified}
+                      </span>
+                    )}
+                    {guide.instantBooking && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">
+                        ⚡ {l.instantBadge}
+                      </span>
+                    )}
+                    {guide.gender && (
+                      <span className="badge-gray py-1 text-[11px]">
+                        {guide.gender === "male" ? `♂ ${t.personality.genderMale}`
+                          : guide.gender === "female" ? `♀ ${t.personality.genderFemale}`
+                          : t.personality.genderOther}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-stone-600">{guide.headline}</p>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                    <span className="flex items-center gap-1 text-stone-500">
+                      <PinIcon className="h-4 w-4" /> {guide.region}
+                    </span>
+                    <span className="text-stone-500">
+                      <span className="font-bold text-stone-900">{guide.followerCount}</span>
                       {" "}{t.personality.followers}
                     </span>
                     {guide.reviewCount > 0 && (
                       <span className="flex items-center gap-1.5">
                         <Stars n={Math.round(guide.avgRating)} />
-                        <span className="font-semibold text-gray-800">{guide.avgRating.toFixed(1)}</span>
-                        <span className="text-gray-400">({guide.reviewCount} {l.reviewCount})</span>
+                        <span className="font-bold text-stone-900">{guide.avgRating.toFixed(1)}</span>
+                        <span className="text-stone-400">({guide.reviewCount} {l.reviewCount})</span>
                       </span>
                     )}
                   </div>
+
                   {/* MBTI + Interests */}
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
                     {guide.mbti && (
-                      <span className="rounded-lg bg-violet-100 text-violet-700 px-2.5 py-0.5 text-xs font-bold">{guide.mbti}</span>
+                      <span className="rounded-lg bg-violet-100 px-2.5 py-0.5 text-xs font-bold text-violet-700">{guide.mbti}</span>
                     )}
                     {guide.interests.map((k) => (
-                      <span key={k} className="rounded-full bg-gray-100 text-gray-600 px-2.5 py-0.5 text-xs">
+                      <span key={k} className="badge-gray py-1">
                         {t.interests[k as keyof typeof t.interests] ?? k}
                       </span>
                     ))}
@@ -345,8 +506,7 @@ export default function GuideDetailPage() {
             </div>
 
             {/* Tab bar */}
-            <div className="flex border-b border-gray-100 bg-white rounded-none px-2 shadow-sm shadow-gray-100 mb-5"
-              style={{ borderLeft: "1px solid #f3f4f6", borderRight: "1px solid #f3f4f6" }}>
+            <div className="seg-wrap mb-5">
               {[
                 { key: "profile", label: l.tabProfile },
                 { key: "posts",   label: `${l.tabPosts}${posts.length > 0 ? ` (${posts.length})` : ""}` },
@@ -354,11 +514,7 @@ export default function GuideDetailPage() {
                 <button
                   key={tb.key}
                   onClick={() => setTab(tb.key as "profile" | "posts")}
-                  className={`pb-3 pt-3 px-5 text-sm font-medium transition-colors border-b-2 -mb-px ${
-                    tab === tb.key
-                      ? "border-indigo-600 text-indigo-600"
-                      : "border-transparent text-gray-400 hover:text-gray-700"
-                  }`}
+                  className={tab === tb.key ? "seg-active" : "seg"}
                 >
                   {tb.label}
                 </button>
@@ -370,18 +526,90 @@ export default function GuideDetailPage() {
               <div className="flex flex-col gap-5">
                 {guide.introduction && (
                   <div className="card p-6">
-                    <h2 className="font-semibold text-gray-900 mb-3">{l.intro}</h2>
-                    <p className="text-sm text-gray-600 whitespace-pre-line leading-relaxed">{guide.introduction}</p>
+                    <h2 className="mb-3 font-bold text-stone-900">{l.intro}</h2>
+                    <p className="whitespace-pre-line text-sm leading-relaxed text-stone-600">{guide.introduction}</p>
+                  </div>
+                )}
+
+                {/* 투어 코스 상품 */}
+                {courses.length > 0 && (
+                  <div className="card p-6">
+                    <h2 className="mb-4 font-bold text-stone-900">🎫 {t.courses.tabTitle}</h2>
+                    <div className="flex flex-col gap-3">
+                      {courses.map((c) => {
+                        const expanded = expandedCourseId === c.id;
+                        return (
+                          <div key={c.id} className="rounded-xl border border-stone-100 p-3">
+                            <div className="flex gap-3">
+                              {c.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={c.imageUrl} alt={c.title} className="h-20 w-20 flex-shrink-0 rounded-lg object-cover" />
+                              ) : (
+                                <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-sky-400 to-cyan-400 text-xl">
+                                  🎫
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <h3 className="truncate text-sm font-bold text-stone-900">{c.title}</h3>
+                                {c.description && (
+                                  <p className="mt-0.5 text-xs leading-relaxed text-stone-500 line-clamp-2">{c.description}</p>
+                                )}
+                                <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-stone-400">
+                                  <span>⏱ {c.durationHours}{t.courses.hoursUnit}</span>
+                                  <span>👥 {t.courses.upTo} {c.maxPeople}{t.courses.peopleUnit}</span>
+                                  <span className="font-bold text-stone-700">{c.price.toLocaleString()} {c.currency}/{t.courses.perPerson}</span>
+                                </div>
+                                {c.waypoints.length > 0 && (
+                                  <button
+                                    onClick={() => setExpandedCourseId(expanded ? null : c.id)}
+                                    className="mt-1.5 text-xs font-semibold text-sky-500 hover:text-sky-700"
+                                  >
+                                    {expanded ? `▲ ${t.courses.hideRoute}` : `▼ ${t.courses.viewRoute} (${c.waypoints.length}${t.courses.stopUnit})`}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {expanded && c.waypoints.length > 0 && (
+                              <div className="mt-3 border-t border-stone-100 pt-3">
+                                <TripMap
+                                  points={c.waypoints.map((w) => ({
+                                    key: String(w.sortOrder), name: w.placeName, latitude: w.latitude, longitude: w.longitude,
+                                  }))}
+                                  className="mb-3"
+                                />
+                                <ol className="flex flex-col gap-1.5">
+                                  {c.waypoints.map((w, i) => (
+                                    <li key={w.id} className="flex items-start gap-2.5 rounded-xl bg-stone-50 px-3 py-2">
+                                      <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-sky-500 text-[11px] font-bold text-white">
+                                        {i + 1}
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex flex-wrap items-baseline gap-x-2">
+                                          <span className="text-sm font-semibold text-stone-800">{w.placeName}</span>
+                                          {w.category && <span className="text-xs text-stone-400">{w.category}</span>}
+                                        </div>
+                                        {w.address && <p className="truncate text-xs text-stone-400">{w.address}</p>}
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
                 <div className="card p-6">
-                  <h2 className="font-semibold text-gray-900 mb-3">{l.languages}</h2>
+                  <h2 className="mb-3 font-bold text-stone-900">{l.languages}</h2>
                   <div className="flex flex-wrap gap-2">
                     {guide.languages.map((lv, i) => (
-                      <span key={i} className="badge-indigo py-1 px-3 text-sm">
+                      <span key={i} className="badge-indigo px-3 py-1 text-sm">
                         {lv.language}
-                        <span className="opacity-60 ml-1">· {t.level[lv.level as keyof typeof t.level] ?? lv.level}</span>
+                        <span className="ml-1 opacity-60">· {t.level[lv.level as keyof typeof t.level] ?? lv.level}</span>
                       </span>
                     ))}
                   </div>
@@ -389,16 +617,18 @@ export default function GuideDetailPage() {
 
                 {guide.credentials.length > 0 && (
                   <div className="card p-6">
-                    <h2 className="font-semibold text-gray-900 mb-3">{l.credentials}</h2>
+                    <h2 className="mb-3 flex items-center gap-1.5 font-bold text-stone-900">
+                      <CheckBadgeIcon className="h-5 w-5 text-emerald-500" /> {l.credentials}
+                    </h2>
                     <ul className="flex flex-col gap-2">
                       {guide.credentials.map((c) => (
-                        <li key={c.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3">
+                        <li key={c.id} className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
                           <span className="flex items-center gap-2 text-sm">
                             <span className="badge-gray">{t.credType[c.type as keyof typeof t.credType] ?? c.type}</span>
-                            <span className="text-gray-700">{c.title}</span>
+                            <span className="text-stone-700">{c.title}</span>
                           </span>
                           <a href={c.fileUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-indigo-600 hover:underline font-medium">{l.view}</a>
+                            className="text-xs font-semibold text-sky-500 hover:underline">{l.view}</a>
                         </li>
                       ))}
                     </ul>
@@ -406,20 +636,95 @@ export default function GuideDetailPage() {
                 )}
 
                 <div className="card p-6">
-                  <h2 className="font-semibold text-gray-900 mb-4">
+                  <h2 className="mb-4 flex items-center gap-2 font-bold text-stone-900">
+                    <StarIcon className="h-5 w-5 text-amber-400" />
                     {l.reviews}{guide.reviewCount > 0 ? ` (${guide.reviewCount})` : ""}
+                    {guide.reviewCount > 0 && (
+                      <span className="text-sm font-extrabold text-stone-900">· {guide.avgRating.toFixed(1)}</span>
+                    )}
                   </h2>
+
+                  {/* 별점 분포 + 키워드 태그 (review-stats) */}
+                  {reviewStats && reviewStats.count > 0 && (
+                    <div className="mb-5 flex flex-col gap-4">
+                      <div className="flex flex-col gap-1">
+                        {[5, 4, 3, 2, 1].map((star) => {
+                          const cnt = reviewStats.distribution[String(star)] ?? 0;
+                          const pct = reviewStats.count > 0 ? Math.round((cnt / reviewStats.count) * 100) : 0;
+                          return (
+                            <div key={star} className="flex items-center gap-2 text-xs text-stone-500">
+                              <span className="w-8 flex-shrink-0">{star}★</span>
+                              <div className="h-2 flex-1 overflow-hidden rounded-full bg-stone-100">
+                                <div className={`h-full rounded-full bg-amber-400 ${barWidthClass(pct)}`} />
+                              </div>
+                              <span className="w-6 flex-shrink-0 text-right font-medium text-stone-700">{cnt}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {Object.entries(reviewStats.tagCounts).filter(([, cnt]) => cnt > 0).length > 0 && (
+                        <div>
+                          <p className="mb-2 text-xs font-semibold text-stone-400">{l.reviewKeywords}</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Object.entries(reviewStats.tagCounts)
+                              .filter(([, cnt]) => cnt > 0)
+                              .sort(([, a], [, b]) => b - a)
+                              .map(([key, cnt]) => (
+                                <span key={key} className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-600 ring-1 ring-sky-100">
+                                  {t.reviewTags[key as keyof typeof t.reviewTags] ?? key} {cnt}
+                                </span>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {reviews.length === 0 ? (
-                    <p className="text-sm text-gray-400 text-center py-4">{l.noReview}</p>
+                    <p className="py-4 text-center text-sm text-stone-400">{l.noReview}</p>
                   ) : (
                     <ul className="flex flex-col gap-3">
                       {reviews.map((r) => (
-                        <li key={r.id} className="rounded-xl bg-gray-50 p-4">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-medium text-sm text-gray-900">{r.reviewerName}</span>
+                        <li key={r.id} className="rounded-xl bg-stone-50 p-4">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="flex items-center gap-2.5">
+                              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-200 text-xs font-bold text-stone-600">
+                                {r.reviewerName.slice(0, 1).toUpperCase()}
+                              </span>
+                              <span className="text-sm font-semibold text-stone-900">{r.reviewerName}</span>
+                            </span>
                             <Stars n={r.rating} />
                           </div>
-                          {r.comment && <p className="text-sm text-gray-600 leading-relaxed">{r.comment}</p>}
+                          {r.tags.length > 0 && (
+                            <div className="mb-2 flex flex-wrap gap-1.5">
+                              {r.tags.map((key) => (
+                                <span key={key} className="rounded-full bg-sky-50 px-2.5 py-0.5 text-[11px] font-semibold text-sky-600 ring-1 ring-sky-100">
+                                  {t.reviewTags[key as keyof typeof t.reviewTags] ?? key}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          {r.comment && (
+                            <>
+                              <p className="text-sm leading-relaxed text-stone-600">{r.comment}</p>
+                              {reviewShown[r.id] && reviewTranslations[r.id] && (
+                                <p className="mt-1.5 border-t border-stone-200 pt-1.5 text-[13px] leading-relaxed text-sky-600">
+                                  🌐 {reviewTranslations[r.id]}
+                                </p>
+                              )}
+                              <button
+                                onClick={() => toggleReviewTranslate(r.id)}
+                                className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
+                              >
+                                {reviewTranslating[r.id]
+                                  ? t.chat.translating
+                                  : reviewShown[r.id] && reviewTranslations[r.id]
+                                    ? t.chat.hideTranslation
+                                    : t.chat.translateBtn}
+                              </button>
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -432,9 +737,11 @@ export default function GuideDetailPage() {
             {tab === "posts" && (
               <div>
                 {posts.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="text-4xl mb-3">📝</div>
-                    <p className="text-sm text-gray-400">{l.noPosts}</p>
+                  <div className="py-16 text-center">
+                    <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 text-stone-400">
+                      <ChatIcon className="h-7 w-7" />
+                    </div>
+                    <p className="text-sm text-stone-400">{l.noPosts}</p>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-4">
@@ -453,128 +760,155 @@ export default function GuideDetailPage() {
             )}
           </div>
 
-          {/* Right — sticky booking panel */}
+          {/* Right — sticky booking summary card */}
           <div className="mt-5 lg:mt-0">
-            <div className="sticky top-24 flex flex-col gap-4">
-
-              {/* Price card */}
-              <div className="card p-5 shadow-lg">
-                <div className="flex items-baseline justify-between mb-1">
-                  <span className="text-2xl font-bold text-gray-900">{guide.hourlyRate.toLocaleString()}</span>
-                  <span className="text-sm text-gray-500">{guide.currency} {l.perHour}</span>
-                </div>
-                {guide.reviewCount > 0 && (
-                  <div className="flex items-center gap-1.5 text-sm text-gray-500">
-                    <span className="text-amber-400">★</span>
-                    <span className="font-semibold text-gray-700">{guide.avgRating.toFixed(1)}</span>
-                    <span>· {guide.reviewCount} {l.reviewCount}</span>
+            <div className="sticky top-24">
+              <div className="card overflow-hidden shadow-lg">
+                {/* Price header */}
+                <div className="border-b border-stone-100 bg-stone-50/60 p-5">
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-extrabold tracking-tight text-stone-900">
+                      {guide.hourlyRate.toLocaleString()}
+                    </span>
+                    <span className="text-sm font-medium text-stone-500">{guide.currency} {l.perHour}</span>
                   </div>
+                  {guide.reviewCount > 0 && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-sm text-stone-500">
+                      <StarIcon className="h-4 w-4 text-amber-400" />
+                      <span className="font-bold text-stone-800">{guide.avgRating.toFixed(1)}</span>
+                      <span>· {guide.reviewCount} {l.reviewCount}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Booking confirmation panel — replaces slot picker / form after submit */}
+                {bookingResult ? (
+                  <div className="p-5 text-center">
+                    <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-md ${
+                      bookingResult === "ACCEPTED" ? "bg-gradient-to-br from-amber-400 to-orange-400" : "bg-gradient-to-br from-sky-400 to-cyan-400"
+                    }`}>
+                      {bookingResult === "ACCEPTED" ? "⚡" : "📩"}
+                    </div>
+                    <p className="mb-1 font-bold text-stone-900">
+                      {bookingResult === "ACCEPTED" ? l.instantConfirmedTitle : l.requestedTitle}
+                    </p>
+                    <p className="mb-5 text-sm text-stone-500">
+                      {bookingResult === "ACCEPTED" ? l.instantConfirmedDesc : l.requestedDesc}
+                    </p>
+                    <Link href="/traveler/bookings" className="btn-primary block w-full py-3">
+                      {l.viewBookingsBtn}
+                    </Link>
+                  </div>
+                ) : !showForm ? (
+                  <div className="p-5">
+                    {slots.length === 0 ? (
+                      /* No slots — direct booking */
+                      <div>
+                        <p className="mb-4 text-sm text-stone-400">{t.availability.guideEmpty}</p>
+                        <button
+                          onClick={() => { if (!getToken()) { router.push("/login"); return; } setShowForm(true); }}
+                          className="btn-primary w-full py-3"
+                        >
+                          {guide.instantBooking ? l.instantBookBtn : l.bookBtn}
+                        </button>
+                        <p className="mt-2 text-center text-xs text-stone-400">{guide.instantBooking ? l.instantBookNote : l.bookNote}</p>
+                      </div>
+                    ) : (
+                      /* Slot calendar */
+                      <div>
+                        <h3 className="mb-1 flex items-center gap-2 font-bold text-stone-900">
+                          <CalendarIcon className="h-4 w-4 text-sky-500" /> {t.availability.sectionTitle}
+                        </h3>
+                        <p className="mb-3 text-xs text-stone-400">{t.availability.hint}</p>
+
+                        <SlotCalendar
+                          mode="traveler"
+                          slots={slots}
+                          selectedSlot={selectedSlot}
+                          onSlotSelect={(s) => setSelectedSlot(s)}
+                          hourlyRate={guide.hourlyRate}
+                          currency={guide.currency}
+                        />
+
+                        {selectedSlot && (
+                          <button
+                            onClick={() => { if (!getToken()) { router.push("/login"); return; } onSlotSelect(selectedSlot); }}
+                            className="btn-primary mt-3 mb-2 w-full py-3"
+                          >
+                            {t.availability.slotBtn}
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => { if (!getToken()) { router.push("/login"); return; } setUseManual(true); setShowForm(true); }}
+                          className="mt-1 w-full py-1 text-xs text-stone-400 transition-colors hover:text-sky-500"
+                        >
+                          {t.availability.orManual} →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* Booking form */
+                  <form onSubmit={onBookingSubmit} className="flex flex-col gap-4 p-5">
+                    <div className="flex items-center justify-between">
+                      <h2 className="font-bold text-stone-900">{l.bookTitle}</h2>
+                      <button type="button" onClick={() => { setShowForm(false); setUseManual(false); setSelectedSlot(null); }}
+                        className="flex h-8 w-8 items-center justify-center rounded-full text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600">✕</button>
+                    </div>
+
+                    {/* Selected slot badge */}
+                    {selectedSlot && (
+                      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5">
+                        <CalendarIcon className="h-5 w-5 flex-shrink-0 text-sky-400" />
+                        <div>
+                          <p className="text-xs font-bold text-sky-700">
+                            {new Date(selectedSlot.startAt).toLocaleDateString(locale, { month: "short", day: "numeric", weekday: "short" })}
+                            {" · "}
+                            {new Date(selectedSlot.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {" – "}
+                            {new Date(selectedSlot.endAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                          <p className="text-xs text-sky-400">{t.availability.sectionTitle}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="input-label">{l.startAt}</label>
+                      <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="input" />
+                    </div>
+                    <div>
+                      <label className="input-label">{l.hours}</label>
+                      <input type="number" min={1} value={hours} onChange={(e) => setHours(e.target.value)} required className="input" />
+                    </div>
+                    <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
+                      <span className="text-sm text-stone-600">{l.estPrice}</span>
+                      <span className="font-extrabold text-stone-900">{totalPrice.toLocaleString()} {guide.currency}</span>
+                    </div>
+                    <div>
+                      <label className="input-label">
+                        {l.message} <span className="text-stone-400 normal-case font-normal">{l.messageOpt}</span>
+                      </label>
+                      <textarea placeholder={l.messagePlaceholder} value={bookingMsg}
+                        onChange={(e) => setBookingMsg(e.target.value)} rows={3} className="input resize-none" />
+                    </div>
+
+                    {/* 취소 정책 안내 — 예약 전 신뢰 확보용 고정 문구 */}
+                    <div className="rounded-xl border border-sky-100 bg-sky-50/60 px-4 py-3 text-xs leading-relaxed text-sky-700">
+                      <p className="mb-0.5 font-bold">ℹ️ {l.cancellationPolicyTitle}</p>
+                      <p>{l.cancellationPolicyBody}</p>
+                    </div>
+
+                    {bookingError && (
+                      <p className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">{bookingError}</p>
+                    )}
+                    <button type="submit" disabled={submitting} className="btn-primary w-full py-3">
+                      {submitting ? l.sending : (guide.instantBooking ? l.instantSendBtn : l.sendBtn)}
+                    </button>
+                  </form>
                 )}
               </div>
-
-              {/* Slot picker or booking form */}
-              {!showForm ? (
-                <div className="card p-5 shadow-lg">
-                  {slots.length === 0 ? (
-                    /* No slots — direct booking */
-                    <div>
-                      <p className="text-sm text-gray-400 mb-4">{t.availability.guideEmpty}</p>
-                      <button
-                        onClick={() => { if (!getToken()) { router.push("/login"); return; } setShowForm(true); }}
-                        className="btn-primary w-full py-3"
-                      >
-                        {l.bookBtn}
-                      </button>
-                      <p className="mt-2 text-center text-xs text-gray-400">{l.bookNote}</p>
-                    </div>
-                  ) : (
-                    /* Slot calendar */
-                    <div>
-                      <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                        📅 {t.availability.sectionTitle}
-                      </h3>
-                      <p className="text-xs text-gray-400 mb-3">{t.availability.hint}</p>
-
-                      <SlotCalendar
-                        mode="traveler"
-                        slots={slots}
-                        selectedSlot={selectedSlot}
-                        onSlotSelect={(s) => setSelectedSlot(s)}
-                        hourlyRate={guide.hourlyRate}
-                        currency={guide.currency}
-                      />
-
-                      {selectedSlot && (
-                        <button
-                          onClick={() => { if (!getToken()) { router.push("/login"); return; } onSlotSelect(selectedSlot); }}
-                          className="btn-primary w-full py-3 mt-3 mb-2"
-                        >
-                          {t.availability.slotBtn}
-                        </button>
-                      )}
-
-                      <button
-                        onClick={() => { if (!getToken()) { router.push("/login"); return; } setUseManual(true); setShowForm(true); }}
-                        className="w-full text-xs text-gray-400 hover:text-indigo-600 transition-colors py-1 mt-1"
-                      >
-                        {t.availability.orManual} →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                /* Booking form */
-                <form onSubmit={onBookingSubmit} className="card p-5 shadow-lg flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-semibold text-gray-900">{l.bookTitle}</h2>
-                    <button type="button" onClick={() => { setShowForm(false); setUseManual(false); setSelectedSlot(null); }}
-                      className="text-gray-400 hover:text-gray-600 text-lg">✕</button>
-                  </div>
-
-                  {/* Selected slot badge */}
-                  {selectedSlot && (
-                    <div className="rounded-xl bg-indigo-50 border border-indigo-100 px-4 py-2.5 flex items-center gap-2">
-                      <span className="text-indigo-500">📅</span>
-                      <div>
-                        <p className="text-xs font-semibold text-indigo-700">
-                          {new Date(selectedSlot.startAt).toLocaleDateString(locale, { month: "short", day: "numeric", weekday: "short" })}
-                          {" · "}
-                          {new Date(selectedSlot.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          {" – "}
-                          {new Date(selectedSlot.endAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </p>
-                        <p className="text-xs text-indigo-400">{t.availability.sectionTitle}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="input-label">{l.startAt}</label>
-                    <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="input" />
-                  </div>
-                  <div>
-                    <label className="input-label">{l.hours}</label>
-                    <input type="number" min={1} value={hours} onChange={(e) => setHours(e.target.value)} required className="input" />
-                  </div>
-                  <div className="rounded-xl bg-indigo-50 px-4 py-3 flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{l.estPrice}</span>
-                    <span className="font-bold text-indigo-700">{totalPrice.toLocaleString()} {guide.currency}</span>
-                  </div>
-                  <div>
-                    <label className="input-label">
-                      {l.message} <span className="text-gray-400 normal-case font-normal">{l.messageOpt}</span>
-                    </label>
-                    <textarea placeholder={l.messagePlaceholder} value={bookingMsg}
-                      onChange={(e) => setBookingMsg(e.target.value)} rows={3} className="input resize-none" />
-                  </div>
-                  {bookingError && (
-                    <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-100">{bookingError}</p>
-                  )}
-                  <button type="submit" disabled={submitting} className="btn-primary w-full py-3">
-                    {submitting ? l.sending : l.sendBtn}
-                  </button>
-                </form>
-              )}
             </div>
           </div>
         </div>

@@ -6,14 +6,20 @@ import Link from "next/link";
 import { api, clearToken, getToken, saveUserName } from "@/lib/api";
 import { clearMode, getMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
+import { PinIcon } from "@/components/icons";
+import EmailVerifiedBanner from "@/components/EmailVerifiedBanner";
 
 type Me = {
   id: number;
   fullName: string;
   email: string;
+  nickname: string | null;
+  handle: string;
   nationality: string | null;
+  gender: string | null;
   mbti: string | null;
   interests: string[];
+  emailVerified: boolean;
 };
 
 type GuideProfile = {
@@ -40,6 +46,25 @@ export default function ProfilePage() {
   const [mode, setMode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [togglingActive, setTogglingActive] = useState(false);
+
+  // 닉네임(@핸들) 인라인 편집
+  const [editingNick, setEditingNick] = useState(false);
+  const [nickInput, setNickInput] = useState("");
+  const [nickError, setNickError] = useState("");
+  const [nickSaving, setNickSaving] = useState(false);
+
+  async function saveNickname() {
+    setNickSaving(true); setNickError("");
+    try {
+      const updated = await api<Me>("/api/users/me/nickname", {
+        method: "PATCH", body: { nickname: nickInput.trim() }, auth: true,
+      });
+      setMe(updated);
+      setEditingNick(false);
+    } catch (err) {
+      setNickError(err instanceof Error ? err.message : t.common.error);
+    } finally { setNickSaving(false); }
+  }
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -101,7 +126,7 @@ export default function ProfilePage() {
   if (loading) {
     return (
       <main className="page flex items-center justify-center">
-        <div className="text-gray-400 text-sm">{t.common.loading}</div>
+        <div className="text-sm text-stone-400">{t.common.loading}</div>
       </main>
     );
   }
@@ -110,124 +135,191 @@ export default function ProfilePage() {
 
   const initial = me.fullName.slice(0, 1).toUpperCase();
   const avatarUrl = guide?.avatarUrl ?? null;
+  const isGuideMode = mode === "guide";
+  const avatarGrad = isGuideMode ? "from-emerald-400 to-teal-500" : "from-sky-400 to-cyan-400";
+  const bannerGrad = isGuideMode
+    ? "from-emerald-200 via-teal-100 to-teal-50"
+    : "from-sky-200 via-cyan-100 to-teal-100";
 
   return (
     <main className="page px-4">
       <div className="container-sm">
 
-        {/* Profile hero */}
-        <div className="flex flex-col items-center pt-4 pb-6">
-          {/* Avatar */}
-          <div className="relative mb-4">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt={me.fullName}
-                className="w-24 h-24 rounded-full object-cover ring-4 ring-white shadow-lg"
-              />
+        <EmailVerifiedBanner emailVerified={me.emailVerified} />
+
+        {/* Profile hero — banner + overlapping avatar */}
+        <div className="card mb-5 overflow-hidden">
+          <div className={`h-24 bg-gradient-to-r ${bannerGrad}`} />
+          <div className="flex flex-col items-center px-6 pb-6">
+            {/* Avatar */}
+            <div className="relative -mt-12 mb-4">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt={me.fullName}
+                  className="h-24 w-24 rounded-full object-cover shadow-lg ring-4 ring-white"
+                />
+              ) : (
+                <div className={`flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br ${avatarGrad} text-4xl font-bold text-white shadow-lg ring-4 ring-white`}>
+                  {initial}
+                </div>
+              )}
+              {mode && (
+                <span className={`absolute -bottom-1 -right-1 rounded-full border-2 border-white px-2 py-0.5 text-xs font-semibold text-white shadow-sm ${
+                  isGuideMode ? "bg-emerald-500" : "bg-sky-500"
+                }`}>
+                  {isGuideMode ? l.guideBadge : l.travelerBadge}
+                </span>
+              )}
+            </div>
+
+            {/* Name & email */}
+            <h1 className="text-xl font-extrabold tracking-tight text-stone-900">{me.fullName}</h1>
+            <p className="mt-0.5 text-sm text-stone-400">{me.email}</p>
+
+            {/* @핸들 (닉네임) — 인라인 편집 */}
+            {editingNick ? (
+              <div className="mt-2 w-full max-w-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold text-stone-400">@</span>
+                  <input
+                    value={nickInput}
+                    onChange={(e) => setNickInput(e.target.value)}
+                    placeholder={l.nicknamePlaceholder}
+                    maxLength={20}
+                    autoFocus
+                    className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm outline-none focus:border-sky-300 focus:ring-2 focus:ring-sky-100"
+                  />
+                  <button
+                    onClick={saveNickname}
+                    disabled={nickSaving}
+                    className="flex-shrink-0 rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-600 disabled:opacity-60"
+                  >
+                    {l.nicknameSave}
+                  </button>
+                  <button
+                    onClick={() => { setEditingNick(false); setNickError(""); }}
+                    className="flex-shrink-0 rounded-lg px-2 py-1.5 text-xs font-medium text-stone-400 hover:text-stone-600"
+                  >
+                    {l.nicknameCancel}
+                  </button>
+                </div>
+                {nickError && <p className="mt-1 text-xs text-red-500">{nickError}</p>}
+                <p className="mt-1 text-[11px] text-stone-400">{l.nicknameHint}</p>
+              </div>
             ) : (
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white text-4xl font-bold shadow-lg ring-4 ring-white">
-                {initial}
+              <button
+                onClick={() => { setNickInput(me.nickname ?? ""); setEditingNick(true); }}
+                className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-sky-600 hover:underline"
+              >
+                @{me.handle}
+                <span className="text-xs text-stone-400">
+                  {me.nickname ? "✏️" : `· ${l.nicknameSet}`}
+                </span>
+              </button>
+            )}
+
+            {/* Guide headline */}
+            {guide && (
+              <p className="mt-1 max-w-xs text-center text-sm leading-relaxed text-stone-500">{guide.headline}</p>
+            )}
+
+            {/* Identity chips — MBTI(violet) · gender · nationality */}
+            {(me.mbti || me.gender || me.nationality) && (
+              <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5">
+                {me.mbti && (
+                  <span className="rounded-lg bg-violet-100 px-3 py-1 text-sm font-bold text-violet-700">
+                    {me.mbti}
+                  </span>
+                )}
+                {me.gender && (
+                  <span className="badge-gray py-1">
+                    {me.gender === "male" ? `♂ ${t.personality.genderMale}`
+                      : me.gender === "female" ? `♀ ${t.personality.genderFemale}`
+                      : t.personality.genderOther}
+                  </span>
+                )}
+                {me.nationality && (
+                  <span className="badge-gray py-1">🌍 {me.nationality}</span>
+                )}
               </div>
             )}
-            {mode && (
-              <span className={`absolute -bottom-1 -right-1 text-xs font-semibold px-2 py-0.5 rounded-full border-2 border-white shadow-sm ${
-                mode === "guide"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-emerald-500 text-white"
-              }`}>
-                {mode === "guide" ? l.guideBadge : l.travelerBadge}
-              </span>
+
+            {/* Traveler interests brief */}
+            {mode === "traveler" && me.interests && me.interests.length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                {me.interests.slice(0, 6).map((k) => (
+                  <span key={k} className="badge-indigo py-1">
+                    {t.interests[k as keyof typeof t.interests] ?? k}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Stats row — guide only */}
+            {guide && (
+              <div className="mt-5 flex w-full items-center justify-center gap-8 border-t border-stone-100 pt-4">
+                <div className="flex flex-col items-center">
+                  <span className="text-lg font-extrabold tracking-tight text-stone-900">{postCount ?? "—"}</span>
+                  <span className="mt-0.5 text-xs text-stone-400">{l.postsCount}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-lg font-extrabold tracking-tight text-stone-900">
+                    {guide.reviewCount > 0 ? guide.avgRating.toFixed(1) : "—"}
+                  </span>
+                  <span className="mt-0.5 text-xs text-stone-400">{l.reviewsCount}</span>
+                </div>
+                <div className="flex flex-col items-center">
+                  <span className="text-lg font-extrabold tracking-tight text-stone-900">{guide.followerCount}</span>
+                  <span className="mt-0.5 text-xs text-stone-400">{l.followersCount}</span>
+                </div>
+              </div>
             )}
           </div>
-
-          {/* Name & email */}
-          <h1 className="text-xl font-bold text-gray-900">{me.fullName}</h1>
-          <p className="text-sm text-gray-400 mt-0.5">{me.email}</p>
-
-          {/* Guide headline */}
-          {guide && (
-            <p className="text-sm text-gray-500 mt-1 text-center max-w-xs leading-relaxed">{guide.headline}</p>
-          )}
-
-          {/* Stats row — guide only */}
-          {guide && (
-            <div className="flex items-center gap-6 mt-5 pt-4 border-t border-gray-100 w-full justify-center">
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold text-gray-900">{postCount ?? "—"}</span>
-                <span className="text-xs text-gray-400 mt-0.5">{l.postsCount}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold text-gray-900">
-                  {guide.reviewCount > 0 ? guide.avgRating.toFixed(1) : "—"}
-                </span>
-                <span className="text-xs text-gray-400 mt-0.5">{l.reviewsCount}</span>
-              </div>
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold text-gray-900">{guide.followerCount}</span>
-                <span className="text-xs text-gray-400 mt-0.5">{l.followersCount}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Traveler interests brief */}
-          {mode === "traveler" && me.interests && me.interests.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mt-4 justify-center">
-              {me.interests.slice(0, 6).map((k) => (
-                <span key={k} className="rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 px-2.5 py-0.5 text-xs font-medium">
-                  {t.interests[k as keyof typeof t.interests] ?? k}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* MBTI badge */}
-          {me.mbti && (
-            <span className="mt-3 rounded-lg bg-violet-100 text-violet-700 px-3 py-1 text-sm font-bold">
-              {me.mbti}
-            </span>
-          )}
         </div>
 
         {/* Guide region & rate */}
         {guide && (
-          <div className="card p-4 mb-4">
+          <div className="card mb-5 p-5">
             <div className="flex items-center gap-4">
               <div className="flex-1">
-                <p className="text-xs text-gray-400">지역</p>
-                <p className="font-medium text-gray-800 text-sm mt-0.5">📍 {guide.region}</p>
+                <p className="input-label !mb-0.5">{l.regionLabel}</p>
+                <p className="flex items-center gap-1 text-sm font-medium text-stone-800">
+                  <PinIcon className="h-3.5 w-3.5 flex-shrink-0 text-stone-400" /> {guide.region}
+                </p>
               </div>
               <div className="flex-1">
-                <p className="text-xs text-gray-400">시급</p>
-                <p className="font-medium text-gray-800 text-sm mt-0.5">
-                  {guide.hourlyRate.toLocaleString()} {guide.currency}/hr
+                <p className="input-label !mb-0.5">{l.rateLabel}</p>
+                <p className="text-sm font-medium text-stone-800">
+                  <span className="font-bold text-stone-900">{guide.hourlyRate.toLocaleString()}</span>
+                  <span className="text-xs text-stone-400"> {guide.currency}/hr</span>
                 </p>
               </div>
             </div>
 
             {/* 예약 상태 세그먼트 토글 */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-400 mb-2">{t.guideManage.activeLabel}</p>
-              <div className="inline-flex rounded-full bg-gray-100 p-1">
+            <div className="mt-4 border-t border-stone-100 pt-4">
+              <p className="input-label">{t.guideManage.activeLabel}</p>
+              <div className="inline-flex rounded-full bg-stone-100 p-1">
                 <button
                   onClick={() => onSetActive(true)}
                   disabled={togglingActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-60 ${
-                    guide.active ? "bg-emerald-500 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all disabled:opacity-60 ${
+                    guide.active ? "bg-emerald-500 text-white shadow-sm" : "text-stone-500 hover:text-stone-800"
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${guide.active ? "bg-white" : "bg-gray-300"}`} />
+                  <span className={`h-2 w-2 rounded-full ${guide.active ? "animate-pulse-dot bg-white" : "bg-stone-300"}`} />
                   {t.guideManage.activeOn}
                 </button>
                 <button
                   onClick={() => onSetActive(false)}
                   disabled={togglingActive}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-60 ${
-                    !guide.active ? "bg-gray-700 text-white shadow-sm" : "text-gray-500 hover:text-gray-700"
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all disabled:opacity-60 ${
+                    !guide.active ? "bg-stone-700 text-white shadow-sm" : "text-stone-500 hover:text-stone-800"
                   }`}
                 >
-                  <span className={`h-2 w-2 rounded-full ${!guide.active ? "bg-white" : "bg-gray-300"}`} />
+                  <span className={`h-2 w-2 rounded-full ${!guide.active ? "bg-white" : "bg-stone-300"}`} />
                   {t.guideManage.activeOff}
                 </button>
               </div>
@@ -236,7 +328,7 @@ export default function ProfilePage() {
         )}
 
         {/* Action buttons */}
-        <div className="flex flex-col gap-3 mb-8">
+        <div className="mb-8 flex flex-col gap-3">
           <Link href={editHref} className="btn-primary w-full py-3 text-center text-sm font-semibold">
             {l.editBtn}
           </Link>
@@ -244,8 +336,8 @@ export default function ProfilePage() {
             {l.dashboardBtn}
           </Link>
           {mode && (
-            <Link href="/select-mode" className="btn-ghost w-full py-2.5 text-center text-sm text-gray-500">
-              모드 전환
+            <Link href="/select-mode" className="btn-ghost w-full py-2.5 text-center text-sm text-stone-500">
+              {l.switchModeBtn}
             </Link>
           )}
         </div>
@@ -254,7 +346,7 @@ export default function ProfilePage() {
 
         <button
           onClick={onLogout}
-          className="w-full text-sm text-gray-400 hover:text-red-500 transition-colors py-2"
+          className="w-full py-2 text-sm text-stone-400 transition-colors hover:text-red-500"
         >
           {l.logoutBtn}
         </button>

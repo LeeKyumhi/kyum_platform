@@ -40,9 +40,17 @@ public class GoogleTranslateClient {
      * @return 번역 결과 목록 (같은 크기); 실패 시 빈 목록
      */
     public List<String> translate(List<String> texts, String targetLang) {
+        return translate(texts, "ko", targetLang);
+    }
+
+    /**
+     * 원문 언어를 지정하거나(장소명은 항상 ko), null이면 Google이 자동 감지.
+     * 채팅처럼 원문 언어를 알 수 없는 텍스트는 sourceLang=null로 호출한다.
+     */
+    public List<String> translate(List<String> texts, String sourceLang, String targetLang) {
         if (!isEnabled() || texts == null || texts.isEmpty()) return List.of();
         try {
-            TranslateRequest body = new TranslateRequest(texts, "ko", targetLang, "text");
+            TranslateRequest body = new TranslateRequest(texts, sourceLang, targetLang, "text");
             TranslateResponse res = restClient.post()
                     .uri(ENDPOINT + "?key={k}", apiKey)
                     .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
@@ -69,6 +77,8 @@ public class GoogleTranslateClient {
 
     // ── request / response records ──────────────────────────────────────
 
+    // source가 null이면 필드 자체를 생략 → Google이 원문 언어를 자동 감지
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
     private record TranslateRequest(
             @JsonProperty("q") List<String> q,
             @JsonProperty("source") String source,

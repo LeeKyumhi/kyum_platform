@@ -11,24 +11,32 @@ public record UserResponse(
         Long id,
         String email,
         String fullName,
+        String nickname,
+        String handle,
         String nationality,
         String city,
         Double latitude,
         Double longitude,
+        String gender,
         String mbti,
-        java.util.List<String> interests
+        java.util.List<String> interests,
+        boolean emailVerified
 ) {
     public static UserResponse from(User user) {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getFullName(),
+                user.getNickname(),
+                user.getHandle(),
                 user.getNationality(),
                 user.getCity(),
                 user.getLatitude(),
                 user.getLongitude(),
+                user.getGender(),
                 user.getMbti(),
-                user.getInterestList()
+                user.getInterestList(),
+                user.isEmailVerified()
         );
     }
 }

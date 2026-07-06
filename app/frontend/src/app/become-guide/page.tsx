@@ -20,6 +20,18 @@ const MBTI_TYPES = [
 
 type Language = { language: string; level: string };
 
+function SectionHeading({ num, label, optional }: { num: string; label: string; optional?: string }) {
+  return (
+    <h2 className="flex items-center gap-2.5 font-bold text-stone-900">
+      <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-sky-500 text-xs font-bold text-white shadow-sm shadow-sky-200">
+        {num}
+      </span>
+      {label}
+      {optional && <span className="text-xs font-normal text-stone-400">{optional}</span>}
+    </h2>
+  );
+}
+
 export default function BecomeGuidePage() {
   const router  = useRouter();
   const { t }   = useLanguage();
@@ -62,19 +74,21 @@ export default function BecomeGuidePage() {
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="text-center mb-8">
-          <span className="text-3xl">🗺️</span>
-          <h1 className="mt-3 text-2xl font-bold text-gray-900">{l.title}</h1>
-          <p className="mt-1 text-sm text-gray-500">{l.sub}</p>
+        {/* Page header */}
+        <div className="mb-8 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-2xl shadow-md">
+            🗺️
+          </div>
+          <h1 className="section-title mt-4">{l.title}</h1>
+          <p className="section-subtitle">{l.sub}</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
           {/* Sec 1 — 기본 정보 */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">1</span>
-              {l.sec1}
-            </h2>
+            <div className="mb-4">
+              <SectionHeading num="1" label={l.sec1} />
+            </div>
             <div className="flex flex-col gap-4">
               <div>
                 <label className="input-label">{l.headlineLabel}</label>
@@ -82,7 +96,9 @@ export default function BecomeGuidePage() {
                   value={form.headline} onChange={onChange} required className="input" />
               </div>
               <div>
-                <label className="input-label">{l.introLabel} <span className="text-gray-400 normal-case font-normal">{l.introOpt}</span></label>
+                <label className="input-label">
+                  {l.introLabel} <span className="font-normal normal-case text-stone-400">{l.introOpt}</span>
+                </label>
                 <textarea name="introduction" placeholder={l.introPlaceholder}
                   value={form.introduction} onChange={onChange} rows={4} className="input resize-none" />
               </div>
@@ -101,10 +117,9 @@ export default function BecomeGuidePage() {
 
           {/* Sec 2 — 요금 */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">2</span>
-              {l.sec2}
-            </h2>
+            <div className="mb-4">
+              <SectionHeading num="2" label={l.sec2} />
+            </div>
             <div className="flex gap-3">
               <div className="flex-1">
                 <label className="input-label">{l.rateLabel}</label>
@@ -122,13 +137,12 @@ export default function BecomeGuidePage() {
 
           {/* Sec 3 — 언어 */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">3</span>
-              {l.sec3}
-            </h2>
+            <div className="mb-4">
+              <SectionHeading num="3" label={l.sec3} />
+            </div>
             <div className="flex flex-col gap-3">
               {languages.map((lang, i) => (
-                <div key={i} className="flex gap-2 items-center">
+                <div key={i} className="flex items-center gap-2">
                   <input placeholder={l.langPlaceholder} value={lang.language}
                     onChange={(e) => updateLanguage(i, "language", e.target.value)}
                     required className="input flex-1" />
@@ -139,14 +153,14 @@ export default function BecomeGuidePage() {
                   </select>
                   {languages.length > 1 && (
                     <button type="button" onClick={() => setLanguages(languages.filter((_, j) => j !== i))}
-                      className="h-10 w-10 flex items-center justify-center rounded-xl border border-gray-200 text-gray-400 hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors flex-shrink-0">
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-stone-200 text-stone-400 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-500">
                       ✕
                     </button>
                   )}
                 </div>
               ))}
               <button type="button" onClick={() => setLanguages([...languages, { language: "", level: "FLUENT" }])}
-                className="self-start text-sm text-indigo-600 hover:underline font-medium">
+                className="self-start text-sm font-semibold text-sky-500 transition-colors hover:text-sky-600 hover:underline">
                 {l.addLang}
               </button>
             </div>
@@ -154,12 +168,10 @@ export default function BecomeGuidePage() {
 
           {/* Sec 4 — MBTI */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-violet-100 text-violet-700 text-xs font-bold">4</span>
-              {lp.mbtiLabel}
-              <span className="text-xs font-normal text-gray-400 ml-1">(선택)</span>
-            </h2>
-            <p className="text-xs text-gray-400 mb-4">MBTI를 공유하면 여행자들이 나를 더 잘 이해할 수 있어요.</p>
+            <div className="mb-1">
+              <SectionHeading num="4" label={lp.mbtiLabel} optional={l.introOpt} />
+            </div>
+            <p className="mb-4 text-xs text-stone-400">{l.mbtiHint}</p>
             <div className="flex flex-col gap-2">
               {MBTI_TYPES.map((row, ri) => (
                 <div key={ri} className="grid grid-cols-4 gap-2">
@@ -167,10 +179,10 @@ export default function BecomeGuidePage() {
                     <button
                       key={type} type="button"
                       onClick={() => setMbti(mbti === type ? "" : type)}
-                      className={`rounded-xl py-2 text-sm font-semibold border transition-colors ${
+                      className={`rounded-xl border py-2 text-sm font-semibold transition-colors ${
                         mbti === type
-                          ? "bg-violet-600 text-white border-violet-600"
-                          : "bg-gray-50 text-gray-600 border-gray-200 hover:border-violet-300 hover:text-violet-600"
+                          ? "border-violet-600 bg-violet-600 text-white"
+                          : "border-stone-200 bg-white text-stone-600 hover:border-violet-300 hover:text-violet-600"
                       }`}
                     >
                       {type}
@@ -180,24 +192,24 @@ export default function BecomeGuidePage() {
               ))}
             </div>
             {mbti && (
-              <p className="mt-3 text-sm text-center text-violet-600 font-semibold">선택됨: {mbti}</p>
+              <p className="mt-3 text-center text-sm font-semibold text-violet-600">{l.mbtiSelected} {mbti}</p>
             )}
           </div>
 
           {/* Sec 5 — 관심사 */}
           <div className="card p-6">
-            <h2 className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">5</span>
-              {lp.interestsLabel}
-              <span className="text-xs font-normal text-gray-400 ml-1">(선택)</span>
-            </h2>
-            <p className="text-xs text-gray-400 mb-4">{lp.interestsHint}</p>
+            <div className="mb-1">
+              <SectionHeading num="5" label={lp.interestsLabel} optional={l.introOpt} />
+            </div>
+            <p className="mb-4 text-xs text-stone-400">{lp.interestsHint}</p>
             <InterestPicker selected={interests} onChange={setInterests} />
           </div>
 
-          {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 border border-red-100">{error}</p>}
+          {error && (
+            <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+          )}
 
-          <button type="submit" disabled={loading} className="btn-primary w-full py-3.5 text-base">
+          <button type="submit" disabled={loading} className="btn-primary-lg w-full">
             {loading ? l.submitting : l.submitBtn}
           </button>
         </form>

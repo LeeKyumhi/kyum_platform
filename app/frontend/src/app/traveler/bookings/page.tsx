@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { CalendarIcon } from "@/components/icons";
+import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 
 const STATUS_ICON: Record<string, string> = {
   REQUESTED: "⏳", ACCEPTED: "✅", REJECTED: "❌", CANCELLED: "🚫", COMPLETED: "🏁",
@@ -15,14 +17,40 @@ const STATUS_CLS: Record<string, string> = {
 };
 
 type Booking = {
-  id: number; guideName: string; guideHeadline: string;
+  id: number; guideProfileId: number; guideName: string; guideHeadline: string;
   startAt: string; hours: number; totalPrice: number; currency: string; status: string;
 };
+
+/** 거절/취소된 예약 아래 "비슷한 가이드는 어때요?" 섹션 — 재요청까지 이어지도록 유도. */
+function SimilarGuides({ guideProfileId }: { guideProfileId: number }) {
+  const { t, lang } = useLanguage();
+  const [guides, setGuides] = useState<GuideCardData[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<GuideCardData[]>(`/api/guides/${guideProfileId}/similar?lang=${lang}`)
+      .then((res) => { if (!cancelled) setGuides(res); })
+      .catch(() => { if (!cancelled) setGuides([]); });
+    return () => { cancelled = true; };
+  }, [guideProfileId, lang]);
+
+  if (guides === null || guides.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-stone-100 pt-4">
+      <p className="mb-3 text-sm font-bold text-stone-700">{t.travelerBookings.similarGuidesTitle}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {guides.map((g) => <GuideCard key={g.id} guide={g} />)}
+      </div>
+    </div>
+  );
+}
 
 export default function TravelerBookingsPage() {
   const router = useRouter();
   const { t, lang } = useLanguage();
   const l = t.travelerBookings;
+  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError]       = useState("");
@@ -44,12 +72,12 @@ export default function TravelerBookingsPage() {
   }, [router, load]);
 
   async function onCancel(id: number) {
-    if (!confirm(lang === "ko" ? "이 예약을 취소할까요?" : "Cancel this booking?")) return;
+    if (!confirm(l.confirmCancel)) return;
     try { await api(`/api/bookings/${id}/cancel`, { method: "PATCH", auth: true }); await load(); }
     catch (err) { alert(err instanceof Error ? err.message : t.common.error); }
   }
   async function onComplete(id: number) {
-    if (!confirm(lang === "ko" ? "완료 처리할까요?" : "Mark as complete?")) return;
+    if (!confirm(l.confirmComplete)) return;
     try { await api(`/api/bookings/${id}/complete`, { method: "PATCH", auth: true }); await load(); }
     catch (err) { alert(err instanceof Error ? err.message : t.common.error); }
   }
@@ -57,62 +85,82 @@ export default function TravelerBookingsPage() {
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="mb-6 flex items-center gap-3">
           <Link href="/traveler" className="btn-ghost text-sm">{l.backHome}</Link>
           <h1 className="section-title">{l.title}</h1>
         </div>
 
-        {loading && <div className="flex flex-col gap-3">{[1,2,3].map((i) => <div key={i} className="card p-5 animate-pulse h-32" />)}</div>}
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-        {!loading && bookings.length === 0 && (
-          <div className="text-center py-16 card p-8">
-            <div className="text-4xl mb-3">📋</div>
-            <p className="font-semibold text-gray-700 mb-1">{l.emptyTitle}</p>
-            <p className="text-sm text-gray-400 mb-5">{l.emptyDesc}</p>
+        {loading && (
+          <div className="flex flex-col gap-3">
+            {[1, 2, 3].map((i) => <div key={i} className="card h-32 animate-pulse p-5" />)}
+          </div>
+        )}
+        {error && (
+          <p className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
+        )}
+        {!loading && !error && bookings.length === 0 && (
+          <div className="card p-8 py-16 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
+              📋
+            </div>
+            <p className="mb-1 font-bold text-stone-900">{l.emptyTitle}</p>
+            <p className="mb-5 text-sm text-stone-500">{l.emptyDesc}</p>
             <Link href="/guides" className="btn-primary">{l.emptyBtn}</Link>
           </div>
         )}
 
         <div className="flex flex-col gap-4">
           {bookings.map((b) => {
-            const cls  = STATUS_CLS[b.status]  ?? "badge-gray";
-            const icon = STATUS_ICON[b.status] ?? "•";
+            const cls   = STATUS_CLS[b.status]  ?? "badge-gray";
+            const icon  = STATUS_ICON[b.status] ?? "•";
             const label = t.status[b.status as keyof typeof t.status] ?? b.status;
             return (
               <div key={b.id} className="card p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h2 className="font-bold text-gray-900">{b.guideName}</h2>
-                    <p className="text-xs text-gray-500 mt-0.5">{b.guideHeadline}</p>
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h2 className="font-bold text-stone-900">{b.guideName}</h2>
+                    <p className="mt-0.5 truncate text-xs text-stone-500">{b.guideHeadline}</p>
                   </div>
-                  <span className={cls}>{icon} {label}</span>
+                  <span className={`${cls} flex-shrink-0 py-1`}>{icon} {label}</span>
                 </div>
-                <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm flex justify-between items-center mb-4">
-                  <span className="text-gray-600">
-                    {new Date(b.startAt).toLocaleDateString()} · {b.hours} {l.hours}
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3 text-sm">
+                  <span className="flex items-center gap-1.5 text-stone-600">
+                    <CalendarIcon className="h-4 w-4 flex-shrink-0 text-sky-500" />
+                    {new Date(b.startAt).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
+                    {" · "}{b.hours} {l.hours}
                   </span>
-                  <span className="font-semibold text-indigo-600">{b.totalPrice.toLocaleString()} {b.currency}</span>
+                  <span className="font-bold text-stone-900">{b.totalPrice.toLocaleString()} {b.currency}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {(b.status === "REQUESTED" || b.status === "ACCEPTED") && (
-                    <Link href={`/chat/${b.id}`} className="btn-secondary text-sm py-1.5 px-3">{l.chat}</Link>
+                    <Link href={`/chat/${b.id}`} className="btn-secondary px-4 py-1.5 text-sm">{l.chat}</Link>
                   )}
                   {b.status === "ACCEPTED" && (
-                    <button onClick={() => onComplete(b.id)}
-                      className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700 hover:bg-emerald-100 transition-colors">
+                    <button
+                      onClick={() => onComplete(b.id)}
+                      className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
                       {l.complete}
                     </button>
                   )}
                   {(b.status === "REQUESTED" || b.status === "ACCEPTED") && (
-                    <button onClick={() => onCancel(b.id)} className="btn-danger text-sm py-1.5 px-3">{l.cancel}</button>
+                    <button onClick={() => onCancel(b.id)} className="btn-danger px-4 py-1.5 text-sm">{l.cancel}</button>
                   )}
                   {b.status === "COMPLETED" && (
-                    <Link href={`/review/${b.id}`}
-                      className="inline-flex items-center gap-1 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+                    <Link
+                      href={`/review/${b.id}`}
+                      className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-4 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
+                    >
                       {l.review}
                     </Link>
                   )}
                 </div>
+
+                {/* 거절된 예약 — 비슷한 가이드 추천으로 재예약 유도 (지연 로딩).
+                    CANCELLED는 BookingService.cancel()이 여행자 본인만 호출 가능(가이드發 취소 경로 없음)이라 제외 */}
+                {b.status === "REJECTED" && (
+                  <SimilarGuides guideProfileId={b.guideProfileId} />
+                )}
               </div>
             );
           })}

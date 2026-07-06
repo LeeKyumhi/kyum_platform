@@ -29,6 +29,12 @@ public record SignupRequest(
         @NotBlank(message = "이름은 필수입니다.")
         String fullName,
 
-        String nationality
+        String nationality,
+
+        /** 성별 (선택, "male" / "female" / "other") */
+        String gender,
+
+        /** 공개 핸들(@아이디, 선택). 비어 있으면 이메일 로컬파트로 폴백. */
+        String nickname
 ) {
 }

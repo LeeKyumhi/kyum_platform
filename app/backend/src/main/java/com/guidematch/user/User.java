@@ -41,6 +41,13 @@ public class User {
     @Column(name = "full_name")
     private String fullName;
 
+    /**
+     * 공개 핸들(@아이디). 선택 입력, 대소문자 무시 유니크(애플리케이션에서 검증).
+     * 비어 있으면 이메일 로컬파트로 폴백한다(getHandle).
+     */
+    @Column(unique = true, length = 20)
+    private String nickname;
+
     /** 국적 (선택 입력) */
     private String nationality;
 
@@ -54,6 +61,10 @@ public class User {
     @Column(name = "longitude")
     private Double longitude;
 
+    /** 성별 (선택, "male" / "female" / "other") */
+    @Column(length = 10)
+    private String gender;
+
     /** MBTI (선택, 예: ENFP) */
     @Column(length = 4)
     private String mbti;
@@ -61,6 +72,13 @@ public class User {
     /** 관심사 (콤마로 구분된 키 목록) */
     @Column(columnDefinition = "text")
     private String interests;
+
+    /**
+     * 이메일 인증 완료 여부. nullable Boolean으로 둔다 — ddl-auto가 기존 행이 있는 테이블에
+     * NOT NULL 컬럼을 추가하면 실패할 수 있으므로(HANDOFF.md 3-2), null은 "미인증"으로 취급한다.
+     */
+    @Column(name = "email_verified")
+    private Boolean emailVerified;
 
     /** 가입 시각. 한 번 저장되면 수정되지 않는다(updatable=false). */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -96,8 +114,32 @@ public class User {
         return password;
     }
 
+    /** 비밀번호 재설정 — 반드시 BCrypt로 암호화된 값을 넘겨야 한다 (원문 저장 금지). */
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
     public String getFullName() {
         return fullName;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
+    /**
+     * 피드·프로필에 노출할 @핸들. 닉네임이 있으면 그것을, 없으면 이메일 로컬파트를 쓴다.
+     * 이메일 로컬파트 폴백은 이메일 일부가 공개되므로 닉네임 설정을 권장한다.
+     */
+    public String getHandle() {
+        if (nickname != null && !nickname.isBlank()) return nickname;
+        if (email == null) return null;
+        int at = email.indexOf('@');
+        return at > 0 ? email.substring(0, at) : email;
     }
 
     public String getNationality() {
@@ -125,6 +167,9 @@ public class User {
         this.longitude = longitude;
     }
 
+    public String getGender() { return gender; }
+    public void setGender(String gender) { this.gender = gender; }
+
     public String getMbti() { return mbti; }
     public void setMbti(String mbti) { this.mbti = mbti; }
 
@@ -138,5 +183,14 @@ public class User {
 
     public void setInterestList(java.util.List<String> list) {
         this.interests = (list == null || list.isEmpty()) ? null : String.join(",", list);
+    }
+
+    /** null(기존 회원 포함)은 미인증으로 취급한다. */
+    public boolean isEmailVerified() {
+        return Boolean.TRUE.equals(emailVerified);
+    }
+
+    public void setEmailVerified(boolean verified) {
+        this.emailVerified = verified;
     }
 }

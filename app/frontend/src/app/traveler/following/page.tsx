@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { PinIcon, SearchIcon } from "@/components/icons";
 
 type FollowingGuide = {
   guideProfileId: number; guideName: string; guideAvatarUrl: string | null;
@@ -14,10 +15,10 @@ type FollowingGuide = {
 function Avatar({ src, name }: { src: string | null; name: string }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={name} className="w-12 h-12 rounded-full object-cover ring-2 ring-white shadow-sm flex-shrink-0" />;
+    return <img src={src} alt={name} className="h-12 w-12 flex-shrink-0 rounded-full object-cover shadow-sm ring-2 ring-white" />;
   }
   return (
-    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400 to-violet-500 flex items-center justify-center text-white font-bold ring-2 ring-white shadow-sm flex-shrink-0">
+    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-cyan-400 font-bold text-white shadow-sm ring-2 ring-white">
       {name.slice(0, 1).toUpperCase()}
     </div>
   );
@@ -30,6 +31,7 @@ export default function FollowingPage() {
 
   const [guides, setGuides] = useState<FollowingGuide[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unfollowingId, setUnfollowingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -38,10 +40,21 @@ export default function FollowingPage() {
       .finally(() => setLoading(false));
   }, [router]);
 
+  async function onUnfollow(e: React.MouseEvent, guideProfileId: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    setUnfollowingId(guideProfileId);
+    try {
+      await api(`/api/guides/${guideProfileId}/follow`, { method: "DELETE", auth: true });
+      setGuides((prev) => prev.filter((g) => g.guideProfileId !== guideProfileId));
+    } catch { /* keep list on failure */ }
+    finally { setUnfollowingId(null); }
+  }
+
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="flex items-center gap-3 mb-6">
+        <div className="mb-6 flex items-center gap-3">
           <Link href="/traveler" className="btn-ghost text-sm">{t.common.back}</Link>
           <h1 className="section-title">{lper.followingTitle}</h1>
         </div>
@@ -49,11 +62,11 @@ export default function FollowingPage() {
         {loading && (
           <div className="flex flex-col gap-3">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="card p-4 animate-pulse flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gray-100 flex-shrink-0" />
+              <div key={i} className="card flex animate-pulse items-center gap-4 p-4">
+                <div className="h-12 w-12 flex-shrink-0 rounded-full bg-stone-100" />
                 <div className="flex-1">
-                  <div className="h-4 bg-gray-100 rounded w-32 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-48" />
+                  <div className="mb-2 h-4 w-32 rounded bg-stone-100" />
+                  <div className="h-3 w-48 rounded bg-stone-100" />
                 </div>
               </div>
             ))}
@@ -61,10 +74,12 @@ export default function FollowingPage() {
         )}
 
         {!loading && guides.length === 0 && (
-          <div className="text-center py-20">
-            <div className="text-5xl mb-4">🔍</div>
-            <p className="text-gray-500 text-sm">{lper.followingEmpty}</p>
-            <Link href="/guides" className="mt-4 inline-block btn-primary text-sm">
+          <div className="py-20 text-center">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-white shadow-md">
+              <SearchIcon className="h-6 w-6" />
+            </div>
+            <p className="mb-5 text-sm text-stone-500">{lper.followingEmpty}</p>
+            <Link href="/guides" className="btn-primary text-sm">
               {t.guides.tabGuides} →
             </Link>
           </div>
@@ -73,28 +88,39 @@ export default function FollowingPage() {
         {!loading && guides.length > 0 && (
           <div className="flex flex-col gap-3">
             {guides.map((g) => (
-              <Link key={g.guideProfileId} href={`/guides/${g.guideProfileId}`}
-                className="card-hover p-4 flex items-center gap-4">
+              <Link
+                key={g.guideProfileId}
+                href={`/guides/${g.guideProfileId}`}
+                className="card-hover flex items-center gap-4 p-4"
+              >
                 <Avatar src={g.guideAvatarUrl} name={g.guideName} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-semibold text-gray-900">{g.guideName}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-0.5 flex items-center gap-2">
+                    <span className="font-semibold text-stone-900">{g.guideName}</span>
                     {g.mbti && (
-                      <span className="rounded-md bg-violet-100 text-violet-700 px-1.5 py-0.5 text-xs font-bold">{g.mbti}</span>
+                      <span className="rounded-md bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-700">{g.mbti}</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 truncate">📍 {g.region} · {g.headline}</p>
+                  <p className="flex items-center gap-1 truncate text-xs text-stone-500">
+                    <PinIcon className="h-3.5 w-3.5 flex-shrink-0" /> {g.region} · {g.headline}
+                  </p>
                   {g.interests.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
+                    <div className="mt-1.5 flex flex-wrap gap-1">
                       {g.interests.slice(0, 4).map((k) => (
-                        <span key={k} className="rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs">
+                        <span key={k} className="badge-gray">
                           {t.interests[k as keyof typeof t.interests] ?? k}
                         </span>
                       ))}
                     </div>
                   )}
                 </div>
-                <span className="text-indigo-400 text-sm flex-shrink-0">→</span>
+                <button
+                  onClick={(e) => onUnfollow(e, g.guideProfileId)}
+                  disabled={unfollowingId === g.guideProfileId}
+                  className="flex-shrink-0 rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60"
+                >
+                  {lper.unfollowBtn}
+                </button>
               </Link>
             ))}
           </div>

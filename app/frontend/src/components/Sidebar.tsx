@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getToken, clearToken, getUserName } from "@/lib/api";
+import { api, getToken, clearToken, getUserName } from "@/lib/api";
 import { getMode, clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
 import type { Lang } from "@/lib/i18n";
@@ -14,7 +14,7 @@ const LANG_OPTIONS: { code: Lang; flag: string; label: string }[] = [
   { code: "zh", flag: "🇨🇳", label: "中文" },
 ];
 
-type Item = { href: string; icon: string; label: string; active: boolean };
+type Item = { href: string; icon: string; label: string; active: boolean; badge?: number };
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -25,6 +25,8 @@ export default function Sidebar() {
   const [mode, setMode] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [langOpen, setLangOpen] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const token = !!getToken();
@@ -32,6 +34,32 @@ export default function Sidebar() {
     setMode(getMode());
     setUserName(token ? getUserName() : null);
   }, [pathname]);
+
+  // 가이드 모드: 대기 중 예약 요청 수 알림 배지 (경로 변경 시 + 30초 폴링)
+  useEffect(() => {
+    if (!loggedIn || mode !== "guide") { setPendingCount(0); return; }
+    let cancelled = false;
+    const load = () =>
+      api<{ count: number }>("/api/bookings/guide/pending-count", { auth: true })
+        .then((r) => { if (!cancelled) setPendingCount(r.count); })
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [loggedIn, mode, pathname]);
+
+  // 안읽은 DM 수 배지 — 여행자·가이드 모두 (경로 변경 시 + 30초 폴링)
+  useEffect(() => {
+    if (!loggedIn) { setUnreadCount(0); return; }
+    let cancelled = false;
+    const load = () =>
+      api<{ count: number }>("/api/conversations/unread-count", { auth: true })
+        .then((r) => { if (!cancelled) setUnreadCount(r.count); })
+        .catch(() => {});
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [loggedIn, pathname]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -59,6 +87,7 @@ export default function Sidebar() {
     items = [
       it("/", "🏠", n.home, exact("/")),
       it("/guides", "🔍", n.findGuide, under("/guides")),
+      it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
     ];
@@ -66,8 +95,11 @@ export default function Sidebar() {
     items = [
       it("/", "🏠", n.home, exact("/")),
       it("/guide", "💼", n.guideHome, exact("/guide")),
-      it("/guide/requests", "📨", n.requests, under("/guide/requests")),
-      it("/guide/posts", "📝", n.posts, under("/guide/posts")),
+      { ...it("/guide/requests", "📨", n.requests, under("/guide/requests")), badge: pendingCount || undefined },
+      { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
+      it("/community", "👥", n.community, under("/community")),
+      it("/guide/availability", "📅", n.availability, under("/guide/availability")),
+      it("/guide/courses", "🎫", n.courses, under("/guide/courses")),
       it("/guide/manage", "⚙️", n.manage, under("/guide/manage")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
@@ -77,33 +109,38 @@ export default function Sidebar() {
       it("/", "🏠", n.home, exact("/")),
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
       it("/guides", "🔍", n.findGuide, under("/guides")),
+      { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
+      it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
       it("/traveler/bookings", "📋", n.bookings, under("/traveler/bookings")),
-      it("/traveler/following", "❤️", n.following, under("/traveler/following")),
+      it("/traveler/following", "💙", n.following, under("/traveler/following")),
     ];
   }
 
   // Compact 5-item set for the mobile bottom bar
   let mobileItems: Item[];
   if (!loggedIn) {
+    // 홈·가이드찾기·커뮤니티·여행일정 + 로그인 (탐색은 데스크탑/홈 배너로)
     mobileItems = [
-      items[0], items[1], items[2], items[3],
+      items[0], items[1], items[2], items[4],
       it("/login", "👤", n.login, under("/login")),
     ];
   } else if (mode === "guide") {
+    // 커뮤니티는 가이드 홈의 배너로 진입 (하단 탭 5개 제한)
     mobileItems = [
-      it("/", "🏠", n.home, exact("/")),
       it("/guide", "💼", n.guideHome, exact("/guide")),
-      it("/guide/requests", "📨", n.requests, under("/guide/requests")),
-      it("/guide/posts", "📝", n.posts, under("/guide/posts")),
+      { ...it("/guide/requests", "📨", n.requests, under("/guide/requests")), badge: pendingCount || undefined },
+      { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
+      it("/guide/availability", "📅", n.availability, under("/guide/availability")),
       it("/profile", "👤", n.profile, under("/profile")),
     ];
   } else {
+    // 커뮤니티는 여행자 홈의 배너로 진입 (하단 탭 5개 제한)
     mobileItems = [
-      it("/", "🏠", n.home, exact("/")),
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
       it("/guides", "🔍", n.findGuide, under("/guides")),
+      { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/trips", "🗺️", n.trips, under("/trips")),
       it("/profile", "👤", n.profile, under("/profile")),
     ];
@@ -112,18 +149,18 @@ export default function Sidebar() {
   const avatarInitial = userName ? userName.slice(0, 1).toUpperCase() : "?";
 
   const langMenu = (
-    <div className="absolute bottom-full left-0 z-50 mb-2 w-full min-w-[10rem] rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+    <div className="absolute bottom-full left-0 z-50 mb-2 w-full min-w-[10rem] rounded-xl border border-stone-100 bg-white py-1 shadow-lg">
       {LANG_OPTIONS.map((opt) => (
         <button
           key={opt.code}
           onClick={() => { setLang(opt.code); setLangOpen(false); }}
-          className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-indigo-50 ${
-            lang === opt.code ? "font-semibold text-indigo-600" : "text-gray-700"
+          className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-sky-50 ${
+            lang === opt.code ? "font-semibold text-sky-600" : "text-stone-700"
           }`}
         >
           <span>{opt.flag}</span>
           <span>{opt.label}</span>
-          {lang === opt.code && <span className="ml-auto text-indigo-500">✓</span>}
+          {lang === opt.code && <span className="ml-auto text-sky-500">✓</span>}
         </button>
       ))}
     </div>
@@ -134,14 +171,19 @@ export default function Sidebar() {
       <Link
         key={item.href + item.label}
         href={item.href}
-        className={`flex items-center gap-3.5 rounded-xl px-3 py-2.5 text-[15px] transition-colors ${
+        className={`flex items-center gap-3.5 rounded-full px-4 py-2.5 text-[15px] transition-colors ${
           item.active
-            ? "bg-indigo-50 font-semibold text-indigo-700"
-            : "font-medium text-gray-700 hover:bg-gray-100"
+            ? "bg-sky-50 font-semibold text-sky-600"
+            : "font-medium text-stone-700 hover:bg-stone-100"
         }`}
       >
         <span className="text-xl leading-none">{item.icon}</span>
         <span>{item.label}</span>
+        {item.badge != null && item.badge > 0 && (
+          <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-[11px] font-bold text-white">
+            {item.badge > 99 ? "99+" : item.badge}
+          </span>
+        )}
       </Link>
     );
   }
@@ -149,7 +191,7 @@ export default function Sidebar() {
   return (
     <>
       {/* ───────── Desktop left rail ───────── */}
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-gray-100 bg-white px-3 py-5 md:flex">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-stone-100 bg-white px-3 py-5 md:flex">
         <Link href="/" className="mb-6 flex items-center px-2 transition-opacity hover:opacity-80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="peerup" className="h-9 w-auto" />
@@ -161,35 +203,35 @@ export default function Sidebar() {
           <div data-langmenu className="relative">
             <button
               onClick={() => setLangOpen((o) => !o)}
-              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100"
+              className="flex w-full items-center gap-2.5 rounded-full px-4 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100"
               title="언어 선택 / Language"
             >
               <span className="text-lg">{currentLang.flag}</span>
               <span>{currentLang.label}</span>
-              <span className="ml-auto text-xs text-gray-400">▾</span>
+              <span className="ml-auto text-xs text-stone-400">▾</span>
             </button>
             {langOpen && langMenu}
           </div>
 
           {loggedIn ? (
             <>
-              <Link href="/select-mode" className="rounded-xl px-3 py-2 text-left text-sm font-medium text-gray-500 transition-colors hover:bg-gray-100">
+              <Link href="/select-mode" className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100">
                 🔄 {n.switchMode}
               </Link>
-              <Link href="/profile" className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-gray-100">
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-indigo-600 text-sm font-bold text-white">
+              <Link href="/profile" className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-stone-50/60 px-3 py-2.5 transition-colors hover:bg-stone-100">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-cyan-500 text-sm font-bold text-white">
                   {avatarInitial}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-gray-900">{userName ?? ""}</span>
-                  <span className="block text-xs text-gray-400">
+                  <span className="block truncate text-sm font-semibold text-stone-900">{userName ?? ""}</span>
+                  <span className="block text-xs text-stone-400">
                     {mode === "guide" ? "🗺️ Guide" : mode === "traveler" ? "🧳 Traveler" : ""}
                   </span>
                 </span>
               </Link>
               <button
                 onClick={onLogout}
-                className="rounded-xl px-3 py-2 text-left text-sm font-medium text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-400 transition-colors hover:bg-red-50 hover:text-red-500"
               >
                 {n.logout}
               </button>
@@ -204,7 +246,7 @@ export default function Sidebar() {
       </aside>
 
       {/* ───────── Mobile top bar ───────── */}
-      <header className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-gray-100 bg-white/95 px-4 backdrop-blur-md md:hidden">
+      <header className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center justify-between border-b border-stone-100 bg-white/95 px-4 backdrop-blur-md md:hidden">
         <Link href="/" className="flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="peerup" className="h-8 w-auto" />
@@ -212,26 +254,26 @@ export default function Sidebar() {
         <div data-langmenu className="relative">
           <button
             onClick={() => setLangOpen((o) => !o)}
-            className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600"
+            className="flex items-center gap-1.5 rounded-full border border-stone-200 px-3 py-1.5 text-sm font-medium text-stone-600"
             title="언어 선택 / Language"
           >
             <span className="text-base">{currentLang.flag}</span>
             <span className="text-xs">{currentLang.label}</span>
-            <span className="text-[10px] text-gray-400">▾</span>
+            <span className="text-[10px] text-stone-400">▾</span>
           </button>
           {langOpen && (
-            <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-2 w-36 rounded-xl border border-stone-100 bg-white py-1 shadow-lg">
               {LANG_OPTIONS.map((opt) => (
                 <button
                   key={opt.code}
                   onClick={() => { setLang(opt.code); setLangOpen(false); }}
-                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-indigo-50 ${
-                    lang === opt.code ? "font-semibold text-indigo-600" : "text-gray-700"
+                  className={`flex w-full items-center gap-2.5 px-3 py-2 text-sm transition-colors hover:bg-sky-50 ${
+                    lang === opt.code ? "font-semibold text-sky-600" : "text-stone-700"
                   }`}
                 >
                   <span>{opt.flag}</span>
                   <span>{opt.label}</span>
-                  {lang === opt.code && <span className="ml-auto text-indigo-500">✓</span>}
+                  {lang === opt.code && <span className="ml-auto text-sky-500">✓</span>}
                 </button>
               ))}
             </div>
@@ -240,16 +282,25 @@ export default function Sidebar() {
       </header>
 
       {/* ───────── Mobile bottom tab bar ───────── */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 border-t border-gray-100 bg-white/95 backdrop-blur-md md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 flex h-16 border-t border-stone-100 bg-white/95 backdrop-blur-md md:hidden">
         {mobileItems.map((item) => (
           <Link
             key={item.href + item.label}
             href={item.href}
-            className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-              item.active ? "text-indigo-600" : "text-gray-400"
+            className={`flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] transition-colors ${
+              item.active ? "font-semibold text-sky-600" : "font-medium text-stone-400"
             }`}
           >
-            <span className="text-xl leading-none">{item.icon}</span>
+            <span className={`relative flex h-7 items-center justify-center rounded-full px-4 text-xl leading-none transition-colors ${
+              item.active ? "bg-sky-50" : ""
+            }`}>
+              {item.icon}
+              {item.badge != null && item.badge > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
+            </span>
             <span className="max-w-full truncate px-0.5">{item.label}</span>
           </Link>
         ))}

@@ -99,7 +99,15 @@ export default function TripMap({ points, className = "" }: { points: MapPoint[]
         lineRef.current.setMap(map);
       }
 
-      map.setBounds(bounds);
+      // 핀이 1개뿐이면 bounds가 면적 0인 사각형이 돼 setBounds가 최대줌(건물 단위)으로 스냅해버림
+      // (PlaceDetailModal의 단일 핀 지도에서 처음 발생 — 기존 다중 지점 경로는 항상 2개 이상이라 문제 없었음).
+      // 점 1개일 땐 중심 이동 + 고정 레벨로 대체, 2개 이상은 기존 setBounds 동작 그대로 유지.
+      if (path.length >= 2) {
+        map.setBounds(bounds);
+      } else {
+        map.setCenter(path[0]);
+        map.setLevel(4);
+      }
     }).catch(() => { /* SDK 로드 실패 시 조용히 무시 */ });
 
     return () => { disposed = true; };

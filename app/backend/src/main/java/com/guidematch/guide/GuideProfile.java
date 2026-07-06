@@ -59,6 +59,10 @@ public class GuideProfile {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    /** 즉시 예약(예약 요청 없이 바로 확정). null은 false로 취급. */
+    @Column(name = "instant_booking")
+    private Boolean instantBooking = false;
+
     /** MBTI 유형 (예: "ENFP"). 선택사항. */
     @Column(length = 4)
     private String mbti;
@@ -125,6 +129,9 @@ public class GuideProfile {
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    /** null은 false로 취급 (신규 컬럼이라 기존 행은 null일 수 있음). */
+    public boolean isInstantBooking() { return Boolean.TRUE.equals(instantBooking); }
+    public void setInstantBooking(boolean instantBooking) { this.instantBooking = instantBooking; }
     public String getMbti() { return mbti; }
     public void setMbti(String mbti) { this.mbti = mbti; }
     public Instant getCreatedAt() { return createdAt; }

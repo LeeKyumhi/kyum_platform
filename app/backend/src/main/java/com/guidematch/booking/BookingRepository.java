@@ -1,6 +1,8 @@
 package com.guidematch.booking;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -15,4 +17,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     // 가이드의 확정된 예약 수 (정렬용) — 수락됨/완료됨만 집계
     long countByGuideProfileIdAndStatusIn(Long guideProfileId, Collection<BookingStatus> statuses);
+
+    // 특정 상태의 예약들 (수락 시 시간 겹침 검사용)
+    List<Booking> findByGuideProfileIdAndStatus(Long guideProfileId, BookingStatus status);
+
+    // 여러 가이드의 확정 예약 수를 한 번에 집계 (목록 화면 N+1 방지). 각 행: [guideProfileId, count]
+    @Query("select b.guideProfileId, count(b) from Booking b " +
+           "where b.guideProfileId in :ids and b.status in :statuses group by b.guideProfileId")
+    List<Object[]> bookingCountsByGuideProfileIds(@Param("ids") Collection<Long> ids,
+                                                  @Param("statuses") Collection<BookingStatus> statuses);
 }
