@@ -8,6 +8,7 @@ import { clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
 import { CameraIcon, HeartIcon, StarIcon } from "@/components/icons";
 import PostComposeModal from "@/components/PostComposeModal";
+import TrackEntryCards from "@/components/TrackEntryCards";
 
 type Me = { id: number; fullName: string; email: string; handle: string; interests?: string[] };
 type MyPost = { id: number; content: string; imageUrl: string | null };
@@ -190,6 +191,10 @@ export default function TravelerHome() {
             </div>
           )}
         </div>
+
+        <section className="mb-8">
+          <TrackEntryCards />
+        </section>
 
         {/* ── 커뮤니티 배너 — 피드는 /community 로 분리 ── */}
         <Link

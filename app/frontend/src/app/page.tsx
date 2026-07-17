@@ -9,6 +9,7 @@ import { getMode, setMode, clearMode, type Mode } from "@/lib/mode";
 import { SPOTS } from "@/lib/spots";
 import CitySelect from "@/components/CitySelect";
 import { SearchIcon, PinIcon, CompassIcon, ArrowRightIcon } from "@/components/icons";
+import TrackEntryCards from "@/components/TrackEntryCards";
 
 type Me = { id: number; fullName: string; email: string };
 
@@ -334,6 +335,8 @@ export default function Home() {
                 </span>
               </Link>
             )}
+
+            <div className="mt-8"><TrackEntryCards /></div>
 
             <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-white/90">
               <Link href="/explore" className="inline-flex items-center gap-1.5 transition-colors hover:text-white">
