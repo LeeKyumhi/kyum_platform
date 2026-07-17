@@ -8,11 +8,13 @@ import { useLanguage } from "@/context/LanguageContext";
 import { localeOf } from "@/lib/i18n";
 import { STATUS_CLS, STATUS_ICON } from "@/lib/bookingStatus";
 import { CalendarIcon, ChatIcon } from "@/components/icons";
+import RequestDetailsBlock from "@/components/RequestDetailsBlock";
 
 type Booking = {
   id: number; travelerName: string;
   startAt: string; hours: number; totalPrice: number; currency: string;
   status: string; message: string | null;
+  requestDetails?: string | null;
 };
 
 export default function GuideRequestsPage() {
@@ -115,6 +117,7 @@ export default function GuideRequestsPage() {
                     <span className="italic">&ldquo;{b.message}&rdquo;</span>
                   </div>
                 )}
+                <RequestDetailsBlock raw={b.requestDetails} />
 
                 {/* Actions */}
                 <div className="flex flex-wrap gap-2">

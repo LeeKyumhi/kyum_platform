@@ -13,6 +13,7 @@ import { STATUS_CLS } from "@/lib/bookingStatus";
 import { kakaoMapUrl } from "@/components/TimetableBuilder";
 import TripMap from "@/components/TripMap";
 import { PinIcon, CalendarIcon } from "@/components/icons";
+import RequestDetailsBlock from "@/components/RequestDetailsBlock";
 
 type MeetingPlace = { name: string; address: string | null; lat: number; lng: number; url: string | null };
 type Booking = {
@@ -20,6 +21,7 @@ type Booking = {
   guideAvatarUrl: string | null;
   travelerId: number; travelerName: string; startAt: string; hours: number;
   totalPrice: number; currency: string; status: string; message: string | null;
+  requestDetails?: string | null;
   meetingPlace: MeetingPlace | null;
 };
 type Me = { id: number };
@@ -172,6 +174,12 @@ export default function BookingDetailPage() {
             </div>
           </div>
         </div>
+
+        {booking.requestDetails && (
+          <div className="card mb-4 p-5">
+            <RequestDetailsBlock raw={booking.requestDetails} />
+          </div>
+        )}
 
         {/* 만남 장소 */}
         <div className="card mb-4 p-5">
