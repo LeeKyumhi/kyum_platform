@@ -26,6 +26,8 @@ public record BookingResponse(
         String message,
         /** 예약한 서비스 카테고리 (ServiceCategory 키). 기존 예약은 null. */
         String serviceCategory,
+        /** 동행 예약의 카테고리별 요청 내용 (프론트 JSON 규약). 투어/기존 예약은 null. */
+        String requestDetails,
         Instant createdAt,
         MeetingPlace meetingPlace
 ) {
@@ -54,6 +56,7 @@ public record BookingResponse(
                 b.getStatus(),
                 b.getMessage(),
                 b.getServiceCategory() != null ? b.getServiceCategory().name() : null,
+                b.getRequestDetails(),
                 b.getCreatedAt(),
                 mp
         );

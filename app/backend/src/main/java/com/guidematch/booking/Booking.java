@@ -109,6 +109,13 @@ public class Booking {
     @Column(name = "rejection_seen")
     private Boolean rejectionSeen;
 
+    /**
+     * 동행 예약의 카테고리별 요청 내용 (프론트 전용 JSON 규약, 백엔드는 불투명 텍스트).
+     * placeCard 규약과 같은 철학 — 서버는 저장/반환만 한다. 투어 예약은 null.
+     */
+    @Column(name = "request_details", columnDefinition = "text")
+    private String requestDetails;
+
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();
@@ -267,4 +274,7 @@ public class Booking {
 
     /** 여행자가 거절 알림을 확인함 (배지 클리어). */
     public void markRejectionSeen() { this.rejectionSeen = true; }
+
+    public String getRequestDetails() { return requestDetails; }
+    public void setRequestDetails(String requestDetails) { this.requestDetails = requestDetails; }
 }

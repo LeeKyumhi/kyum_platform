@@ -2,6 +2,7 @@ package com.guidematch.booking.dto;
 
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
 
@@ -28,6 +29,10 @@ public record CreateBookingRequest(
         @NotNull(message = "서비스 종류를 선택하세요.")
         String serviceCategory,
 
-        String message
+        String message,
+
+        /** 동행 예약의 카테고리별 요청 내용 (선택, 프론트 JSON 규약 — 서버는 불투명 저장). */
+        @Size(max = 2000, message = "요청 내용이 너무 깁니다.")
+        String requestDetails
 ) {
 }

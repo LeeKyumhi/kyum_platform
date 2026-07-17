@@ -93,6 +93,10 @@ public class BookingService {
             booking.accept();
         }
 
+        if (request.requestDetails() != null && !request.requestDetails().isBlank()) {
+            booking.setRequestDetails(request.requestDetails());
+        }
+
         Booking saved = bookingRepository.save(booking);
 
         if (instant) {
