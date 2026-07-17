@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 import CitySelect from "@/components/CitySelect";
+import { useModalDismiss } from "@/lib/useModalDismiss";
 import PostCard, { type FeedPost } from "@/components/PostCard";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
@@ -39,6 +41,21 @@ function TabBar({ active, tabs, onChange }: {
   );
 }
 
+function BadgeExplainSheet({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
+  useModalDismiss(onClose);
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center"
+         onClick={onClose}>
+      <div className="w-full max-w-md rounded-t-2xl bg-white p-6 sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
+        <h3 className="mb-2 text-lg font-bold text-stone-900">✓ {t.tracks.badgeExplainTitle}</h3>
+        <p className="text-sm leading-relaxed text-stone-600">{t.tracks.badgeExplainBody}</p>
+        <button onClick={onClose} className="btn-secondary mt-4 w-full">{t.placeDetail.close}</button>
+      </div>
+    </div>
+  );
+}
+
 export default function GuidesPage() {
   const { t, lang } = useLanguage();
   const l = t.guides;
@@ -53,6 +70,7 @@ export default function GuidesPage() {
   const [guidesError, setGuidesError]     = useState("");
   const [sortKey, setSortKey]     = useState<SortKey>("default");
   const [langFilter, setLangFilter] = useState("");
+  const [badgeOpen, setBadgeOpen] = useState(false);   // 인증 배지 설명 시트
 
   // Posts tab state
   const [posts, setPosts]         = useState<FeedPost[]>([]);
@@ -72,6 +90,7 @@ export default function GuidesPage() {
       const q = new URLSearchParams();
       if (cityFilter) q.set("city", cityFilter);
       if (range) { q.set("availableFrom", range.from); q.set("availableTo", range.to); }
+      q.set("category", "TOUR_GUIDE");
       q.set("lang", lang);
       // auth를 붙여야 내 관심사·MBTI 기준 궁합 점수(matchScore)가 내려온다
       setGuides(await api<Guide[]>(`/api/guides?${q.toString()}`, { auth: true }));
@@ -127,7 +146,7 @@ export default function GuidesPage() {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: liked, likeCount } : p));
   }
 
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   // 로드된 가이드에서 사용 언어 목록 도출 (하드코딩 X).
   // 자유 입력 값이라 "English"/"english" 같은 대소문자 중복은 하나로 합친다 (첫 등장 표기 사용).
@@ -200,8 +219,12 @@ export default function GuidesPage() {
 
         {/* Page heading */}
         <div className="mb-5">
-          <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">{l.title}</h1>
-          <p className="mt-1 text-sm text-stone-500">{l.sub}</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">
+            {l.title}{" "}
+            <button onClick={() => setBadgeOpen(true)}
+              className="badge-emerald align-middle text-xs">✓ {t.tracks.badgeExplainTitle}</button>
+          </h1>
+          <p className="mt-1 text-sm text-stone-500">{l.tourTrackSub}</p>
         </div>
 
         <TabBar
@@ -438,6 +461,8 @@ export default function GuidesPage() {
         )}
 
       </div>
+
+      {badgeOpen && <BadgeExplainSheet onClose={() => setBadgeOpen(false)} />}
     </main>
   );
 }

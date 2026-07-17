@@ -40,6 +40,9 @@ supabase:
   service-key: ${SUPABASE_SERVICE_KEY}
   storage:
     credentials-bucket: credentials   # 자격증 파일을 저장할 버킷 이름
+    # 관광통역안내사 인증용 자격증·신분증 저장 버킷. 민감 PII이므로 반드시 Supabase에서 "비공개(private)" 버킷으로 생성할 것.
+    # 어드민 열람은 서명(signed) URL로만 이뤄지며, 공개 URL로는 접근되지 않는다.
+    verification-bucket: ${SUPABASE_VERIFICATION_BUCKET:verification}
 
 # Kakao Map REST API (역지오코딩/장소검색). 키가 없으면 GPS 자동감지만 비활성, 앱은 정상 동작.
 kakao:

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Collections;
 
 /**
  * 필터(Filter) = 컨트롤러에 도달하기 "전에" 모든 요청을 가로채는 관문.
@@ -45,10 +46,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 Long userId = jwtProvider.getUserId(token);
 
+                // 권한(role) 반영: ADMIN이면 ROLE_ADMIN 권한을 부여해 /api/admin/** 접근을 허용한다.
+                // 그 외(기존 토큰·일반 사용자)는 권한 없음 — 기존 동작과 동일.
+                var authorities = "ADMIN".equals(jwtProvider.getRole(token))
+                        ? Collections.singletonList(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))
+                        : AuthorityUtils.NO_AUTHORITIES;
+
                 // 인증 객체 생성. principal(주체)에 userId를 담아두면
                 // 이후 컨트롤러에서 @AuthenticationPrincipal로 꺼내 쓸 수 있다.
                 var authentication = new UsernamePasswordAuthenticationToken(
-                        userId, null, AuthorityUtils.NO_AUTHORITIES
+                        userId, null, authorities
                 );
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 

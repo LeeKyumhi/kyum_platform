@@ -18,6 +18,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     // 가이드의 확정된 예약 수 (정렬용) — 수락됨/완료됨만 집계
     long countByGuideProfileIdAndStatusIn(Long guideProfileId, Collection<BookingStatus> statuses);
 
+    // 여행자의 미확인 거절 예약 수 (#4 배지). RejectionSeenFalse = false만 매칭(null=옛 예약 제외)
+    long countByTravelerIdAndStatusAndRejectionSeenFalse(Long travelerId, BookingStatus status);
+
     // 특정 상태의 예약들 (수락 시 시간 겹침 검사용)
     List<Booking> findByGuideProfileIdAndStatus(Long guideProfileId, BookingStatus status);
 

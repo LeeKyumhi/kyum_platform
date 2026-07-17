@@ -3,6 +3,8 @@ package com.guidematch.guide;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -71,6 +73,29 @@ public class GuideProfile {
     @Column(columnDefinition = "text")
     private String interests;
 
+    /**
+     * 제공 서비스 카테고리. 쉼표로 구분된 ServiceCategory 키 목록 (예: "TOUR_GUIDE,DINING_COMPANION").
+     * 관광(TOUR_GUIDE 등 requiresGuideLicense) 카테고리는 VERIFIED 가이드만 담을 수 있다(서비스단 검증).
+     */
+    @Column(name = "service_categories", columnDefinition = "text")
+    private String serviceCategories;
+
+    /**
+     * 관광통역안내사 자격 인증 상태 (배지·관광 카테고리 게이팅용 비정규화 필드).
+     * 진실의 원천은 GuideVerification이지만, 목록/배지 조회 때 조인을 피하려 여기 복사한다.
+     * null(기존 가이드 포함)은 NONE(미인증)으로 취급한다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "verification_status")
+    private VerificationStatus verificationStatus;
+
+    /**
+     * 호스트 약관(계정·자격 대여 금지, 비관광 호스트의 관광안내 금지, 명의자 전책임) 동의 시각.
+     * 온보딩 시 동의 기록 — 계정 대여 등 분쟁 시 "플랫폼이 금지·고지했다"는 방어 근거.
+     */
+    @Column(name = "host_terms_agreed_at")
+    private Instant hostTermsAgreedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -108,6 +133,15 @@ public class GuideProfile {
         this.interests = (list == null || list.isEmpty()) ? null : String.join(",", list);
     }
 
+    public List<String> getServiceCategoryList() {
+        if (serviceCategories == null || serviceCategories.isBlank()) return List.of();
+        return List.of(serviceCategories.split(","));
+    }
+
+    public void setServiceCategoryList(List<String> list) {
+        this.serviceCategories = (list == null || list.isEmpty()) ? null : String.join(",", list);
+    }
+
     public Long getId() { return id; }
     public Long getUserId() { return userId; }
     public String getHeadline() { return headline; }
@@ -134,6 +168,18 @@ public class GuideProfile {
     public void setInstantBooking(boolean instantBooking) { this.instantBooking = instantBooking; }
     public String getMbti() { return mbti; }
     public void setMbti(String mbti) { this.mbti = mbti; }
+    /** null(기존 가이드 포함)은 NONE(미인증)으로 취급한다. */
+    public VerificationStatus getVerificationStatus() {
+        return verificationStatus == null ? VerificationStatus.NONE : verificationStatus;
+    }
+    public void setVerificationStatus(VerificationStatus verificationStatus) {
+        this.verificationStatus = verificationStatus;
+    }
+    public boolean isVerified() {
+        return getVerificationStatus() == VerificationStatus.VERIFIED;
+    }
+    public Instant getHostTermsAgreedAt() { return hostTermsAgreedAt; }
+    public void agreeHostTerms() { this.hostTermsAgreedAt = Instant.now(); }
     public Instant getCreatedAt() { return createdAt; }
     public List<GuideLanguage> getLanguages() { return languages; }
 }

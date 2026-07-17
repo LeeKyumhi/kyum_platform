@@ -46,6 +46,11 @@ public class GuideProfileService {
             throw new IllegalArgumentException("이미 가이드 프로필이 존재합니다.");
         }
 
+        // 호스트 약관 동의는 필수 — 동의 없이는 프로필을 만들 수 없다(계정·자격 대여 금지 등 고지·동의 기록).
+        if (!Boolean.TRUE.equals(request.hostTermsAgreed())) {
+            throw new IllegalArgumentException("호스트 약관에 동의해야 가이드로 등록할 수 있습니다.");
+        }
+
         // 통화가 비어있으면 기본 KRW
         String currency = (request.currency() == null || request.currency().isBlank())
                 ? "KRW"
@@ -70,11 +75,39 @@ public class GuideProfileService {
         if (request.interests() != null) {
             profile.setInterestList(request.interests());
         }
+        // 제공 서비스 카테고리 — 신규 프로필은 미인증이므로 관광 카테고리를 담으면 거부된다.
+        if (request.serviceCategories() != null) {
+            profile.setServiceCategoryList(validateCategories(request.serviceCategories(), profile.isVerified()));
+        }
         if (request.city() != null && !request.city().isBlank()) {
             profile.updateLocation(request.city(), request.latitude(), request.longitude());
         }
+        profile.agreeHostTerms();  // 동의 시각 기록
 
         return guideProfileRepository.save(profile);
+    }
+
+    /**
+     * 제공 서비스 카테고리 갱신. 관광(자격 필수) 카테고리는 VERIFIED 가이드만 담을 수 있다
+     * (관광/비관광 완전 분리의 프로필 레벨 관문).
+     */
+    @Transactional
+    public GuideProfile updateServiceCategories(Long userId, List<String> categories) {
+        GuideProfile profile = getByUserId(userId);
+        profile.setServiceCategoryList(validateCategories(categories, profile.isVerified()));
+        return guideProfileRepository.save(profile);
+    }
+
+    /** 카테고리 키 검증 + 정규화. 유효하지 않은 키·미인증 상태의 관광 카테고리는 거부. */
+    private List<String> validateCategories(List<String> keys, boolean verified) {
+        if (keys == null || keys.isEmpty()) return List.of();
+        return keys.stream().map(key -> {
+            ServiceCategory c = ServiceCategory.fromKey(key);
+            if (c.requiresGuideLicense() && !verified) {
+                throw new IllegalArgumentException("관광 서비스는 관광통역안내사 자격 인증 후에만 제공할 수 있습니다.");
+            }
+            return c.name();
+        }).toList();
     }
 
     /** 가이드 위치(도시+좌표) 업데이트. */

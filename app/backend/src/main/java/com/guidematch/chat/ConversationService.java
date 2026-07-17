@@ -6,6 +6,7 @@ import com.guidematch.geo.GoogleTranslateClient;
 import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.GuideProfileService;
+import com.guidematch.safety.BlockRepository;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -24,27 +25,28 @@ import java.util.Set;
 @Service
 public class ConversationService {
 
-    private static final int PREVIEW_MAX = 80;
-
     private final ConversationRepository conversationRepository;
     private final ConversationMessageRepository messageRepository;
     private final GuideProfileService guideProfileService;
     private final GuideProfileRepository guideProfileRepository;
     private final UserRepository userRepository;
     private final GoogleTranslateClient googleClient;
+    private final BlockRepository blockRepository;
 
     public ConversationService(ConversationRepository conversationRepository,
                                ConversationMessageRepository messageRepository,
                                GuideProfileService guideProfileService,
                                GuideProfileRepository guideProfileRepository,
                                UserRepository userRepository,
-                               GoogleTranslateClient googleClient) {
+                               GoogleTranslateClient googleClient,
+                               BlockRepository blockRepository) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.guideProfileService = guideProfileService;
         this.guideProfileRepository = guideProfileRepository;
         this.userRepository = userRepository;
         this.googleClient = googleClient;
+        this.blockRepository = blockRepository;
     }
 
     /** 가이드에게 보내는 대화방을 얻는다 (없으면 생성). 예약 여부와 무관. */
@@ -53,6 +55,9 @@ public class ConversationService {
         GuideProfile guide = guideProfileService.getById(guideProfileId);
         if (guide.getUserId().equals(userId)) {
             throw new IllegalArgumentException("자기 자신에게는 메시지를 보낼 수 없습니다.");
+        }
+        if (blockRepository.existsBetween(userId, guide.getUserId())) {
+            throw new IllegalArgumentException("차단된 사용자와는 대화를 시작할 수 없습니다.");
         }
         Conversation conversation = conversationRepository
                 .findByTravelerUserIdAndGuideProfileId(userId, guideProfileId)
@@ -68,6 +73,19 @@ public class ConversationService {
     public List<ConversationResponse> myConversations(Long userId) {
         List<Conversation> conversations = conversationRepository.findMine(userId);
         if (conversations.isEmpty()) return List.of();
+
+        // 차단 관계(양방향)에 있는 상대와의 대화는 목록에서 숨긴다 — 배치 1회 조회.
+        Set<Long> blockedPeers = new HashSet<>(blockRepository.relatedUserIds(userId));
+        if (!blockedPeers.isEmpty()) {
+            conversations = conversations.stream()
+                    .filter(c -> {
+                        Long peer = c.getTravelerUserId().equals(userId)
+                                ? c.getGuideUserId() : c.getTravelerUserId();
+                        return !blockedPeers.contains(peer);
+                    })
+                    .toList();
+            if (conversations.isEmpty()) return List.of();
+        }
 
         // 상대방 표시 정보를 두 번의 일괄 조회로 준비 (가이드 프로필 + 상대 사용자 이름)
         Set<Long> profileIds = new HashSet<>();
@@ -111,10 +129,14 @@ public class ConversationService {
     @Transactional
     public ConversationMessageResponse send(Long userId, Long conversationId, String content) {
         Conversation conversation = assertParticipant(userId, conversationId);
+        Long otherUserId = conversation.getTravelerUserId().equals(userId)
+                ? conversation.getGuideUserId() : conversation.getTravelerUserId();
+        if (blockRepository.existsBetween(userId, otherUserId)) {
+            throw new IllegalArgumentException("차단된 사용자에게는 메시지를 보낼 수 없습니다.");
+        }
         ConversationMessage saved = messageRepository.save(
                 new ConversationMessage(conversationId, userId, content));
-        conversation.touchLastMessage(
-                content.length() > PREVIEW_MAX ? content.substring(0, PREVIEW_MAX) : content);
+        conversation.touchLastMessage(Previews.clip(content));
         String senderName = userRepository.findById(userId).map(User::getFullName).orElse("알 수 없음");
         return ConversationMessageResponse.of(saved, senderName);
     }
@@ -181,6 +203,7 @@ public class ConversationService {
         User other = usersById.get(otherUserId);
         GuideProfile guide = viewerIsTraveler ? profiles.get(c.getGuideProfileId()) : null;
         return new ConversationResponse(c.getId(), c.getGuideProfileId(),
+                otherUserId,
                 other != null ? other.getFullName() : "알 수 없음",
                 guide != null ? guide.getAvatarUrl() : null,
                 viewerIsTraveler,

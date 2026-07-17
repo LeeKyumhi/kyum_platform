@@ -41,7 +41,8 @@ public class TourCourseService {
     @Transactional
     public TourCourseResponse create(Long userId, String title, String description, String city,
                                      Integer durationHours, Integer price, Integer maxPeople,
-                                     MultipartFile image, List<TourCourseWaypointRequest> waypoints) {
+                                     String serviceCategory, MultipartFile image,
+                                     List<TourCourseWaypointRequest> waypoints) {
         GuideProfile profile = profileRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("가이드 프로필이 없습니다. 먼저 가이드로 등록해주세요."));
 
@@ -49,6 +50,7 @@ public class TourCourseService {
         if (durationHours == null || durationHours < 1) throw new IllegalArgumentException("소요 시간은 1시간 이상이어야 합니다.");
         if (price == null || price < 0) throw new IllegalArgumentException("가격이 올바르지 않습니다.");
         if (maxPeople == null || maxPeople < 1) throw new IllegalArgumentException("최대 인원은 1명 이상이어야 합니다.");
+        ServiceCategory category = requireAllowedCategory(serviceCategory, profile);
 
         String imageUrl = null;
         if (image != null && !image.isEmpty()) {
@@ -64,7 +66,7 @@ public class TourCourseService {
                 profile.getId(), title.trim(),
                 description != null ? description.trim() : null,
                 (city != null && !city.isBlank()) ? city : profile.getCity(),
-                durationHours, price, profile.getCurrency(), maxPeople, imageUrl
+                durationHours, price, profile.getCurrency(), maxPeople, imageUrl, category
         );
         course.replaceWaypoints(toWaypoints(waypoints));
         // 새 동선의 DB id를 응답에 채우기 위해 즉시 flush (기본은 커밋 시점에 flush돼 id가 null로 나감)
@@ -75,7 +77,8 @@ public class TourCourseService {
     @Transactional
     public TourCourseResponse update(Long userId, Long courseId, String title, String description, String city,
                                      Integer durationHours, Integer price, Integer maxPeople,
-                                     MultipartFile image, List<TourCourseWaypointRequest> waypoints) {
+                                     String serviceCategory, MultipartFile image,
+                                     List<TourCourseWaypointRequest> waypoints) {
         GuideProfile profile = profileRepository.findByUserId(userId)
                 .orElseThrow(() -> new IllegalArgumentException("가이드 프로필이 없습니다."));
         TourCourse course = courseRepository.findById(courseId)
@@ -88,6 +91,7 @@ public class TourCourseService {
         if (durationHours == null || durationHours < 1) throw new IllegalArgumentException("소요 시간은 1시간 이상이어야 합니다.");
         if (price == null || price < 0) throw new IllegalArgumentException("가격이 올바르지 않습니다.");
         if (maxPeople == null || maxPeople < 1) throw new IllegalArgumentException("최대 인원은 1명 이상이어야 합니다.");
+        ServiceCategory category = requireAllowedCategory(serviceCategory, profile);
 
         String imageUrl = course.getImageUrl();
         if (image != null && !image.isEmpty()) {
@@ -101,11 +105,23 @@ public class TourCourseService {
 
         course.updateMeta(title.trim(), description != null ? description.trim() : null,
                 (city != null && !city.isBlank()) ? city : profile.getCity(),
-                durationHours, price, maxPeople, imageUrl);
+                durationHours, price, maxPeople, imageUrl, category);
         course.replaceWaypoints(toWaypoints(waypoints));
 
         // 새 동선의 DB id를 응답에 채우기 위해 즉시 flush
         return TourCourseResponse.from(courseRepository.saveAndFlush(course));
+    }
+
+    /**
+     * 코스 카테고리 게이팅: 관광(자격 필수) 카테고리는 VERIFIED 가이드만 등록할 수 있다.
+     * 관광/비관광 완전 분리의 코스 레벨 관문.
+     */
+    private ServiceCategory requireAllowedCategory(String serviceCategory, GuideProfile profile) {
+        ServiceCategory category = ServiceCategory.fromKey(serviceCategory);
+        if (category.requiresGuideLicense() && !profile.isVerified()) {
+            throw new IllegalArgumentException("관광 코스는 관광통역안내사 자격 인증 후에만 등록할 수 있습니다.");
+        }
+        return category;
     }
 
     private List<TourCourseWaypoint> toWaypoints(List<TourCourseWaypointRequest> reqs) {
@@ -113,7 +129,8 @@ public class TourCourseService {
         return reqs.stream()
                 .filter(r -> r.placeName() != null && !r.placeName().isBlank())
                 .map(r -> new TourCourseWaypoint(r.sortOrder(), r.placeId(), r.placeName(),
-                        r.category(), r.address(), r.latitude(), r.longitude()))
+                        r.category(), r.address(), r.latitude(), r.longitude(),
+                        r.startHour(), r.durationHours(), r.laneIndex(), r.laneSpan()))
                 .toList();
     }
 
@@ -126,11 +143,13 @@ public class TourCourseService {
                 .stream().map(TourCourseResponse::from).toList();
     }
 
-    /** 특정 가이드의 활성 코스 목록 (공개 — 가이드 상세용) */
+    /** 특정 가이드의 활성 코스 목록 (공개 — 가이드 상세용). 미분류(카테고리 null) 코스는 숨긴다. */
     @Transactional(readOnly = true)
     public List<TourCourseResponse> listByGuide(Long guideProfileId) {
         return courseRepository.findByGuideProfileIdAndActiveTrueOrderByCreatedAtDesc(guideProfileId)
-                .stream().map(TourCourseResponse::from).toList();
+                .stream()
+                .filter(c -> c.getServiceCategory() != null)
+                .map(TourCourseResponse::from).toList();
     }
 
     /**
@@ -139,9 +158,12 @@ public class TourCourseService {
      */
     @Transactional(readOnly = true)
     public List<TourCourseResponse> listAll(String city) {
-        List<TourCourse> courses = (city != null && !city.isBlank())
+        List<TourCourse> courses = ((city != null && !city.isBlank())
                 ? courseRepository.findByActiveTrueAndCityIgnoreCaseOrderByCreatedAtDesc(city)
-                : courseRepository.findByActiveTrueOrderByCreatedAtDesc();
+                : courseRepository.findByActiveTrueOrderByCreatedAtDesc())
+                .stream()
+                .filter(c -> c.getServiceCategory() != null)  // 미분류(레거시) 코스는 공개 탐색에서 숨김
+                .toList();
         if (courses.isEmpty()) return List.of();
 
         List<Long> profileIds = courses.stream().map(TourCourse::getGuideProfileId).distinct().toList();

@@ -23,7 +23,7 @@ A C2C local guide matching platform for foreign travelers in Korea. Travelers br
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 3 |
+| Frontend | Next.js 15, React 19, TypeScript, Tailwind CSS 3, @dnd-kit (드래그 일정 빌더) |
 | Backend | Spring Boot 3.3.5, Java 21, Spring Security, JWT |
 | Database | PostgreSQL via Supabase, JPA `ddl-auto: update` |
 | File Storage | Supabase Storage |

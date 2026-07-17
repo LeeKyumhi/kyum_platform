@@ -32,6 +32,32 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
                 or
                 (c.guideUserId = :userId and (c.guideLastReadAt is null or m.createdAt > c.guideLastReadAt))
               )
+              and not exists (
+                select 1 from com.guidematch.safety.Block bl
+                where (bl.blockerUserId = :userId and bl.blockedUserId = m.senderId)
+                   or (bl.blockerUserId = m.senderId and bl.blockedUserId = :userId)
+              )
             """)
     long unreadCount(@Param("userId") Long userId);
+
+    /**
+     * 내가 안 읽은 메시지가 있는 대화방 id 목록 (#2 인박스 점 표시). unreadCount와 동일 술어(차단 제외 포함)라
+     * 사이드바 총 배지와 어긋나지 않는다.
+     */
+    @Query("""
+            select distinct c.id from ConversationMessage m, Conversation c
+            where m.conversationId = c.id
+              and m.senderId <> :userId
+              and (
+                (c.travelerUserId = :userId and (c.travelerLastReadAt is null or m.createdAt > c.travelerLastReadAt))
+                or
+                (c.guideUserId = :userId and (c.guideLastReadAt is null or m.createdAt > c.guideLastReadAt))
+              )
+              and not exists (
+                select 1 from com.guidematch.safety.Block bl
+                where (bl.blockerUserId = :userId and bl.blockedUserId = m.senderId)
+                   or (bl.blockerUserId = m.senderId and bl.blockedUserId = :userId)
+              )
+            """)
+    List<Long> conversationIdsWithUnread(@Param("userId") Long userId);
 }

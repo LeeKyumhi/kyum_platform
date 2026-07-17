@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api, apiUpload, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
+import ServiceCategoryPicker from "@/components/ServiceCategoryPicker";
 import CitySelect from "@/components/CitySelect";
 import { PinIcon, CheckBadgeIcon, CameraIcon } from "@/components/icons";
 
@@ -17,15 +18,17 @@ const MBTI_TYPES = [
   ["ISTP","ISFP","ESTP","ESFP"],
 ] as const;
 
-type Profile    = { id: number; headline: string; region: string; city: string | null; hourlyRate: number; currency: string; avatarUrl: string | null; active: boolean; instantBooking: boolean; mbti: string | null; interests: string[] };
+type Profile    = { id: number; headline: string; region: string; city: string | null; hourlyRate: number; currency: string; avatarUrl: string | null; active: boolean; instantBooking: boolean; mbti: string | null; interests: string[]; serviceCategories: string[]; verificationStatus: string };
 type Credential = { id: number; type: string; title: string; fileUrl: string };
 type UserMe     = { id: number; mbti: string | null; interests: string[]; gender: string | null };
+type Verification = { status: string; legalName: string | null; licenseNumber: string | null; licenseIssueDate: string | null; licenseInnerNumber: string | null; rejectReason: string | null };
 
 export default function GuideManagePage() {
   const router      = useRouter();
   const { t } = useLanguage();
   const l           = t.guideManage;
   const lper        = t.personality;
+  const lv          = t.verification;
 
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [credentials, setCredentials] = useState<Credential[]>([]);
@@ -49,18 +52,41 @@ export default function GuideManagePage() {
   const [credFile, setCredFile]   = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
 
+  // 제공 서비스 카테고리
+  const [editServiceCategories, setEditServiceCategories] = useState<string[]>([]);
+  const [savingServiceCategories, setSavingServiceCategories] = useState(false);
+
+  // 관광통역안내사 인증 신청
+  const [verification, setVerification] = useState<Verification | null>(null);
+  const [vLegalName, setVLegalName]         = useState("");
+  const [vLicenseNumber, setVLicenseNumber] = useState("");
+  const [vIssueDate, setVIssueDate]         = useState("");
+  const [vInnerNumber, setVInnerNumber]     = useState("");
+  const [vLicenseFile, setVLicenseFile]     = useState<File | null>(null);
+  const [vIdDocFile, setVIdDocFile]         = useState<File | null>(null);
+  const [vSubmitting, setVSubmitting]       = useState(false);
+
   const loadCredentials = useCallback(async () => {
     const creds = await api<Credential[]>("/api/guide-profiles/me/credentials", { auth: true });
     setCredentials(creds);
+  }, []);
+
+  const loadVerification = useCallback(async () => {
+    try {
+      const v = await api<Verification>("/api/guide-profiles/me/verification", { auth: true });
+      setVerification(v);
+    } catch { /* 프로필 없음 등 — 조용히 무시 */ }
   }, []);
 
   const loadProfile = useCallback(async () => {
     try {
       const p = await api<Profile>("/api/guide-profiles/me", { auth: true });
       setProfile(p);
+      setEditServiceCategories(p.serviceCategories ?? []);
       await loadCredentials();
+      await loadVerification();
     } catch { setNoProfile(true); }
-  }, [loadCredentials]);
+  }, [loadCredentials, loadVerification]);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -168,6 +194,41 @@ export default function GuideManagePage() {
       await loadCredentials();
     } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
     finally { setUploading(false); }
+  }
+
+  async function onSaveServiceCategories() {
+    setError(""); setSavingServiceCategories(true);
+    try {
+      const updated = await api<Profile>("/api/guide-profiles/me/service-categories", {
+        method: "PATCH", auth: true,
+        body: { serviceCategories: editServiceCategories },
+      });
+      setProfile(updated);
+      setEditServiceCategories(updated.serviceCategories ?? []);
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+    finally { setSavingServiceCategories(false); }
+  }
+
+  async function onVerificationSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!vLicenseFile || !vIdDocFile) { setError(lv.filesRequired); return; }
+    setError(""); setVSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("legalName", vLegalName);
+      fd.append("licenseNumber", vLicenseNumber);
+      if (vIssueDate) fd.append("issueDate", vIssueDate);
+      if (vInnerNumber) fd.append("innerNumber", vInnerNumber);
+      fd.append("licenseFile", vLicenseFile);
+      fd.append("idDocFile", vIdDocFile);
+      const updated = await apiUpload<Verification>("/api/guide-profiles/me/verification", fd, { auth: true });
+      setVerification(updated);
+      setVLicenseFile(null); setVIdDocFile(null);
+      const lf = document.getElementById("vLicenseFileInput") as HTMLInputElement | null;
+      const idf = document.getElementById("vIdDocFileInput") as HTMLInputElement | null;
+      if (lf) lf.value = ""; if (idf) idf.value = "";
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+    finally { setVSubmitting(false); }
   }
 
   if (noProfile) return (
@@ -404,6 +465,94 @@ export default function GuideManagePage() {
                 <button onClick={() => setEditingPersonality(false)} className="btn-ghost px-4 py-2 text-sm">{l.cancelBtn}</button>
               </div>
             </div>
+          )}
+        </div>
+
+        {/* 제공 서비스 카테고리 */}
+        <div className="card p-6">
+          <h2 className="mb-1 font-bold text-stone-900">{t.serviceCategories.sectionTitle}</h2>
+          <p className="mb-4 text-xs text-stone-500">{t.serviceCategories.sectionHint}</p>
+          <ServiceCategoryPicker
+            selected={editServiceCategories}
+            onChange={setEditServiceCategories}
+            verified={profile.verificationStatus === "VERIFIED"}
+          />
+          <button
+            onClick={onSaveServiceCategories}
+            disabled={savingServiceCategories}
+            className="btn-primary mt-4 px-5 py-2 text-sm"
+          >
+            {savingServiceCategories ? t.serviceCategories.saving : t.serviceCategories.saveBtn}
+          </button>
+        </div>
+
+        {/* 관광통역안내사 자격 인증 */}
+        <div id="verification" className="card p-6">
+          <h2 className="mb-1 flex items-center gap-1.5 font-bold text-stone-900">
+            <CheckBadgeIcon className="h-5 w-5 text-emerald-500" /> {lv.section}
+          </h2>
+          <p className="mb-4 text-xs leading-relaxed text-stone-500">{lv.intro}</p>
+
+          {verification?.status === "VERIFIED" && (
+            <div className="rounded-xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+              ✅ {lv.statusVerified}
+            </div>
+          )}
+          {verification?.status === "PENDING" && (
+            <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+              ⏳ {lv.statusPending}
+            </div>
+          )}
+          {verification?.status === "REJECTED" && (
+            <div className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">
+              <p className="font-semibold">⚠ {lv.statusRejected}</p>
+              {verification.rejectReason && (
+                <p className="mt-1 text-xs">{lv.rejectReasonLabel}: {verification.rejectReason}</p>
+              )}
+            </div>
+          )}
+
+          {(verification == null || verification.status === "NONE" || verification.status === "REJECTED") && (
+            <form onSubmit={onVerificationSubmit} className="mt-3 flex flex-col gap-3 rounded-xl border border-stone-100 bg-stone-50 p-4">
+              <div>
+                <label className="input-label">{lv.legalNameLabel}</label>
+                <input value={vLegalName} onChange={(e) => setVLegalName(e.target.value)}
+                  placeholder={lv.legalNamePlaceholder} required className="input" />
+                <p className="mt-1 text-xs text-stone-400">{lv.legalNameHint}</p>
+              </div>
+              <div>
+                <label className="input-label">{lv.licenseNumberLabel}</label>
+                <input value={vLicenseNumber} onChange={(e) => setVLicenseNumber(e.target.value)}
+                  placeholder={lv.licenseNumberPlaceholder} required className="input" />
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="input-label">{lv.issueDateLabel}</label>
+                  <input type="date" value={vIssueDate} onChange={(e) => setVIssueDate(e.target.value)} className="input" />
+                </div>
+                <div className="flex-1">
+                  <label className="input-label">{lv.innerNumberLabel}</label>
+                  <input value={vInnerNumber} onChange={(e) => setVInnerNumber(e.target.value)}
+                    placeholder={lv.innerNumberPlaceholder} className="input" />
+                </div>
+              </div>
+              <div>
+                <label className="input-label">{lv.licenseFileLabel}</label>
+                <input id="vLicenseFileInput" type="file"
+                  onChange={(e) => setVLicenseFile(e.target.files?.[0] ?? null)}
+                  required className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-stone-200 file:px-4 file:py-1.5 file:text-xs file:font-semibold file:text-stone-700 hover:file:bg-stone-300" />
+              </div>
+              <div>
+                <label className="input-label">{lv.idDocFileLabel}</label>
+                <input id="vIdDocFileInput" type="file"
+                  onChange={(e) => setVIdDocFile(e.target.files?.[0] ?? null)}
+                  required className="text-sm text-stone-600 file:mr-3 file:cursor-pointer file:rounded-full file:border-0 file:bg-stone-200 file:px-4 file:py-1.5 file:text-xs file:font-semibold file:text-stone-700 hover:file:bg-stone-300" />
+                <p className="mt-1 text-xs text-stone-400">{lv.idDocHint}</p>
+              </div>
+              <button type="submit" disabled={vSubmitting} className="btn-primary self-start px-5 py-2 text-sm">
+                {vSubmitting ? lv.submitting : (verification?.status === "REJECTED" ? lv.resubmitBtn : lv.submitBtn)}
+              </button>
+            </form>
           )}
         </div>
 

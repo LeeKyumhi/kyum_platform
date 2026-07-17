@@ -8,6 +8,7 @@ import { clearMode, getMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
 import { PinIcon } from "@/components/icons";
 import EmailVerifiedBanner from "@/components/EmailVerifiedBanner";
+import BlockedUsersSection from "@/components/BlockedUsersSection";
 
 type Me = {
   id: number;
@@ -341,6 +342,8 @@ export default function ProfilePage() {
             </Link>
           )}
         </div>
+
+        <BlockedUsersSection />
 
         <div className="divider" />
 

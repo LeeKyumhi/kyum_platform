@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
+import ServiceCategoryPicker from "@/components/ServiceCategoryPicker";
 import CitySelect from "@/components/CitySelect";
 
 const LEVELS_KEYS = ["NATIVE", "FLUENT", "INTERMEDIATE", "BASIC"] as const;
@@ -43,8 +44,16 @@ export default function BecomeGuidePage() {
   const [languages, setLanguages] = useState<Language[]>([{ language: "", level: "FLUENT" }]);
   const [mbti, setMbti]           = useState("");
   const [interests, setInterests] = useState<string[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<string[]>([]);
+  const [hostTermsAgreed, setHostTermsAgreed] = useState(false);
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
+
+  const [licenseFork, setLicenseFork] = useState<"yes" | "no" | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("license");
+    if (p === "yes" || p === "no") setLicenseFork(p);
+  }, []);
 
   function onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -54,7 +63,9 @@ export default function BecomeGuidePage() {
   }
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setLoading(true);
+    e.preventDefault(); setError("");
+    if (!hostTermsAgreed) { setError(t.hostTerms.required); return; }
+    setLoading(true);
     try {
       await api("/api/guide-profiles", {
         method: "POST", auth: true,
@@ -62,13 +73,43 @@ export default function BecomeGuidePage() {
           ...form,
           hourlyRate: Number(form.hourlyRate),
           city: form.region, latitude: coords.lat, longitude: coords.lng,
-          languages, mbti: mbti || null, interests,
+          languages, mbti: mbti || null, interests, serviceCategories,
+          hostTermsAgreed,
         },
       });
-      router.push("/guide/manage");
+      router.push(licenseFork === "yes" ? "/guide/manage#verification" : "/guide/manage");
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.error);
     } finally { setLoading(false); }
+  }
+
+  if (licenseFork === null) {
+    const f = t.onboardingFork;
+    return (
+      <main className="page px-4">
+        <div className="container-sm">
+          <div className="mb-8 text-center">
+            <h1 className="section-title">{f.partnerTitle}</h1>
+            <p className="section-subtitle">{f.partnerSub}</p>
+          </div>
+          <p className="mb-4 text-center text-lg font-bold text-stone-900">{f.question}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button onClick={() => setLicenseFork("yes")}
+              className="card-hover flex flex-col gap-2 border-2 border-emerald-100 p-6 text-left">
+              <span className="text-3xl">🎫</span>
+              <span className="font-extrabold text-stone-900">{f.yes}</span>
+              <span className="text-sm text-stone-500">{f.yesDesc}</span>
+            </button>
+            <button onClick={() => setLicenseFork("no")}
+              className="card-hover flex flex-col gap-2 border-2 border-sky-100 p-6 text-left">
+              <span className="text-3xl">🤝</span>
+              <span className="font-extrabold text-stone-900">{f.no}</span>
+              <span className="text-sm text-stone-500">{f.noDesc}</span>
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -79,8 +120,8 @@ export default function BecomeGuidePage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-2xl shadow-md">
             🗺️
           </div>
-          <h1 className="section-title mt-4">{l.title}</h1>
-          <p className="section-subtitle">{l.sub}</p>
+          <h1 className="section-title mt-4">{t.onboardingFork.partnerTitle}</h1>
+          <p className="section-subtitle">{t.onboardingFork.partnerSub}</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
@@ -203,6 +244,44 @@ export default function BecomeGuidePage() {
             </div>
             <p className="mb-4 text-xs text-stone-400">{lp.interestsHint}</p>
             <InterestPicker selected={interests} onChange={setInterests} />
+          </div>
+
+          {/* Sec 6 — 제공 서비스 (신규 가이드는 미인증 → 관광 잠금) */}
+          <div className="card p-6">
+            <div className="mb-1">
+              <SectionHeading num="6" label={t.serviceCategories.sectionTitle} />
+            </div>
+            <p className="mb-4 text-xs text-stone-400">{t.serviceCategories.sectionHint}</p>
+            {licenseFork === "yes" && (
+              <p className="mb-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                🎫 {t.onboardingFork.licenseNote}
+              </p>
+            )}
+            <ServiceCategoryPicker
+              selected={serviceCategories}
+              onChange={setServiceCategories}
+              verified={false}
+              hideTour={licenseFork === "no"}
+            />
+          </div>
+
+          {/* Sec 7 — 호스트 약관 동의 (계정·자격 대여 금지) */}
+          <div className="card p-6">
+            <div className="mb-1">
+              <SectionHeading num="7" label={t.hostTerms.title} />
+            </div>
+            <p className="mb-3 text-xs text-stone-400">{t.hostTerms.intro}</p>
+            <ul className="mb-4 flex flex-col gap-2 text-sm text-stone-600">
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule1}</li>
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule2}</li>
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule3}</li>
+            </ul>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-stone-50 px-4 py-3 text-sm font-semibold text-stone-800">
+              <input type="checkbox" checked={hostTermsAgreed}
+                onChange={(e) => setHostTermsAgreed(e.target.checked)}
+                className="h-4 w-4 accent-emerald-600" />
+              {t.hostTerms.agree}
+            </label>
           </div>
 
           {error && (

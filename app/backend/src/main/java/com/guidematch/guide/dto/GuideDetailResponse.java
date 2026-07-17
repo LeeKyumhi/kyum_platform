@@ -8,6 +8,7 @@ import java.util.List;
 
 public record GuideDetailResponse(
         Long id,
+        Long guideUserId,
         String guideName,
         String headline,
         String introduction,
@@ -27,7 +28,11 @@ public record GuideDetailResponse(
         String mbti,
         List<String> interests,
         List<LanguageItem> languages,
-        List<CredentialResponse> credentials
+        List<CredentialResponse> credentials,
+        /** 관광통역안내사 자격 인증 상태 (NONE/PENDING/VERIFIED/REJECTED). 배지는 VERIFIED일 때만. */
+        String verificationStatus,
+        /** 제공 서비스 카테고리 (ServiceCategory 키). 예약 위젯의 서비스 선택·표시에 사용. */
+        List<String> serviceCategories
 ) {
     public record LanguageItem(String language, LanguageLevel level) {}
 
@@ -44,11 +49,12 @@ public record GuideDetailResponse(
                 .toList();
 
         return new GuideDetailResponse(
-                profile.getId(), guideName, profile.getHeadline(), profile.getIntroduction(),
+                profile.getId(), profile.getUserId(), guideName, profile.getHeadline(), profile.getIntroduction(),
                 profile.getHourlyRate(), profile.getCurrency(), profile.getRegion(),
                 profile.getCity(), profile.getLatitude(), profile.getLongitude(),
                 profile.getAvatarUrl(), avgRating, reviewCount, followerCount, isFollowing,
-                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, creds
+                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, creds,
+                profile.getVerificationStatus().name(), profile.getServiceCategoryList()
         );
     }
 }

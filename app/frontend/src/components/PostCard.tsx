@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 import { PinIcon, HeartIcon, ChatIcon, EyeIcon } from "@/components/icons";
 
 export type FeedPost = {
@@ -62,7 +63,7 @@ export default function PostCard({ post, onLikeChange }: {
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const articleRef = useRef<HTMLElement | null>(null);
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   // 게시글 번역: post.id → 번역문 캐시. 재토글 시 재요청하지 않는다.
   const [translation, setTranslation] = useState<string | null>(null);

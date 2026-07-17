@@ -2,6 +2,8 @@ package com.guidematch.user;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -79,6 +81,14 @@ public class User {
      */
     @Column(name = "email_verified")
     private Boolean emailVerified;
+
+    /**
+     * 사용자 권한. nullable로 두어 기존 행은 null → getRole()에서 USER로 취급한다
+     * (email_verified와 동일한 이유: ddl-auto가 NOT NULL 컬럼을 추가하면 기존 행에서 실패).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role")
+    private UserRole role;
 
     /** 가입 시각. 한 번 저장되면 수정되지 않는다(updatable=false). */
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -192,5 +202,18 @@ public class User {
 
     public void setEmailVerified(boolean verified) {
         this.emailVerified = verified;
+    }
+
+    /** null(기존 회원 포함)은 일반 USER로 취급한다. */
+    public UserRole getRole() {
+        return role == null ? UserRole.USER : role;
+    }
+
+    public void setRole(UserRole role) {
+        this.role = role;
+    }
+
+    public boolean isAdmin() {
+        return getRole() == UserRole.ADMIN;
     }
 }

@@ -2,7 +2,9 @@ package com.guidematch.booking;
 
 import com.guidematch.booking.dto.BookingResponse;
 import com.guidematch.booking.dto.CreateBookingRequest;
+import com.guidematch.booking.dto.SetMeetingPlaceRequest;
 import com.guidematch.guide.GuideProfile;
+import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.GuideProfileService;
 import com.guidematch.itinerary.ItineraryService;
 import com.guidematch.user.User;
@@ -13,7 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 @Service
 public class BookingService {
@@ -22,15 +28,18 @@ public class BookingService {
 
     private final BookingRepository bookingRepository;
     private final GuideProfileService guideProfileService;
+    private final GuideProfileRepository guideProfileRepository;
     private final UserRepository userRepository;
     private final ItineraryService itineraryService;
 
     public BookingService(BookingRepository bookingRepository,
                           GuideProfileService guideProfileService,
+                          GuideProfileRepository guideProfileRepository,
                           UserRepository userRepository,
                           ItineraryService itineraryService) {
         this.bookingRepository = bookingRepository;
         this.guideProfileService = guideProfileService;
+        this.guideProfileRepository = guideProfileRepository;
         this.userRepository = userRepository;
         this.itineraryService = itineraryService;
     }
@@ -50,6 +59,17 @@ public class BookingService {
             throw new IllegalArgumentException("본인의 가이드 프로필은 예약할 수 없습니다.");
         }
 
+        // 서비스 카테고리 게이팅 (관광/비관광 완전 분리):
+        // ① 관광(자격 필수) 카테고리는 인증 가이드만 예약 가능 ② 가이드가 실제 제공하는 서비스만 예약 가능.
+        com.guidematch.guide.ServiceCategory category =
+                com.guidematch.guide.ServiceCategory.fromKey(request.serviceCategory());
+        if (category.requiresGuideLicense() && !guide.isVerified()) {
+            throw new IllegalArgumentException("이 가이드는 관광통역안내사 자격 인증이 없어 관광 서비스를 예약할 수 없습니다.");
+        }
+        if (!guide.getServiceCategoryList().contains(category.name())) {
+            throw new IllegalArgumentException("이 가이드가 제공하지 않는 서비스입니다.");
+        }
+
         int rateSnapshot = guide.getHourlyRate();             // 계약 시점 시급 복사
         int totalPrice = rateSnapshot * request.hours();      // 총액 계산
 
@@ -61,7 +81,8 @@ public class BookingService {
                 rateSnapshot,
                 guide.getCurrency(),
                 totalPrice,
-                request.message()
+                request.message(),
+                category
         );
 
         boolean instant = guide.isInstantBooking();
@@ -72,12 +93,17 @@ public class BookingService {
             booking.accept();
         }
 
+        if (request.requestDetails() != null && !request.requestDetails().isBlank()) {
+            booking.setRequestDetails(request.requestDetails());
+        }
+
         Booking saved = bookingRepository.save(booking);
 
         if (instant) {
             try {
                 itineraryService.autoAddTourItem(saved.getTravelerId(), saved.getId(), saved.getStartAt(),
-                        guide.getHeadline(), guide.getCity(), saved.getMessage());
+                        guide.getHeadline(), guide.getCity(), saved.getMessage(),
+                        saved.getServiceCategory() != null ? saved.getServiceCategory().name() : null);
             } catch (Exception e) {
                 log.warn("즉시 예약 {}건의 일정 자동 추가 중 예기치 못한 오류: {}", saved.getId(), e.toString());
             }
@@ -86,19 +112,47 @@ public class BookingService {
         return toResponse(saved);
     }
 
-    /** 여행자: 내가 보낸 예약 목록 */
+    /** 예약 상세 (T2) — 여행자/가이드 참여자만 조회 가능. */
     @Transactional(readOnly = true)
+    public BookingResponse getDetail(Long userId, Long bookingId) {
+        return toResponse(assertParticipant(userId, bookingId));
+    }
+
+    /**
+     * 만남 장소 지정/변경 (T1) — 참여자(여행자/가이드) 누구나 가능(협의 상황).
+     * 죽은 예약(거절/취소/완료)에는 지정 의미가 없어 REQUESTED/ACCEPTED에서만 허용.
+     */
+    @Transactional
+    public BookingResponse setMeetingPlace(Long userId, Long bookingId, SetMeetingPlaceRequest req) {
+        Booking booking = assertParticipant(userId, bookingId);
+        if (booking.getStatus() != BookingStatus.REQUESTED && booking.getStatus() != BookingStatus.ACCEPTED) {
+            throw new IllegalArgumentException("진행 중인 예약에만 만남 장소를 지정할 수 있습니다.");
+        }
+        booking.setMeetingPlace(req.name(), req.address(), req.lat(), req.lng(), req.url());
+        return toResponse(booking);
+    }
+
+    /** 여행자: 내가 보낸 예약 목록. 목록을 열었으니 미확인 거절 배지를 클리어(#4, writable). */
+    @Transactional
     public List<BookingResponse> listForTraveler(Long travelerId) {
-        return bookingRepository.findByTravelerIdOrderByCreatedAtDesc(travelerId)
-                .stream().map(this::toResponse).toList();
+        List<Booking> bookings = bookingRepository.findByTravelerIdOrderByCreatedAtDesc(travelerId);
+        bookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.REJECTED && Boolean.FALSE.equals(b.getRejectionSeen()))
+                .forEach(Booking::markRejectionSeen);
+        return toResponses(bookings);
+    }
+
+    /** 여행자: 미확인 거절 예약 수 — 사이드바 배지(#4). */
+    @Transactional(readOnly = true)
+    public long rejectedUnseenCount(Long travelerId) {
+        return bookingRepository.countByTravelerIdAndStatusAndRejectionSeenFalse(travelerId, BookingStatus.REJECTED);
     }
 
     /** 가이드: 내가 받은 예약 목록 */
     @Transactional(readOnly = true)
     public List<BookingResponse> listForGuide(Long userId) {
         GuideProfile profile = guideProfileService.getByUserId(userId);
-        return bookingRepository.findByGuideProfileIdOrderByCreatedAtDesc(profile.getId())
-                .stream().map(this::toResponse).toList();
+        return toResponses(bookingRepository.findByGuideProfileIdOrderByCreatedAtDesc(profile.getId()));
     }
 
     /** 가이드: 수락. 이미 수락한 예약과 시간이 겹치면 거부한다 (이중 예약 방지). */
@@ -119,7 +173,8 @@ public class BookingService {
 
         try {
             itineraryService.autoAddTourItem(booking.getTravelerId(), booking.getId(), booking.getStartAt(),
-                    guide.getHeadline(), guide.getCity(), booking.getMessage());
+                    guide.getHeadline(), guide.getCity(), booking.getMessage(),
+                    booking.getServiceCategory() != null ? booking.getServiceCategory().name() : null);
         } catch (Exception e) {
             log.warn("예약 {}건 수락 후 일정 자동 추가 중 예기치 못한 오류: {}", booking.getId(), e.toString());
         }
@@ -190,6 +245,22 @@ public class BookingService {
 
     // --- 내부 도우미 ---
 
+    /**
+     * 해당 예약의 참여자(여행자 또는 가이드)인지 확인 후 반환. 제3자는 거부.
+     * 예약 접근 규칙의 단일 소스 — MessageService(예약 채팅)도 이걸 사용한다.
+     */
+    public Booking assertParticipant(Long userId, Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다."));
+        boolean isTraveler = booking.getTravelerId().equals(userId);
+        GuideProfile guide = guideProfileService.getById(booking.getGuideProfileId());
+        boolean isGuide = guide.getUserId().equals(userId);
+        if (!isTraveler && !isGuide) {
+            throw new IllegalArgumentException("이 예약에 접근할 권한이 없습니다.");
+        }
+        return booking;
+    }
+
     /** 해당 예약이 이 사용자(가이드)의 것인지 확인 후 반환 */
     private Booking getOwnedByGuide(Long userId, Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
@@ -201,12 +272,39 @@ public class BookingService {
         return booking;
     }
 
-    /** 엔티티 → 응답 DTO (가이드/여행자 이름을 채워 넣음) */
+    /** 엔티티 → 응답 DTO (가이드/여행자 이름을 채워 넣음) — 단건 경로용 */
     private BookingResponse toResponse(Booking b) {
         GuideProfile guide = guideProfileService.getById(b.getGuideProfileId());
         String guideName = nameOf(guide.getUserId());
         String travelerName = nameOf(b.getTravelerId());
-        return BookingResponse.of(b, guideName, guide.getHeadline(), travelerName);
+        return BookingResponse.of(b, guideName, guide.getHeadline(), guide.getAvatarUrl(), travelerName);
+    }
+
+    /**
+     * 목록 경로용 — 가이드 프로필/사용자 이름을 일괄 조회(총 2쿼리)해 채운다.
+     * 원격 DB(왕복 ~250ms)라 예약별 개별 조회(N+1)는 목록을 초 단위로 느리게 만든다.
+     */
+    private List<BookingResponse> toResponses(List<Booking> bookings) {
+        if (bookings.isEmpty()) return List.of();
+
+        Set<Long> profileIds = new HashSet<>();
+        bookings.forEach(b -> profileIds.add(b.getGuideProfileId()));
+        Map<Long, GuideProfile> profiles = new HashMap<>();
+        guideProfileRepository.findAllById(profileIds).forEach(p -> profiles.put(p.getId(), p));
+
+        Set<Long> userIds = new HashSet<>();
+        bookings.forEach(b -> userIds.add(b.getTravelerId()));
+        profiles.values().forEach(p -> userIds.add(p.getUserId()));
+        Map<Long, String> names = new HashMap<>();
+        userRepository.findAllById(userIds).forEach(u -> names.put(u.getId(), u.getFullName()));
+
+        return bookings.stream().map(b -> {
+            GuideProfile guide = profiles.get(b.getGuideProfileId());
+            String guideName = guide != null ? names.getOrDefault(guide.getUserId(), "알 수 없음") : "알 수 없음";
+            String headline = guide != null ? guide.getHeadline() : null;
+            String avatar = guide != null ? guide.getAvatarUrl() : null;
+            return BookingResponse.of(b, guideName, headline, avatar, names.getOrDefault(b.getTravelerId(), "알 수 없음"));
+        }).toList();
     }
 
     private String nameOf(Long userId) {

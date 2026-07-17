@@ -34,15 +34,17 @@ public class JwtProvider {
     }
 
     /**
-     * 토큰 발급. 사용자 id를 subject(주체)로, 이메일을 부가 정보로 담는다.
+     * 토큰 발급. 사용자 id를 subject(주체)로, 이메일과 권한(role)을 부가 정보로 담는다.
+     * role은 인증 필터에서 ROLE_ADMIN 권한 부여 여부를 판단하는 데 쓰인다.
      */
-    public String createToken(Long userId, String email) {
+    public String createToken(Long userId, String email, String role) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("email", email)
+                .claim("role", role)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
@@ -64,5 +66,13 @@ public class JwtProvider {
     /** 토큰에서 사용자 id를 꺼낸다. */
     public Long getUserId(String token) {
         return Long.valueOf(parseClaims(token).getSubject());
+    }
+
+    /**
+     * 토큰에서 권한(role)을 꺼낸다. 클레임이 없으면(기존 발급 토큰 포함) "USER"로 취급한다.
+     */
+    public String getRole(String token) {
+        String role = parseClaims(token).get("role", String.class);
+        return (role == null || role.isBlank()) ? "USER" : role;
     }
 }

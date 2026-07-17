@@ -9,6 +9,29 @@
 > **2026-07-06 Wave 2(예약 전환) 반영**: 즉시예약(Instant Booking), 확정 예약→여행 일정 자동 추가("🎫 가이드 투어"), 거절 시 유사 가이드 추천, 취소 정책 정적 안내 완료. 아래 "Wave 2 완료" 섹션 참고.
 > **2026-07-06 Wave 3(콘텐츠) 반영**: 코스 동선(waypoints) 지도+편집(코스 수정 기능 신규 포함), 명소→가이드/코스 전환 퍼널(P2 #13의 절반), 리뷰 별점분포+키워드 태그 완료. 아래 "Wave 3 완료" 섹션 참고. P2 #13 체크.
 > **2026-07-06 Wave 4(인앱 장소 상세) 반영**: `/explore`·`/trips/[id]`의 카카오맵 외부 링크를 인앱 `PlaceDetailModal`로 전환 완료. 아래 "Wave 4 완료" 섹션 및 새 백로그 항목(Google Places Details) 참고.
+> **2026-07-17 투트랙(법규 대응) 반영**: 관광진흥법 §38(관광통역안내사 무자격자 유상 관광안내 금지)에 맞춰 서비스를 **인증 가이드 투어** / **동행 파트너** 두 트랙으로 완전 분리. 아래 "투트랙 완료" 섹션 + "투트랙 후속 백로그" 참고. 스펙: `docs/superpowers/specs/2026-07-17-two-track-userflow-design.md`, 플랜: `docs/superpowers/plans/2026-07-17-two-track-userflow.md`.
+
+---
+
+## 투트랙 후속 (2026-07-17 스펙에서 백로그로 미룸)
+
+- [ ] **일정 기반 파트너 추천** — 여행 일정의 도시·날짜로 가능한 동행 파트너/가이드 매칭
+- [ ] **일정에서 바로 예약 요청** — 일차 CTA에서 날짜·시간 프리필된 예약 폼으로 딥링크
+- [ ] **예약 + 일정 통합 캘린더 뷰**
+- [ ] **공유한 일정을 보고 파트너가 견적·제안하는 플로우**
+- [ ] **동행 고정 패키지 상품** (예: "병원 동행 4시간" — `TourCourse` 패턴 재사용, 예약 모델 논의에서 보류)
+
+---
+
+## 투트랙 완료 (2026-07-17, 법규 대응 — 백엔드 게이팅 사전구현 + 프론트 IA 재편)
+
+- ✅ **2트랙 완전 분리** — `/guides`(투어, `category=TOUR_GUIDE` 고정) vs `/companions`(동행). `/find` 모바일 허브 + 랜딩·여행자홈에 `TrackEntryCards` 진입 카드. 사이드바 투어/동행 메뉴 분리 + 코스 메뉴는 `VERIFIED` 게이팅.
+- ✅ **온보딩 자격 분기** — `/become-guide` Step 0에서 "관광통역 자격증 있나요?" → 없으면 동행 전용(관광 카테고리 자체 숨김, `ServiceCategoryPicker hideTour`), 있으면 투어+동행 둘 다 + 인증 신청(`/guide/manage#verification`)으로 유도.
+- ✅ **동행 예약 = 시간제 + 카테고리별 요청 폼** — `companionRequest.ts`(병원명/목적, 쇼핑구역, 식사 등 카테고리별 필드→불투명 JSON `Booking.request_details`). 예약 상세·가이드 요청 카드에 `RequestDetailsBlock`으로 렌더. 투어는 슬롯 방식 유지.
+- ✅ **상세 페이지 트랙 공용화** — `ProfileDetailView`(투어/동행 공용, 겸업 프로필 교차링크·반대트랙 리다이렉트·코스섹션 게이팅).
+- ✅ **여행일정 통합** — 일차 탭에 "🤝 동행 찾기"(`/find`) CTA + 동행 예약 자동추가 아이템 sky 톤. 여행자가 투어든 동행이든 플랫폼에서 일정을 계획.
+- ✅ **카피 분리** — 동행 컨텍스트에서 '가이드/Guide/导游' 미표기(인증 가이드 교차참조는 허용). ko/en/zh 신규 그룹 `tracks/find/companions/companionBooking/onboardingFork`.
+- **검증 방법** — 정적: 프론트 `tsc --noEmit` 0 + `next lint`(기존 `explore/page.tsx` 경고 1건 외 클린) + 백엔드 `gradle compileJava` 성공. **브라우저 E2E는 미실행**(dev 서버 부재) — 머지 전 수동 스모크 권장. 상세 원장: `.superpowers/sdd/progress.md`.
 
 ---
 

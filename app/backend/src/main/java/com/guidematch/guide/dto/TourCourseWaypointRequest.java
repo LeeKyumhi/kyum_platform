@@ -12,5 +12,10 @@ public record TourCourseWaypointRequest(
         String category,
         String address,
         Double latitude,
-        Double longitude
+        Double longitude,
+        // 시간표 편집 상태(선택) — 재편집 복원용. 없으면 null.
+        Integer startHour,
+        Integer durationHours,
+        Integer laneIndex,
+        Integer laneSpan
 ) {}
