@@ -10,8 +10,8 @@
 
 ## Global Constraints (모든 태스크에 암묵 적용)
 
-- **커밋 금지** — 이 레포는 사용자가 명시적으로 요청할 때만 커밋한다. 계획의 어떤 단계도 git commit을 포함하지 않는다.
-- **테스트 인프라 없음** — unit test 프레임워크가 없는 레포. 검증은 `npx tsc --noEmit`(반드시 `app/frontend`에서) / `gradle compileJava`(`app/backend`에서, `JAVA_HOME=$(/usr/libexec/java_home -v 21)`) / curl / Playwright(스크래치패드에 설치돼 있음)로 한다.
+- **커밋**: 사용자가 이 작업에 한해 태스크별 커밋을 승인했다(2026-07-17). 브랜치 `feat/two-track`, 베이스 = 체크포인트 커밋 `ecd4c79`. 각 태스크는 **자기가 만지 파일만** 스테이징해 1건 이상 커밋한다. `git add -A` 금지(다른 태스크 작업물 유입). main에는 푸시·머지하지 않는다.
+- **테스트 인프라 없음** — 이 레포에는 unit test 프레임워크·테스트 디렉토리가 존재하지 않는다(의도된 현 상태). 따라서 TDD "실패하는 테스트 먼저"는 적용되지 않으며, 테스트 부재는 결함이 아니다. 검증은 `npx tsc --noEmit`(반드시 `app/frontend`에서) / `gradle compileJava`(`app/backend`에서, `JAVA_HOME=$(/usr/libexec/java_home -v 21)`) / curl / Playwright(스크래치패드에 설치됨)로 하고, 각 태스크의 검증 스텝에 적힌 명령과 기대 출력이 그 태스크의 통과 기준이다.
 - **i18n**: 모든 신규 키는 `src/lib/i18n.ts`의 ko/en/zh 3개 블록에 **동일 키 세트**로 추가. `Translations = typeof t.ko` 구조적 타입이라 누락 시 en/zh 블록에서 tsc 에러.
 - **DDL은 additive-only** — nullable 컬럼 추가만 가능. NOT NULL/rename/타입변경 불가.
 - **새 npm 패키지 금지**, 아키텍처 변경 금지.
