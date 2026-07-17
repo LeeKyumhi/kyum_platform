@@ -10,7 +10,7 @@ import { CameraIcon } from "@/components/icons";
 import PostComposeModal from "@/components/PostComposeModal";
 
 type Me = { id: number; fullName: string; email: string; handle: string };
-type Profile = { id: number; headline: string; introduction?: string | null; avatarUrl?: string | null };
+type Profile = { id: number; headline: string; introduction?: string | null; avatarUrl?: string | null; serviceCategories: string[] };
 type GuideStats = { followerCount: number; avgRating: number; reviewCount: number };
 type MyPost = { id: number; content: string; imageUrl: string | null };
 
@@ -83,6 +83,13 @@ export default function GuideHome() {
 
         {hasProfile && (
           <>
+            {profile && profile.serviceCategories.length === 0 && (
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+                <p className="text-sm font-semibold text-amber-800">⚠️ {l.declareBanner}</p>
+                <Link href="/guide/manage" className="btn-primary px-4 py-1.5 text-sm">{l.declareCta}</Link>
+              </div>
+            )}
+
             {/* ── Instagram-style profile header ── */}
             <div className="card mb-5 p-5">
               <div className="flex items-center gap-5">
