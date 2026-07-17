@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
@@ -49,6 +49,12 @@ export default function BecomeGuidePage() {
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
 
+  const [licenseFork, setLicenseFork] = useState<"yes" | "no" | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get("license");
+    if (p === "yes" || p === "no") setLicenseFork(p);
+  }, []);
+
   function onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
   }
@@ -71,10 +77,39 @@ export default function BecomeGuidePage() {
           hostTermsAgreed,
         },
       });
-      router.push("/guide/manage");
+      router.push(licenseFork === "yes" ? "/guide/manage#verification" : "/guide/manage");
     } catch (err) {
       setError(err instanceof Error ? err.message : t.common.error);
     } finally { setLoading(false); }
+  }
+
+  if (licenseFork === null) {
+    const f = t.onboardingFork;
+    return (
+      <main className="page px-4">
+        <div className="container-sm">
+          <div className="mb-8 text-center">
+            <h1 className="section-title">{f.partnerTitle}</h1>
+            <p className="section-subtitle">{f.partnerSub}</p>
+          </div>
+          <p className="mb-4 text-center text-lg font-bold text-stone-900">{f.question}</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <button onClick={() => setLicenseFork("yes")}
+              className="card-hover flex flex-col gap-2 border-2 border-emerald-100 p-6 text-left">
+              <span className="text-3xl">🎫</span>
+              <span className="font-extrabold text-stone-900">{f.yes}</span>
+              <span className="text-sm text-stone-500">{f.yesDesc}</span>
+            </button>
+            <button onClick={() => setLicenseFork("no")}
+              className="card-hover flex flex-col gap-2 border-2 border-sky-100 p-6 text-left">
+              <span className="text-3xl">🤝</span>
+              <span className="font-extrabold text-stone-900">{f.no}</span>
+              <span className="text-sm text-stone-500">{f.noDesc}</span>
+            </button>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -85,8 +120,8 @@ export default function BecomeGuidePage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-500 text-2xl shadow-md">
             🗺️
           </div>
-          <h1 className="section-title mt-4">{l.title}</h1>
-          <p className="section-subtitle">{l.sub}</p>
+          <h1 className="section-title mt-4">{t.onboardingFork.partnerTitle}</h1>
+          <p className="section-subtitle">{t.onboardingFork.partnerSub}</p>
         </div>
 
         <form onSubmit={onSubmit} className="flex flex-col gap-5">
@@ -217,7 +252,17 @@ export default function BecomeGuidePage() {
               <SectionHeading num="6" label={t.serviceCategories.sectionTitle} />
             </div>
             <p className="mb-4 text-xs text-stone-400">{t.serviceCategories.sectionHint}</p>
-            <ServiceCategoryPicker selected={serviceCategories} onChange={setServiceCategories} verified={false} />
+            {licenseFork === "yes" && (
+              <p className="mb-3 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                🎫 {t.onboardingFork.licenseNote}
+              </p>
+            )}
+            <ServiceCategoryPicker
+              selected={serviceCategories}
+              onChange={setServiceCategories}
+              verified={false}
+              hideTour={licenseFork === "no"}
+            />
           </div>
 
           {/* Sec 7 — 호스트 약관 동의 (계정·자격 대여 금지) */}

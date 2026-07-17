@@ -487,7 +487,7 @@ export default function GuideManagePage() {
         </div>
 
         {/* 관광통역안내사 자격 인증 */}
-        <div className="card p-6">
+        <div id="verification" className="card p-6">
           <h2 className="mb-1 flex items-center gap-1.5 font-bold text-stone-900">
             <CheckBadgeIcon className="h-5 w-5 text-emerald-500" /> {lv.section}
           </h2>

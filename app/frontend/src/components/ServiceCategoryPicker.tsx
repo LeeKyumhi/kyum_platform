@@ -8,13 +8,15 @@ interface Props {
   onChange: (keys: string[]) => void;
   /** 관광(자격 필수) 카테고리 활성화 여부. 인증(VERIFIED)이 아니면 잠금. */
   verified: boolean;
+  /** true면 관광 그룹 자체를 렌더하지 않음(자물쇠 힌트도 없음) — 무자격 온보딩(동행 전용) 경로용. */
+  hideTour?: boolean;
 }
 
 /**
  * 제공 서비스 카테고리 선택기 (InterestPicker 미러).
  * 관광 카테고리는 미인증이면 자물쇠로 비활성 — 관광/비관광 완전 분리를 UI에서도 강제.
  */
-export default function ServiceCategoryPicker({ selected, onChange, verified }: Props) {
+export default function ServiceCategoryPicker({ selected, onChange, verified, hideTour }: Props) {
   const { t } = useLanguage();
   const ls = t.serviceCategories;
 
@@ -24,7 +26,7 @@ export default function ServiceCategoryPicker({ selected, onChange, verified }: 
   }
 
   const groups = [
-    { label: ls.tourGroup,    items: SERVICE_CATEGORIES.filter((c) => c.requiresLicense) },
+    ...(hideTour ? [] : [{ label: ls.tourGroup, items: SERVICE_CATEGORIES.filter((c) => c.requiresLicense) }]),
     { label: ls.nonTourGroup, items: SERVICE_CATEGORIES.filter((c) => !c.requiresLicense) },
   ];
 
