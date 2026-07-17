@@ -33,12 +33,16 @@ function GuideAvatar({ src, name }: { src: string | null; name: string }) {
  * 가이드 목록/유사가이드 추천에서 공용으로 쓰는 카드.
  * guides/page.tsx 원본 마크업 그대로 추출 — 궁합 배지·⚡즉시예약 배지 포함.
  */
-export default function GuideCard({ guide: g }: { guide: GuideCardData }) {
+export default function GuideCard({ guide: g, href, track = "tour" }:
+  { guide: GuideCardData; href?: string; track?: "tour" | "companion" }) {
   const { t } = useLanguage();
   const l = t.guides;
+  const link = href ?? (track === "companion" ? `/companions/${g.id}` : `/guides/${g.id}`);
+  const visibleCategories = (g.serviceCategories ?? []).filter(
+    (k) => track === "tour" || k !== "TOUR_GUIDE");
 
   return (
-    <Link href={`/guides/${g.id}`} className="card-hover flex flex-col p-5">
+    <Link href={link} className="card-hover flex flex-col p-5">
       {/* Header: avatar + name + region */}
       <div className="flex items-start gap-4">
         <GuideAvatar src={g.avatarUrl} name={g.guideName} />
@@ -47,6 +51,11 @@ export default function GuideCard({ guide: g }: { guide: GuideCardData }) {
             <h2 className="text-base font-bold text-stone-900">{g.guideName}</h2>
             {g.verificationStatus === "VERIFIED" && (
               <span className="badge-emerald text-[11px]">✓ {t.guideDetail.verified}</span>
+            )}
+            {track === "companion" && (
+              <span className="rounded-md bg-sky-100 px-2 py-0.5 text-[11px] font-bold text-sky-700">
+                🤝 {t.companions.partnerBadge}
+              </span>
             )}
             {g.instantBooking && (
               <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
@@ -87,9 +96,9 @@ export default function GuideCard({ guide: g }: { guide: GuideCardData }) {
       )}
 
       {/* 제공 서비스 태그 (관광 = emerald, 비관광 = gray) */}
-      {g.serviceCategories && g.serviceCategories.length > 0 && (
+      {visibleCategories.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {g.serviceCategories.map((k) => (
+          {visibleCategories.map((k) => (
             <span key={k} className={`text-[11px] ${k === "TOUR_GUIDE" ? "badge-emerald" : "badge-gray"}`}>
               {(t.serviceCategories as Record<string, string>)[k] ?? k}
             </span>
