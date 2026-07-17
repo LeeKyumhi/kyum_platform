@@ -43,10 +43,28 @@ public class TourCourseWaypoint {
     @Column(name = "longitude")
     private Double longitude;
 
+    /**
+     * 시간표 빌더 편집 상태(선택). 가이드가 코스를 시간표로 구성한 배치를 저장해
+     * 재편집 시 그대로 복원한다(ItineraryItem 패턴). 전부 nullable — 순서(sortOrder)만으로도 유효.
+     * ⚠️ 편집 전용: 공개 코스 뷰(가이드 상세/CourseCard/명소 퍼널)는 이 값을 시간으로 노출하지 않는다.
+     */
+    @Column(name = "start_hour")
+    private Integer startHour;
+
+    @Column(name = "duration_hours")
+    private Integer durationHours;
+
+    @Column(name = "lane_index")
+    private Integer laneIndex;
+
+    @Column(name = "lane_span")
+    private Integer laneSpan;
+
     protected TourCourseWaypoint() {}
 
     public TourCourseWaypoint(int sortOrder, String placeId, String placeName, String category,
-                              String address, Double latitude, Double longitude) {
+                              String address, Double latitude, Double longitude,
+                              Integer startHour, Integer durationHours, Integer laneIndex, Integer laneSpan) {
         this.sortOrder = sortOrder;
         this.placeId = placeId;
         this.placeName = placeName;
@@ -54,6 +72,10 @@ public class TourCourseWaypoint {
         this.address = address;
         this.latitude = latitude;
         this.longitude = longitude;
+        this.startHour = startHour;
+        this.durationHours = durationHours;
+        this.laneIndex = laneIndex;
+        this.laneSpan = laneSpan;
     }
 
     public Long getId() { return id; }
@@ -64,4 +86,8 @@ public class TourCourseWaypoint {
     public String getAddress() { return address; }
     public Double getLatitude() { return latitude; }
     public Double getLongitude() { return longitude; }
+    public Integer getStartHour() { return startHour; }
+    public Integer getDurationHours() { return durationHours; }
+    public Integer getLaneIndex() { return laneIndex; }
+    public Integer getLaneSpan() { return laneSpan; }
 }

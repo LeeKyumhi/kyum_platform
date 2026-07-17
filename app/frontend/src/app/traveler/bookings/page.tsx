@@ -5,16 +5,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
+import { STATUS_CLS, STATUS_ICON } from "@/lib/bookingStatus";
 import { CalendarIcon } from "@/components/icons";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
-
-const STATUS_ICON: Record<string, string> = {
-  REQUESTED: "⏳", ACCEPTED: "✅", REJECTED: "❌", CANCELLED: "🚫", COMPLETED: "🏁",
-};
-const STATUS_CLS: Record<string, string> = {
-  REQUESTED: "badge-amber", ACCEPTED: "badge-emerald", REJECTED: "badge-red",
-  CANCELLED: "badge-gray",  COMPLETED: "badge-indigo",
-};
 
 type Booking = {
   id: number; guideProfileId: number; guideName: string; guideHeadline: string;
@@ -50,7 +44,7 @@ export default function TravelerBookingsPage() {
   const router = useRouter();
   const { t, lang } = useLanguage();
   const l = t.travelerBookings;
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError]       = useState("");
@@ -132,6 +126,7 @@ export default function TravelerBookingsPage() {
                   <span className="font-bold text-stone-900">{b.totalPrice.toLocaleString()} {b.currency}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Link href={`/bookings/${b.id}`} className="btn-primary px-4 py-1.5 text-sm">{t.bookingDetail.detailBtn}</Link>
                   {(b.status === "REQUESTED" || b.status === "ACCEPTED") && (
                     <Link href={`/chat/${b.id}`} className="btn-secondary px-4 py-1.5 text-sm">{l.chat}</Link>
                   )}

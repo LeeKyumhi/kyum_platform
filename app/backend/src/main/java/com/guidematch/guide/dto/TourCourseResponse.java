@@ -21,6 +21,8 @@ public record TourCourseResponse(
         String currency,
         Integer maxPeople,
         String imageUrl,
+        /** 서비스 카테고리 (ServiceCategory 키). 기존 미분류 코스는 null. */
+        String serviceCategory,
         boolean active,
         Instant createdAt,
         String guideName,
@@ -31,7 +33,8 @@ public record TourCourseResponse(
         return new TourCourseResponse(
                 c.getId(), c.getGuideProfileId(), c.getTitle(), c.getDescription(), c.getCity(),
                 c.getDurationHours(), c.getPrice(), c.getCurrency(), c.getMaxPeople(),
-                c.getImageUrl(), c.isActive(), c.getCreatedAt(), guideName, guideAvatarUrl,
+                c.getImageUrl(), c.getServiceCategory() != null ? c.getServiceCategory().name() : null,
+                c.isActive(), c.getCreatedAt(), guideName, guideAvatarUrl,
                 c.getWaypoints().stream().map(TourCourseWaypointResponse::from).toList()
         );
     }

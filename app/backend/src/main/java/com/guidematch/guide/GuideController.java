@@ -5,6 +5,7 @@ import com.guidematch.booking.BookingStatus;
 import com.guidematch.guide.dto.GuideDetailResponse;
 import com.guidematch.guide.dto.GuideSummaryResponse;
 import com.guidematch.review.ReviewRepository;
+import com.guidematch.safety.BlockRepository;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +35,7 @@ public class GuideController {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final AvailableSlotRepository slotRepository;
+    private final BlockRepository blockRepository;
 
     public GuideController(GuideProfileService guideProfileService,
                            GuideCredentialRepository credentialRepository,
@@ -42,7 +44,8 @@ public class GuideController {
                            FollowRepository followRepository,
                            BookingRepository bookingRepository,
                            UserRepository userRepository,
-                           AvailableSlotRepository slotRepository) {
+                           AvailableSlotRepository slotRepository,
+                           BlockRepository blockRepository) {
         this.guideProfileService = guideProfileService;
         this.credentialRepository = credentialRepository;
         this.reviewRepository = reviewRepository;
@@ -51,6 +54,7 @@ public class GuideController {
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
         this.slotRepository = slotRepository;
+        this.blockRepository = blockRepository;
     }
 
     /**
@@ -61,8 +65,7 @@ public class GuideController {
     public List<GuideSummaryResponse> list(
             @RequestParam(required = false) String region,
             @RequestParam(required = false) String city,
-            @RequestParam(required = false) Double nearLat,
-            @RequestParam(required = false) Double nearLng,
+            @RequestParam(required = false) String category,
             @RequestParam(required = false) String availableFrom,
             @RequestParam(required = false) String availableTo,
             @RequestParam(required = false) String lang,
@@ -70,6 +73,15 @@ public class GuideController {
         // city 우선(신규 표준), 없으면 region(레거시). 신규 가이드는 region==city이므로 동일 컬럼으로 검색.
         String cityFilter = (city != null && !city.isBlank()) ? city : region;
         List<GuideProfile> profiles = guideProfileService.search(cityFilter);
+
+        // 서비스 카테고리 필터 (관광/비관광 분리 탐색). 해당 카테고리를 제공하는 가이드만.
+        // 관광(TOUR_GUIDE) 카테고리는 VERIFIED 가이드만 담을 수 있으므로 자연히 인증 가이드로 좁혀진다.
+        if (category != null && !category.isBlank()) {
+            String cat = category.trim().toUpperCase();
+            profiles = profiles.stream()
+                    .filter(p -> p.getServiceCategoryList().contains(cat))
+                    .toList();
+        }
 
         // 날짜 필터: 해당 기간에 가능 슬롯을 등록한 가이드만 (검색바 체크인·체크아웃 연동).
         // 날짜 형식이 잘못되면 필터를 조용히 건너뛴다 (검색 자체는 계속 동작).
@@ -85,11 +97,14 @@ public class GuideController {
             }
         }
 
-        // "내 주변": 좌표가 오면 거리순 정렬 (좌표 없는 가이드는 뒤로).
-        if (nearLat != null && nearLng != null) {
-            profiles = profiles.stream()
-                    .sorted(java.util.Comparator.comparingDouble(p -> distanceOrMax(p, nearLat, nearLng)))
-                    .toList();
+        // 차단 관계(양방향)에 있는 가이드는 목록에서 숨긴다 (로그인 사용자 한정, 배치 1회 조회).
+        if (viewerId != null) {
+            java.util.Set<Long> blockedPeers = new java.util.HashSet<>(blockRepository.relatedUserIds(viewerId));
+            if (!blockedPeers.isEmpty()) {
+                profiles = profiles.stream()
+                        .filter(p -> !blockedPeers.contains(p.getUserId()))
+                        .toList();
+            }
         }
 
         return buildSummaries(profiles, viewerId, lang);
@@ -143,11 +158,6 @@ public class GuideController {
                 .toList();
     }
 
-    private static double distanceOrMax(GuideProfile p, double lat, double lng) {
-        if (p.getLatitude() == null || p.getLongitude() == null) return Double.MAX_VALUE;
-        return com.guidematch.geo.GeoUtils.distanceKm(lat, lng, p.getLatitude(), p.getLongitude());
-    }
-
     /**
      * 유사 가이드 추천 (최대 3명). 같은 도시를 우선하고, 로그인 여행자에게 궁합 점수 근거가 있으면
      * 궁합순, 없으면 평점·리뷰수순으로 정렬한다. 목록과 동일한 일괄 집계 경로를 재사용해 N+1을 피한다.
@@ -159,9 +169,14 @@ public class GuideController {
             @AuthenticationPrincipal Long viewerId) {
         GuideProfile target = guideProfileService.getById(id);
 
+        // 차단 관계에 있는 가이드는 추천에서 제외 (로그인 뷰어 한정, 배치 1회 조회).
+        java.util.Set<Long> blockedPeers = viewerId == null
+                ? java.util.Set.of()
+                : new java.util.HashSet<>(blockRepository.relatedUserIds(viewerId));
         List<GuideProfile> pool = guideProfileService.search(null).stream()
                 .filter(p -> !p.getId().equals(target.getId()))
                 .filter(p -> viewerId == null || !p.getUserId().equals(viewerId))
+                .filter(p -> !blockedPeers.contains(p.getUserId()))
                 .toList();
 
         List<GuideSummaryResponse> summaries = buildSummaries(pool, viewerId, lang);
@@ -184,6 +199,10 @@ public class GuideController {
     public GuideDetailResponse detail(@PathVariable Long id,
                                       @AuthenticationPrincipal Long userId) {
         GuideProfile profile = guideProfileService.getById(id);
+        // 차단 관계면 상세도 숨긴다 (프로필 상호 숨김). 차단 해제는 /profile 차단목록에서 하므로 스트랜딩 없음.
+        if (userId != null && blockRepository.existsBetween(userId, profile.getUserId())) {
+            throw new IllegalArgumentException("차단한 사용자의 프로필은 볼 수 없습니다.");
+        }
         // 이름과 성별은 같은 users 행이므로 한 번만 조회한다.
         User guideUser = userRepository.findById(profile.getUserId()).orElse(null);
         String guideName = guideUser != null ? guideUser.getFullName() : "알 수 없음";

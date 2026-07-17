@@ -7,10 +7,11 @@ import java.time.Instant;
 
 /**
  * 예약 요청 데이터.
- *  guideId : 예약할 가이드 프로필 id
- *  startAt : 희망 시작 시각 (ISO-8601 문자열 → Instant 자동 변환)
- *  hours   : 이용 시간
- *  message : 가이드에게 남길 메시지 (선택)
+ *  guideId         : 예약할 가이드 프로필 id
+ *  startAt         : 희망 시작 시각 (ISO-8601 문자열 → Instant 자동 변환)
+ *  hours           : 이용 시간
+ *  serviceCategory : 예약할 서비스 카테고리 (ServiceCategory 키) — 관광/비관광 게이팅 기준
+ *  message         : 가이드에게 남길 메시지 (선택)
  */
 public record CreateBookingRequest(
 
@@ -23,6 +24,9 @@ public record CreateBookingRequest(
         @NotNull(message = "이용 시간은 필수입니다.")
         @Positive(message = "이용 시간은 1 이상이어야 합니다.")
         Integer hours,
+
+        @NotNull(message = "서비스 종류를 선택하세요.")
+        String serviceCategory,
 
         String message
 ) {

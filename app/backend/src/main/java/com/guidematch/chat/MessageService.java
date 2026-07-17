@@ -1,11 +1,9 @@
 package com.guidematch.chat;
 
 import com.guidematch.booking.Booking;
-import com.guidematch.booking.BookingRepository;
+import com.guidematch.booking.BookingService;
 import com.guidematch.chat.dto.MessageResponse;
 import com.guidematch.geo.GoogleTranslateClient;
-import com.guidematch.guide.GuideProfile;
-import com.guidematch.guide.GuideProfileService;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -17,19 +15,16 @@ import java.util.List;
 public class MessageService {
 
     private final MessageRepository messageRepository;
-    private final BookingRepository bookingRepository;
-    private final GuideProfileService guideProfileService;
+    private final BookingService bookingService;
     private final UserRepository userRepository;
     private final GoogleTranslateClient googleClient;
 
     public MessageService(MessageRepository messageRepository,
-                          BookingRepository bookingRepository,
-                          GuideProfileService guideProfileService,
+                          BookingService bookingService,
                           UserRepository userRepository,
                           GoogleTranslateClient googleClient) {
         this.messageRepository = messageRepository;
-        this.bookingRepository = bookingRepository;
-        this.guideProfileService = guideProfileService;
+        this.bookingService = bookingService;
         this.userRepository = userRepository;
         this.googleClient = googleClient;
     }
@@ -42,10 +37,11 @@ public class MessageService {
         return toResponse(saved);
     }
 
-    /** 대화 내역 조회 */
-    @Transactional(readOnly = true)
+    /** 대화 내역 조회 — 방을 열었으니 여기까지 읽음 처리(통합 인박스 안읽음 배지 반영) */
+    @Transactional
     public List<MessageResponse> history(Long userId, Long bookingId) {
-        assertParticipant(userId, bookingId);
+        Booking booking = assertParticipant(userId, bookingId);
+        booking.markChatRead(booking.getTravelerId().equals(userId)); // 여행자면 traveler, 아니면 가이드
         return messageRepository.findByBookingIdOrderByCreatedAtAsc(bookingId)
                 .stream().map(this::toResponse).toList();
     }
@@ -82,23 +78,9 @@ public class MessageService {
         return result.get(0);
     }
 
-    /**
-     * 이 사용자가 해당 예약의 당사자(여행자 또는 가이드)인지 검증.
-     * 제3자가 남의 대화를 보거나 끼어드는 것을 막는다.
-     */
+    /** 예약 당사자 검증 — 접근 규칙은 BookingService가 단일 소스. */
     private Booking assertParticipant(Long userId, Long bookingId) {
-        Booking booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다."));
-
-        boolean isTraveler = booking.getTravelerId().equals(userId);
-
-        GuideProfile guide = guideProfileService.getById(booking.getGuideProfileId());
-        boolean isGuide = guide.getUserId().equals(userId);
-
-        if (!isTraveler && !isGuide) {
-            throw new IllegalArgumentException("이 대화에 참여할 권한이 없습니다.");
-        }
-        return booking;
+        return bookingService.assertParticipant(userId, bookingId);
     }
 
     private MessageResponse toResponse(Message m) {

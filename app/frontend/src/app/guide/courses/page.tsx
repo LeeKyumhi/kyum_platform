@@ -1,6 +1,8 @@
 "use client";
 
 // 가이드 투어 코스 관리 — 고정 코스 상품 등록/삭제.
+// 동선은 여행자 일정과 동일한 드래그 타임테이블(TimetableBuilder, course 모드)로 구성한다:
+// 우측 팔레트(장소 검색 + ✨코스 추천)에서 끌어다 시간표에 놓는다. 시간/레인은 저장·복원된다.
 // 등록된 코스는 /guides의 "투어 코스" 탭과 가이드 상세 페이지에 노출된다.
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,30 +11,21 @@ import Link from "next/link";
 import { api, apiUpload, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect, { loadCities, cityLabel, type City } from "@/components/CitySelect";
-import DistrictSelect from "@/components/DistrictSelect";
+import { SERVICE_CATEGORIES, type ServiceCategoryKey } from "@/lib/serviceCategories";
 import TripMap from "@/components/TripMap";
+import TimetableBuilder, { type BuilderItem, type RecResponse, newItemKey } from "@/components/TimetableBuilder";
 import { CameraIcon, PinIcon } from "@/components/icons";
 
 type Waypoint = {
   sortOrder: number; placeId: string | null; placeName: string; category: string | null;
   address: string | null; latitude: number | null; longitude: number | null;
+  startHour: number | null; durationHours: number | null; laneIndex: number | null; laneSpan: number | null;
 };
 
 type Course = {
   id: number; title: string; description: string | null; city: string | null;
   durationHours: number; price: number; currency: string; maxPeople: number;
-  imageUrl: string | null; waypoints: Waypoint[];
-};
-
-type RecStop = {
-  order: number; name: string; category: string; address: string | null;
-  latitude: number | null; longitude: number | null; placeUrl: string | null;
-  distanceFromPrevMeters: number | null;
-};
-
-type RecResponse = {
-  city: string; district: string | null; theme: string; kakaoEnabled: boolean;
-  stops: RecStop[]; totalDistanceMeters: number; suggestedDurationHours: number;
+  imageUrl: string | null; serviceCategory: string | null; waypoints: Waypoint[];
 };
 
 const REC_THEMES = ["mixed", "attraction", "food", "cafe", "culture", "market"] as const;
@@ -53,21 +46,16 @@ export default function GuideCoursesPage() {
   const [durationHours, setDurationHours] = useState(3);
   const [price, setPrice] = useState(50000);
   const [maxPeople, setMaxPeople] = useState(4);
+  const [serviceCategory, setServiceCategory] = useState("");
+  const [verified, setVerified] = useState(false);
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [waypoints, setWaypoints] = useState<Waypoint[]>([]);
+  const [items, setItems] = useState<BuilderItem[]>([]);   // 동선 = 타임테이블 블록
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
-
-  // ── 코스 추천 상태 ──
-  const [recCity, setRecCity] = useState("");
-  const [recDistrict, setRecDistrict] = useState("");
-  const [recTheme, setRecTheme] = useState<RecTheme>("mixed");
-  const [recLoading, setRecLoading] = useState(false);
-  const [rec, setRec] = useState<RecResponse | null>(null);
   const [recFilled, setRecFilled] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
     api<Course[]>("/api/guide-profiles/me/courses", { auth: true })
@@ -78,6 +66,10 @@ export default function GuideCoursesPage() {
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
     load();
+    // 관광 카테고리 선택 가능 여부(인증 상태) 확인
+    api<{ verificationStatus: string }>("/api/guide-profiles/me", { auth: true })
+      .then((p) => setVerified(p.verificationStatus === "VERIFIED"))
+      .catch(() => {});
   }, [router, load]);
 
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -88,7 +80,21 @@ export default function GuideCoursesPage() {
 
   function resetForm() {
     setTitle(""); setDescription(""); setImage(null); setImagePreview(null);
-    setWaypoints([]); setEditingId(null);
+    setItems([]); setEditingId(null); setRecFilled(false); setServiceCategory("");
+  }
+
+  /** 저장된 waypoint → 타임테이블 블록. 시간 있으면 복원, 없으면(레거시/추천) 10시부터 순차 배치. */
+  function waypointToItem(w: Waypoint, i: number): BuilderItem {
+    return {
+      _k: newItemKey(), dayIndex: 1, sortOrder: i,
+      placeId: w.placeId, placeName: w.placeName, category: w.category,
+      address: w.address, latitude: w.latitude, longitude: w.longitude, memo: null,
+      startHour: w.startHour ?? Math.min(23, 10 + i),
+      durationHours: w.durationHours ?? 1,
+      laneIndex: w.laneIndex ?? 0,
+      laneSpan: w.laneSpan ?? 1,
+      sourceCourseId: null,
+    };
   }
 
   function onEdit(c: Course) {
@@ -99,77 +105,17 @@ export default function GuideCoursesPage() {
     setDurationHours(c.durationHours);
     setPrice(c.price);
     setMaxPeople(c.maxPeople);
+    setServiceCategory(c.serviceCategory ?? "");
     setImage(null);
     setImagePreview(c.imageUrl);
-    setWaypoints(c.waypoints.map((w, i) => ({ ...w, sortOrder: i })));
+    setItems(c.waypoints.map(waypointToItem));
+    setRecFilled(false);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function onCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-    setError(""); setCreating(true);
-    try {
-      const fd = new FormData();
-      fd.append("title", title.trim());
-      if (description.trim()) fd.append("description", description.trim());
-      if (city) fd.append("city", city);
-      fd.append("durationHours", String(durationHours));
-      fd.append("price", String(price));
-      fd.append("maxPeople", String(maxPeople));
-      if (image) fd.append("image", image);
-      // waypoints는 등록/수정 둘 다 통째로 교체되므로 비어있어도 항상 보낸다(수정 시 누락되면 기존 동선이 지워짐)
-      fd.append("waypoints", JSON.stringify(waypoints));
-      if (editingId) {
-        await apiUpload(`/api/guide-profiles/me/courses/${editingId}`, fd, { auth: true, method: "PUT" });
-      } else {
-        await apiUpload("/api/guide-profiles/me/courses", fd, { auth: true });
-      }
-      resetForm();
-      load();
-    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
-    finally { setCreating(false); }
-  }
-
-  function addStopFromRec(s: RecStop) {
-    setWaypoints((prev) => [
-      ...prev,
-      {
-        sortOrder: prev.length, placeId: null, placeName: s.name, category: s.category,
-        address: s.address, latitude: s.latitude, longitude: s.longitude,
-      },
-    ]);
-  }
-
-  function removeWaypoint(idx: number) {
-    setWaypoints((prev) => prev.filter((_, i) => i !== idx).map((w, i) => ({ ...w, sortOrder: i })));
-  }
-
-  function moveWaypoint(idx: number, dir: -1 | 1) {
-    setWaypoints((prev) => {
-      const target = idx + dir;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[idx], next[target]] = [next[target], next[idx]];
-      return next.map((w, i) => ({ ...w, sortOrder: i }));
-    });
-  }
-
-  async function onRecommend() {
-    if (!recCity) return;
-    setError(""); setRecLoading(true); setRecFilled(false);
-    try {
-      const params = new URLSearchParams({ city: recCity, theme: recTheme, lang });
-      if (recDistrict) params.set("district", recDistrict);
-      const res = await api<RecResponse>(`/api/courses/recommend?${params}`, { auth: true });
-      setRec(res);
-    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
-    finally { setRecLoading(false); }
-  }
-
-  /** 추천 결과를 지역 라벨(현재 언어)과 함께 등록 폼에 채워 넣는다. */
-  async function useRecommendation() {
-    if (!rec || rec.stops.length === 0) return;
+  /** 추천 결과를 폼(제목·소개·도시·소요)에 채우고, 정차지를 시간표에 순차 배치한다. */
+  async function fillFromRec(rec: RecResponse) {
+    if (rec.stops.length === 0) return;
     const cities = await loadCities();
     const cityObj = cities.find((c: City) => c.key === rec.city);
     const districtObj = cityObj?.districts?.find((d) => d.ko === rec.district);
@@ -186,12 +132,52 @@ export default function GuideCoursesPage() {
     );
     setCity(rec.city);
     setDurationHours(rec.suggestedDurationHours || durationHours);
-    setWaypoints(rec.stops.map((s, i) => ({
-      sortOrder: i, placeId: null, placeName: s.name, category: s.category,
-      address: s.address, latitude: s.latitude, longitude: s.longitude,
+    setItems(rec.stops.map((s, i) => ({
+      _k: newItemKey(), dayIndex: 1, sortOrder: i,
+      placeId: null, placeName: s.name, category: s.category,
+      address: s.address, latitude: s.latitude, longitude: s.longitude, memo: null,
+      startHour: Math.min(23, 10 + i), durationHours: 1, laneIndex: 0, laneSpan: 1, sourceCourseId: null,
     })));
     setRecFilled(true);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function onSubmit() {
+    if (!title.trim()) return;
+    if (!serviceCategory) { setError(t.serviceCategories.pickPrompt); return; }
+    setError(""); setCreating(true);
+    try {
+      // 배치 블록을 시간→레인 순으로 정렬해 sortOrder 재부여 (미배치는 뒤로). 시간/레인도 함께 저장.
+      const ordered = [...items].sort((a, b) => {
+        const ah = a.startHour ?? 99, bh = b.startHour ?? 99;
+        return (ah - bh) || ((a.laneIndex ?? 0) - (b.laneIndex ?? 0));
+      });
+      const waypoints = ordered.map((it, idx) => ({
+        sortOrder: idx, placeId: it.placeId, placeName: it.placeName, category: it.category,
+        address: it.address, latitude: it.latitude, longitude: it.longitude,
+        startHour: it.startHour, durationHours: it.durationHours,
+        laneIndex: it.laneIndex, laneSpan: it.laneSpan,
+      }));
+
+      const fd = new FormData();
+      fd.append("title", title.trim());
+      if (description.trim()) fd.append("description", description.trim());
+      if (city) fd.append("city", city);
+      fd.append("durationHours", String(durationHours));
+      fd.append("price", String(price));
+      fd.append("maxPeople", String(maxPeople));
+      fd.append("serviceCategory", serviceCategory);
+      if (image) fd.append("image", image);
+      fd.append("waypoints", JSON.stringify(waypoints));
+      if (editingId) {
+        await apiUpload(`/api/guide-profiles/me/courses/${editingId}`, fd, { auth: true, method: "PUT" });
+      } else {
+        await apiUpload("/api/guide-profiles/me/courses", fd, { auth: true });
+      }
+      resetForm();
+      load();
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+    finally { setCreating(false); }
   }
 
   async function onDelete(courseId: number) {
@@ -206,7 +192,7 @@ export default function GuideCoursesPage() {
 
   return (
     <main className="page px-4">
-      <div className="container-sm">
+      <div className="mx-auto w-full max-w-6xl px-4">
         <div className="mb-2 flex items-center gap-3">
           <Link href="/guide" className="btn-ghost text-sm">← {t.nav.guideHome}</Link>
           <h1 className="section-title">{lc.manageTitle}</h1>
@@ -217,103 +203,8 @@ export default function GuideCoursesPage() {
           <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
         )}
 
-        {/* ── ✨ 코스 추천 받기 ── */}
-        <div className="card mb-6 flex flex-col gap-4 p-6">
-          <div>
-            <h2 className="font-bold text-stone-900">✨ {lc.recTitle}</h2>
-            <p className="mt-0.5 text-sm text-stone-500">{lc.recSub}</p>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <CitySelect value={recCity} className="flex-1"
-              onChange={(c) => { setRecCity(c); setRecDistrict(""); }} />
-            <DistrictSelect city={recCity} value={recDistrict}
-              onChange={setRecDistrict} className="sm:w-44" />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {REC_THEMES.map((th) => (
-              <button key={th} type="button" onClick={() => setRecTheme(th)}
-                className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                  recTheme === th
-                    ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm"
-                    : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-                }`}>
-                {lc.recThemes[th]}
-              </button>
-            ))}
-          </div>
-
-          <button type="button" onClick={onRecommend} disabled={!recCity || recLoading}
-            className="btn-primary self-start px-6 py-2.5 disabled:opacity-50">
-            {recLoading ? lc.recLoading : `✨ ${lc.recBtn}`}
-          </button>
-
-          {rec && !recLoading && (
-            rec.stops.length === 0 ? (
-              <p className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-sm text-amber-700">
-                {lc.recEmpty}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                <TripMap points={rec.stops.map((s) => ({
-                  key: String(s.order), name: s.name, latitude: s.latitude, longitude: s.longitude,
-                }))} />
-
-                <ol className="flex flex-col gap-1.5">
-                  {rec.stops.map((s) => {
-                    const added = waypoints.some((w) => w.placeName === s.name && w.latitude === s.latitude);
-                    return (
-                      <li key={s.order} className="flex items-start gap-2.5 rounded-xl bg-stone-50 px-3 py-2">
-                        <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white">
-                          {s.order}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2">
-                            <span className="text-sm font-semibold text-stone-800">{s.name}</span>
-                            {s.category && <span className="text-xs text-stone-400">{s.category}</span>}
-                            {s.distanceFromPrevMeters != null && (
-                              <span className="text-xs text-teal-600">🚶 {s.distanceFromPrevMeters >= 1000
-                                ? `${(s.distanceFromPrevMeters / 1000).toFixed(1)}km` : `${s.distanceFromPrevMeters}m`}</span>
-                            )}
-                          </div>
-                          {s.address && <p className="truncate text-xs text-stone-400">{s.address}</p>}
-                        </div>
-                        <button type="button" onClick={() => addStopFromRec(s)} disabled={added}
-                          className="flex-shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-50 disabled:text-stone-300 disabled:hover:bg-transparent">
-                          {added ? `✓ ${lc.addedWaypoint}` : lc.addWaypoint}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ol>
-
-                <p className="text-xs text-stone-500">
-                  {lc.recTotalWalk} <b>{(rec.totalDistanceMeters / 1000).toFixed(1)}km</b>
-                  <span className="mx-1.5 text-stone-300">·</span>
-                  {lc.recSuggested} <b>~{rec.suggestedDurationHours}{lc.hoursUnit}</b>
-                </p>
-
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={onRecommend} className="btn-secondary px-4 py-2 text-sm">
-                    🔄 {lc.recAgain}
-                  </button>
-                  <button type="button" onClick={useRecommendation} className="btn-primary px-4 py-2 text-sm">
-                    ⬇️ {lc.recUse}
-                  </button>
-                </div>
-                {recFilled && (
-                  <p className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700">
-                    ✅ {lc.recFilled}
-                  </p>
-                )}
-              </div>
-            )
-          )}
-        </div>
-
-        {/* ── 새 코스 등록 폼 ── */}
-        <form ref={formRef} onSubmit={onCreate} className="card mb-6 flex flex-col gap-4 p-6">
+        {/* ── 코스 메타 폼 ── */}
+        <div ref={formRef} className="card mb-5 flex flex-col gap-4 p-6">
           <div className="flex items-center justify-between">
             <h2 className="font-bold text-stone-900">🎫 {editingId ? lc.editTitle : lc.createTitle}</h2>
             {editingId && (
@@ -326,7 +217,27 @@ export default function GuideCoursesPage() {
           <div>
             <label className="input-label">{lc.titleLabel}</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)}
-              placeholder={lc.titlePh} required className="input" />
+              placeholder={lc.titlePh} className="input" />
+          </div>
+
+          <div>
+            <label className="input-label">{t.serviceCategories.sectionTitle}</label>
+            <select value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)} className="input">
+              <option value="">—</option>
+              <optgroup label={t.serviceCategories.tourGroup}>
+                {SERVICE_CATEGORIES.filter((c) => c.requiresLicense).map((c) => (
+                  <option key={c.key} value={c.key} disabled={!verified}>
+                    {t.serviceCategories[c.key as ServiceCategoryKey]}{!verified ? " 🔒" : ""}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label={t.serviceCategories.nonTourGroup}>
+                {SERVICE_CATEGORIES.filter((c) => !c.requiresLicense).map((c) => (
+                  <option key={c.key} value={c.key}>{t.serviceCategories[c.key as ServiceCategoryKey]}</option>
+                ))}
+              </optgroup>
+            </select>
+            {!verified && <p className="mt-1 text-xs text-amber-600">{t.serviceCategories.lockedHint}</p>}
           </div>
 
           <div>
@@ -338,6 +249,7 @@ export default function GuideCoursesPage() {
           <div>
             <label className="input-label">{lc.cityLabel}</label>
             <CitySelect value={city} onChange={(c) => setCity(c)} />
+            <p className="mt-1 text-xs text-stone-400">{lc.cityDrivesPalette}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -390,42 +302,28 @@ export default function GuideCoursesPage() {
             )}
           </div>
 
-          {/* ── 동선(waypoints) 편집 — 위 추천 패널에서 담거나, 이미 담긴 코스를 수정할 때 표시 ── */}
-          {waypoints.length > 0 && (
-            <div>
-              <label className="input-label">{lc.waypointsSection}</label>
-              <p className="mb-2 text-xs text-stone-400">{lc.waypointsHint}</p>
-              <TripMap points={waypoints.map((w, i) => ({
-                key: String(i), name: w.placeName, latitude: w.latitude, longitude: w.longitude,
-              }))} className="mb-2" />
-              <ol className="flex flex-col gap-1.5">
-                {waypoints.map((w, i) => (
-                  <li key={i} className="flex items-center gap-2.5 rounded-xl bg-stone-50 px-3 py-2">
-                    <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-500 text-[11px] font-bold text-white">
-                      {i + 1}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-stone-800">{w.placeName}</p>
-                      {w.address && <p className="truncate text-xs text-stone-400">{w.address}</p>}
-                    </div>
-                    <button type="button" onClick={() => moveWaypoint(i, -1)} disabled={i === 0}
-                      className="btn-ghost h-7 w-7 flex-shrink-0 px-0 py-0 text-xs disabled:opacity-30" title={lc.moveUp}>▲</button>
-                    <button type="button" onClick={() => moveWaypoint(i, 1)} disabled={i === waypoints.length - 1}
-                      className="btn-ghost h-7 w-7 flex-shrink-0 px-0 py-0 text-xs disabled:opacity-30" title={lc.moveDown}>▼</button>
-                    <button type="button" onClick={() => removeWaypoint(i)}
-                      className="flex-shrink-0 text-xs font-semibold text-red-400 hover:text-red-600">
-                      {lc.removeWaypoint}
-                    </button>
-                  </li>
-                ))}
-              </ol>
-            </div>
+          {recFilled && (
+            <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              ✅ {lc.recFilled}
+            </p>
           )}
+        </div>
 
-          <button type="submit" disabled={creating || !title.trim()} className="btn-primary self-start px-6 py-2.5">
-            {creating ? (editingId ? lc.updating : lc.creating) : (editingId ? lc.updateBtn : lc.createBtn)}
-          </button>
-        </form>
+        {/* ── 동선 = 드래그 타임테이블 (장소 검색 + ✨추천 팔레트) ── */}
+        <div className="mb-2">
+          <h2 className="mb-1 font-bold text-stone-900">🗺️ {lc.routeBuilderTitle}</h2>
+          <p className="section-subtitle mb-4">{lc.routeBuilderSub}</p>
+          <TimetableBuilder
+            items={items} onItemsChange={setItems}
+            city={city} mode="course" singleDay
+            onFillFormFromRec={fillFromRec}
+          />
+        </div>
+
+        <button type="button" onClick={onSubmit} disabled={creating || !title.trim()}
+          className="btn-primary mb-8 w-full py-3 sm:w-auto sm:px-8">
+          {creating ? (editingId ? lc.updating : lc.creating) : (editingId ? lc.updateBtn : lc.createBtn)}
+        </button>
 
         {/* ── 내 코스 목록 ── */}
         {courses === null ? (

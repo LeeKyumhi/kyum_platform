@@ -59,11 +59,12 @@ public class TourCourseController {
             @RequestParam("durationHours") Integer durationHours,
             @RequestParam("price") Integer price,
             @RequestParam("maxPeople") Integer maxPeople,
+            @RequestParam("serviceCategory") String serviceCategory,
             @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "waypoints", required = false) String waypointsJson
     ) {
         TourCourseResponse res = courseService.create(userId, title, description, city, durationHours, price,
-                maxPeople, image, parseWaypoints(waypointsJson));
+                maxPeople, serviceCategory, image, parseWaypoints(waypointsJson));
         return ResponseEntity.status(HttpStatus.CREATED).body(res);
     }
 
@@ -78,11 +79,12 @@ public class TourCourseController {
             @RequestParam("durationHours") Integer durationHours,
             @RequestParam("price") Integer price,
             @RequestParam("maxPeople") Integer maxPeople,
+            @RequestParam("serviceCategory") String serviceCategory,
             @RequestParam(value = "image", required = false) MultipartFile image,
             @RequestParam(value = "waypoints", required = false) String waypointsJson
     ) {
         return courseService.update(userId, courseId, title, description, city, durationHours, price,
-                maxPeople, image, parseWaypoints(waypointsJson));
+                maxPeople, serviceCategory, image, parseWaypoints(waypointsJson));
     }
 
     /** 코스 삭제 (본인 것만) */

@@ -1,5 +1,93 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 법률 컴플라이언스 트랙 — 관광진흥법 대응 (2026-07-13 — 백엔드+프론트, gradle compileJava·tsc --noEmit 통과, ⚠ end-to-end 미실행)
+
+계기: `창업 체크리스트/startup-platform-business-guide.md`. 외국인 대상 유상 관광안내는 **관광진흥법 제38조상 관광통역안내사 자격 필수**(무자격 시 제86조 과태료 150/300/500만). 전략 = **C 하이브리드**(자격 보유=관광, 무자격=비관광 동행만). 관광 카테고리 = **1개 `TOUR_GUIDE`로 통합**(사용자 결정). **모든 신규 엔티티/컬럼 nullable**(ddl-auto 추가형, 기존 행 안전).
+
+- **위치정보법 회피 — GPS 개인위치 수집 제거**: `CitySelect` GPS "내 위치" 버튼·`detect()` 삭제(도시 드롭다운만), `GeoController`(`/api/geo/reverse`)+`KakaoLocalClient.reverseGeocode`/`KakaoRegion` 삭제, `GuideController` nearLat/nearLng 죽은 거리정렬 제거, SecurityConfig `/api/geo/**` 제거, i18n useMyLocation/geo* 6키 제거(3언어). **남김**: GuideProfile/User lat·lng(도시 중심좌표일 뿐 기기GPS 아님), TripMap/PlaceController(공개 POI), 채팅 "내 위치 보내기"(보류 결정). → 앱이 개인 GPS를 안 받으므로 위치정보사업 신고 부담 완화.
+
+- **Phase 1 — 진짜 자격 인증 + 어드민 게이트** (가짜 배지 제거가 핵심): 기존 배지가 `credentials.length>0`(파일 1개면 누구나 "인증")이던 걸 **관리자 승인 상태**로 교체. 공식 3자 검증 API 없음(Q-net 수동 조회뿐) → 관리자 수동 승인.
+  - 어드민 인프라(신규, 이전엔 role 개념 전무): `UserRole{USER,ADMIN}`, `User.role`, JWT `role` 클레임, `JwtAuthenticationFilter`가 role=ADMIN이면 `ROLE_ADMIN` 부여, SecurityConfig `/api/admin/**` `hasRole("ADMIN")`. **부트스트랩: DB에서 `UPDATE users SET role='ADMIN'` 1회 + 반드시 재로그인**(기존 토큰엔 role 클레임 없음).
+  - 인증 모델: `CredentialType.TOUR_GUIDE_LICENSE`, `VerificationStatus{NONE,PENDING,VERIFIED,REJECTED}`, `GuideVerification`(가이드당 1행: legalName·자격증번호·발급일·내지번호·자격증/신분증 경로·status·rejectReason·reviewedBy/At), `GuideProfile.verificationStatus`(비정규화). 신청 `POST/GET /api/guide-profiles/me/verification`(guide/manage 섹션, 재신청 가능). 어드민 `admin/AdminVerification*` + `app/admin/verifications` 페이지(승인/반려).
+  - **신분증·자격증 = 비공개 저장(PII)**: `SupabaseStorageClient.uploadPrivate`(경로만 반환)+`createSignedUrl`(10분). 신규 config `supabase.storage.verification-bucket`(기본 `verification`). ⚠ **Supabase에 "verification" 버킷을 private로 생성해야 함.** 어드민만 서명 URL로 열람.
+
+- **Phase 2 — 관광/비관광 완전 분리** (서버 3중 게이팅): `guide/ServiceCategory`(enum + `requiresGuideLicense`; TOUR_GUIDE=true, 병원동행/식사/카페/쇼핑통역/언어교환=false; 야간·운송 제외). 데이터: `GuideProfile.serviceCategories`(interests 미러), `TourCourse.serviceCategory`, `Booking.serviceCategory`. **게이팅 3지점**: ① `GuideProfileService.create`+`updateServiceCategories` ② `TourCourseService.create/update` ③ `BookingService.create`(카테고리 필수+자격검증+가이드가 실제 제공하는지 검증). `GuideController.list`에 `category` 필터. 프론트: `lib/serviceCategories.ts`, `ServiceCategoryPicker`(관광은 미인증 시 자물쇠), become-guide/guide-manage 제공서비스 섹션, guide-courses 카테고리 셀렉터, `guides/[id]` 예약 위젯 서비스 선택, `guides/page` 카테고리 칩 필터, `GuideCard` "인증 가이드" 배지+서비스 태그. i18n `serviceCategories`. **⚠ 하드 컷오버: 기존 가이드는 serviceCategories 선언 전까지 예약 불가, 기존 코스(null 카테고리)는 공개 탐색서 숨김** — 가이드가 로그인해 서비스 선언·코스 재분류 필요(의도된 마이그레이션).
+
+- **Phase 3 — 계정·자격 대여 방지**: #3 `bookings/[id]`에 가이드 아바타 노출 + "다른 사람이 나왔어요" 신고(진행중 예약, `BookingResponse.guideAvatarUrl` 추가; `SafetyService`에 `IMPERSONATION` 사유·`BOOKING` 대상 추가). #4 become-guide 호스트 약관 동의 섹션(대여금지·비관광 관광안내금지·명의자 책임 + 필수 체크박스; `GuideProfile.hostTermsAgreedAt`, `create()`서 미동의 거부). #1 신원결박은 Phase 1 신분증 이름일치로 반영. **#2 실명계좌 정산은 결제 단계에서**(미구현).
+
+- **어드민 신고 검토 페이지**(detect→act 루프 완성): `admin/AdminReport*`(`/api/admin/reports` OPEN 목록/review·dismiss). `Report.markReviewed()/dismiss()`(OPEN→REVIEWED/DISMISSED), `findByStatusOrderByCreatedAtDesc`. listOpen은 신고자+BOOKING 대상 가이드 이름 배치 enrich(사칭 조치용). `app/admin/reports` 페이지 + `/admin/verifications`와 상호 링크. i18n `adminReports`. (BOOKING 외 대상은 type+id만, 참여자 검증 없음 — 기존 report 패턴.)
+
+- **실사용 전 남은 것(코드 아님)**: ① **결제/정산(#2)** — PG 지급대행 계약 후. 이때 통신판매중개자 고지도. ② **변호사 약관 검토** — hostTerms/verification 문구는 "법률 검토 필요" 초안. ③ **end-to-end 테스트** — 어드민 승격+재로그인, verification 버킷 private 생성 후 3개 Phase 전체 구동. ④ 어드민 접근은 직접 URL(사이드바 메뉴 없음). ⑤ 이 세션에 **DB 전체 초기화 SQL 제공**(`TRUNCATE ... RESTART IDENTITY CASCADE`, 23개 테이블, translation_cache 제외) — 사용자가 Supabase SQL 에디터에서 실행 예정, 스토리지 파일은 별도.
+- 상세: 프로젝트 메모리 "법률 컴플라이언스 트랙" 섹션 + 계획 파일 `~/.claude/plans/prancy-conjuring-kay.md`.
+
+## 코드 정리 패스 (/simplify, 2026-07-07 — 4에이전트 리뷰 후 적용, tsc·lint·compileJava·스모크 통과)
+미커밋 전체(59파일)를 재사용/단순화/효율/설계깊이 4관점으로 리뷰 후 동작 무변경 정리. **재사용해야 할 새 단일 소스들**:
+- **`lib/i18n.ts`**: `localeOf(lang)`(lang→BCP-47, 기존 삼항 11곳 교체 — 언어 추가 시 여기만), `QUICK_PHRASE_KEYS`(ChatRoom·예약상세 공유).
+- **`lib/bookingStatus.ts`**(신규): `STATUS_CLS`/`STATUS_ICON` — 예약 상태 배지 3페이지 공유.
+- **`lib/useModalDismiss.ts`**(신규): Esc+body 스크롤락 훅 — 모달 5곳(PlaceDetail/PlacePicker/SharePicker/PlanPreview/CoursePreview) 공유. 새 모달은 이걸 쓸 것.
+- **`lib/usePolledCount.ts`**(신규): 30초 폴링+경로변경 refetch 배지 훅 — Sidebar 배지 3종이 1줄씩. 4번째 배지도 이걸로.
+- **백엔드**: `BookingService.assertParticipant` public화 = 예약 접근 규칙 단일 소스(MessageService 위임, 자체 복사본 삭제). `chat/Previews.clip()` = 인박스 프리뷰 80자 규칙 단일 소스.
+- **효율**: `BookingService.toResponses()` 배치(목록 N+1 제거: 예약 M건당 ~2M+1쿼리→3쿼리, listForTraveler/listForGuide 둘 다), bookings/[id] act()가 PATCH 응답 재사용(재조회 GET 삭제), InboxService 안읽음 쿼리를 early-return 뒤로, ChatRoom `grouped` useMemo(키입력마다 재계산 방지), SlotCalendar useMemo deps 수정(`[props]`→실제 배열).
+- **삭제**: i18n 죽은 키 25종×3언어(75줄, 리팩터 잔재 — courses waypoint 편집기/trips 구UI/guideDetail 단일폼/availability 등, 전부 grep 0-usage 검증), guides/[id] 예약 제출 루프 2개→`postBookings()` 통합, placeCard 내부 파서 un-export, ChatRoom myId 중복 제거.
+- **의도적 스킵**: ① 예약 생성 병렬화(즉시예약 겹침 이중확정 레이스 — 순차가 의도된 동작, postBookings 주석에 명시) ② `/api/badges` 통합 엔드포인트(새 컨트롤러 필요, 백로그) ③ Booking 엔티티 필드 누적/ChatRoom props/카드 규약/TimetableBuilder mode 분기 — 리뷰 판정 "현행 유지가 맞음".
+- 검증: compileJava·tsc·lint 클린 + 백엔드 스모크(배치 목록/채팅 위임 검증/제3자 400/인박스/거절 배지) + 브라우저(배지·채팅·모달 Esc·예약상세, 페이지 에러 0).
+
+## UX 배치 ②: 다중일 시간범위 예약 · 채팅 일정/코스 공유 (2026-07-07 — 프론트만, tsc·브라우저 E2E 통과)
+사용자 요청 2건. **둘 다 백엔드 무변경**.
+- **다중일 시간범위 예약** (`guides/[id]` 수동 폼) — 단일 datetime→**날짜별 행 편집기**(각 행 = 날짜 + 시작~종료 시간, `type=time step=3600`으로 정수시간 보장, "+ 일수 추가"/행 삭제). 제출 시 행별 `POST /api/bookings` 개별 생성 + **부분실패 요약**(#3의 `bookingSummary {sent,accepted,failed}` 재사용). `slotHours`/`rowHours` 헬퍼. 슬롯 다중선택(직전 배치)과 공존 — 수동은 "직접 입력" 경로. 검증: Playwright 2행→2건 생성(9/10·9/11 REQUESTED 10:00 KST), en/zh 렌더.
+- **채팅 일정/코스 공유** — 여행자 여행일정 / 가이드 투어코스를 채팅에서 **날짜별로 공유**. **스냅샷 임베드 규약** `PEERUP::PLAN::{json}`(장소카드와 같은 프론트 전용·백엔드 불투명, 권한문제 회피·공유시점 고정). `lib/placeCard.ts`에 **통합 `parseCard`**(place|plan) + `cardPreview` — advisor 지적대로 4개 소비지점(렌더분기·자동번역필터·번역토글·인박스프리뷰) 전부 이거로 통일(장소카드 버그 재발 방지).
+  - `SharePickerModal`(신규): 탭 여행일정(`GET /api/itineraries/me`)+투어코스(`/api/guide-profiles/me/courses`, **비가이드 400은 catch→빈목록**, 코스는 날짜 선택 옵션). 선택 시 스냅샷 빌드(일정=일차별 아이템 name/startHour/category, 코스=정차지). `PlanCard.tsx`(신규): `PlanMessageCard`(요약카드, 버블 밖) + `PlanPreviewModal`(일정=날짜별/일차별, 코스=정차지 순서).
+  - ChatRoom: 📍/🗺️ 알약 2개 → **"+" 첨부 버튼 + 액션시트**(내위치/장소/일정·코스 공유)로 교체(모바일 폭·확장성, advisor 제안). 공유는 **DM·예약채팅 양쪽, 양쪽 참여자 모두** 무조건(onSetMeetingPlace처럼 게이팅 안 함). 카드 자동번역 스킵.
+  - 검증: Playwright — 여행자 일정공유→카드(2일·3곳)+미리보기(1일차/2일차, 경복궁·광장시장·해운대), **가이드도 같은 카드 봄**(양쪽), 가이드 코스공유(날짜)→카드(정차 2곳), DM에서도 공유됨, 인박스 "📅/🎫 …공유" 프리뷰(raw JSON 아님), en/zh 카드·피커 렌더(undefined 없음).
+- **재사용/한계**: `parseCard`/`cardPreview` 단일소스. 스냅샷은 name/startHour/category 등 essentials만(수 KB, STOMP 64KB 한참 아래). 코스 스냅샷 date는 선택. 공유 후 원본 수정돼도 카드는 공유시점 고정(의도).
+
+## UX 배치 ①: 채팅 버튼 라벨 · 채팅별 안읽음 · 다중날짜 예약 · 거절 배지 (2026-07-07 — 백엔드+프론트, tsc·compileJava·브라우저 E2E 통과)
+사용자 요청 4건.
+- **#1 채팅 장소 버튼 라벨** — `ChatRoom` 입력바의 아이콘만 있던 📍/🗺️를 **입력창 위 별도 라벨 행**으로 분리("📍 내 위치 보내기", "🗺️ 장소 보내기"). advisor 지적대로 모바일 420px에서 입력창과 안 겹치게 위쪽 행 배치. i18n `placeCard.sendLocation/searchPlace` 문구를 액션형으로 수정.
+- **#2 채팅별 안읽음 표시** — 인박스(`/messages`)에서 내가 안 읽은 스레드에 **파란 점 + 프리뷰 볼드**. `InboxThreadResponse.unread` 추가. `ConversationRepository.conversationIdsWithUnread` + `MessageRepository.bookingIdsWithUnread` 배치쿼리(각각 `unreadCount`와 **동일 술어** — 사이드바 총배지와 안 어긋남, DM은 차단 제외 포함). `InboxService`가 두 ID Set으로 스레드별 unread 세팅. (해석: 인박스 스레드별 안읽음 점. 상대가 내 메시지 읽었는지=읽음표시는 별도 미구현.)
+- **#3 다중 날짜 예약** — 예약 캘린더(`SlotCalendar` traveler)를 **단일→다중 선택**(`selectedSlots`/`onToggleSlot`, 슬롯 체크박스 + 날짜셀 초록 카운트 배지, 월 이동해도 선택 유지). `guides/[id]` 예약 패널: 선택 요약(N개·합계금액)+메시지+**"N건 예약 요청" 버튼** → 슬롯별 예약 개별 생성. **부분 실패 처리**: 하나 실패(즉시예약 시간겹침 등)해도 나머지 진행, "N건 보냄 / M건 실패" 요약(`bookingSummary {sent,accepted,failed}`). 백엔드 모델 무변경. 수동입력(직접 날짜) 단일 경로는 유지. "모든 캘린더"는 예약 캘린더에 적용(가이드 슬롯 등록은 기존 +등록이 확인 역할).
+- **#4 예약 거절 배지** — `Booking.rejection_seen`(nullable, `reject()`가 false로, additive). `BookingService.listForTraveler`가 REJECTED 미확인을 seen 처리(목록 열면 클리어). `GET /api/bookings/traveler/rejected-count`. 사이드바 여행자 **내 예약** 배지(30초 폴링, mode==traveler). `RejectionSeenFalse`가 null(옛 예약) 제외 → 기존 거절은 배지 안 뜸. 데스크탑 레일 전용(모바일 하단탭에 내예약 없음 — "왼쪽 베너"와 일치).
+- **검증**: curl(#4 0→거절1→목록열기0; #2 예약스레드 unread True→방열기 False, unread-count 정합) + Playwright(#3 정상=2건 생성, 즉시예약 겹침=1확정+"시간겹침 실패" 표시 부분실패 보고; #1 라벨·#2 파란점·#4 사이드바 "1" 배지 스크린샷) + en 파리티(신규 키 undefined 없음). 테스트 계정 다수 실 dev DB.
+
+## T1/T2/T3 만남장소·예약상세·위치공유 (2026-07-07 — 백엔드+프론트 완료, tsc·compileJava·브라우저 E2E 통과)
+"예약 확정 이후~투어 당일" 구간을 채움. 외국인이 한국 주소를 말로만 받던 문제 해결.
+- **T1 만남 장소 + 채팅 장소 카드** — 채팅(예약/DM 공용 `ChatRoom`)에서 🗺️로 Kakao 자유검색(`PlacePickerModal` → `GET /api/places/search?query=&lang=`, authenticated) 후 **장소 카드 전송**. 카드 탭 → `PlaceDetailModal`(지도 핀). **예약 채팅에서만** 카드에 "만남 장소로 지정" 버튼(`onSetMeetingPlace` prop, DM 래퍼는 미전달) → `PATCH /api/bookings/{id}/meeting-place` → `Booking.meeting_place_*`(5컬럼, additive). 지정 시 "✓ 만남 장소로 지정됨".
+- **T3 내 위치 보내기** — 입력바 📍 → `navigator.geolocation` → 좌표를 kind:"me" 장소 카드로 전송(거부 시 에러 표시, NaN 전송 안 함).
+- **장소 카드 = 프론트 전용 인코딩 규약** `lib/placeCard.ts` (`PEERUP::PLACE::{json}`) — 백엔드는 content를 불투명 텍스트로 저장/브로드캐스트(STOMP 전송경로·메시지테이블 무변경). `parsePlaceCard` 성공 시 **텍스트 버블 밖 전용 카드**로 렌더(흰배경 흰글자 방지). **자동번역/수동토글 스킵**(raw JSON 번역 방지 — auto 필터 + 토글 둘 다). 파싱 실패 시 일반 텍스트로 degrade.
+- **인박스 프리뷰** — `/messages`가 raw `PEERUP::PLACE::…`(80자 truncation 후에도 prefix 생존) 감지 → "📍 장소 공유" 라벨(`placeCardPreview`).
+- **T2 예약 상세 `/bookings/[id]`(신규)** — 참여자 전용(`GET /api/bookings/{id}`). 상태 배지·D-day·시간(KST + 뷰어 로컬 병기, 로컬=KST면 자동 숨김)·만남장소 지도(`TripMap` 단일핀)+주소복사+카카오 열기(미지정 시 "채팅에서 정하기")·상대(가이드면 프로필 링크)·"채팅 열기"·완료/취소/리뷰·"한국어 한마디" 참고. 목록(`/traveler/bookings`)+요청(`/guide/requests`)에 "상세 보기" 링크.
+- **검증**: curl(places/search 15개·비인증 401·PATCH 저장·가이드 조회·타인 400) + Playwright(T2 렌더, 채팅 연결→장소검색카드→만남지정 확인→PATCH 반영 "경복궁"→내위치 카드, 인박스 "📍 장소 공유" 표시·raw 미노출). 테스트 계정 `mp_t_*/mp_g_*@test.com`(booking 18) 실 dev DB.
+- **재사용/결정**: `PlaceDetailModal`·`TripMap`·`chat.quickPhrases` 재사용. 만남장소는 참여자 누구나 지정(양쪽 협의, PATCH 덮어쓰기, REQUESTED/ACCEPTED에서만). DM엔 만남장소 개념 없음(booking 없음) — 장소 카드/내위치만.
+
+## 가이드 코스 빌더 = 드래그 타임테이블 (2026-07-07 — 백엔드+프론트, tsc·compileJava·브라우저 드래그 E2E 통과)
+가이드 코스 동선 편집을 ▲▼ 순서 리스트에서 **여행자 일정과 동일한 드래그 타임테이블**로 전면 개편. 우측 팔레트(장소 검색 + ✨코스 추천)에서 끌어다 시간표에 놓는다. 사용자 결정: 시간표 방식(여행자와 100% 동일 UI). 개선점: 시간/레인을 **저장·복원**(순서만 남는 손실 방지).
+- **`components/TimetableBuilder.tsx` 신규 (공유 컴포넌트)** — 트립(`/trips/[id]`)과 코스(`/guide/courses`)가 공유. DndContext + 미배치 트레이 + 시간표 그리드(06~24시, 레인) + 블록(깊이/넓이 ±) + 지도 동선 + 팔레트 + **Wave 6 검증 드래그 수학(포인터좌표→hour/lane, resolveLane)** 을 한 곳에. controlled: 부모가 `items`/`onItemsChange` 소유. props: `mode`("trip"|"course"), `singleDay`, `minDayCount`, `onFillFormFromRec`. `mode="trip"`=멀티데이+팔레트 2번째 탭 투어코스 / `mode="course"`=단일 시간표(일차탭 숨김)+팔레트 2번째 탭 코스추천. **추출 원칙(advisor): 멀티데이 로직을 부모로 빼지 않고 컴포넌트 안에 그대로 이관, singleDay 플래그로 분기** — 검증된 코드 최소 이동.
+- **`/trips/[id]/page.tsx` 리팩터링** — 870→약 160줄. 메타(제목/도시/날짜)·로드/저장/삭제만 소유, 시간표·팔레트·일차탭은 `<TimetableBuilder mode="trip">`에 위임. **회귀 하드게이트 GREEN**: Playwright 드래그(칩 생성→배치→저장→새로고침 유지→일차탭 유지) 통과. `_k`/dayIndex 경계 무손상.
+- **`/guide/courses/page.tsx` 재작성** — waypoints ▲▼ 편집기 + 별도 추천 패널 삭제 → 메타 폼 + `<TimetableBuilder mode="course" singleDay onFillFormFromRec>` + 등록 버튼. 저장 시 배치 블록을 (startHour,laneIndex) 순 정렬 → sortOrder 재부여 + **시간/레인 함께 저장**. 편집 시 waypoint.startHour 있으면 복원, 없으면(레거시/추천) 10시부터 순차 배치.
+- **추천 개선(백엔드 recommender 유지)** — 추천을 워크벤치 팔레트의 ✨탭으로 통합. 정차지가 **드래그 가능한 카드**(직접 시간표로 끌어다 놓기) + "폼 채우기"(제목·소개·도시·소요 채우고 정차지 5곳 시간표에 자동 배치). 기존 "담기" 리스트 방식 대체.
+- **백엔드(additive nullable)** — `TourCourseWaypoint`+req/resp에 `start_hour`/`duration_hours`/`lane_index`/`lane_span`(ItineraryItem 패턴). **편집 전용** — 공개 코스 뷰(가이드 상세/CourseCard/명소 퍼널)·트립 코스드롭(waypoints[0]만 사용)에 시간 노출 안 함(grep로 유출 없음 확인).
+- **검증**: `gradle compileJava`+`npx tsc --noEmit` 통과. Playwright — 트립 회귀 GREEN, 코스: 추천 5개 로드→2개 카드 11시·13시 드래그 배치→등록→API로 waypoint startHour=11/13·lane=0 저장 확인→수정 클릭 시 2블록 복원. 폼채우기→5블록 자동배치+제목 "서울 믹스 투어". 테스트 계정 `crs_g_*@test.com`(가이드프로필 29), `trip_t_*`(일정 37) 실 dev DB에 남음.
+- **가이드 사이드바 정리(같은 세션)** — 가이드 데스크탑 레일에서 `지역 둘러보기(/explore)`·`여행일정 짜기(/trips)` 제거(10→8개, 가이드 업무 무관·모바일 탭엔 원래 없음). 라우트는 살아있음(모드 전환으로 접근).
+
+## A2 통합 인박스 (2026-07-07 — 백엔드+프론트, tsc·compileJava·브라우저 E2E 통과)
+`/messages` 인박스에 DM(예약 전 문의)만 있고 예약 채팅은 예약 목록에서만 진입하던 걸 **한 목록으로 통합**.
+- **백엔드 신규 `GET /api/inbox`** (`chat/InboxController` + `InboxService`, 인증 필요 — SecurityConfig permitAll 미등록으로 기본 authenticated). DM(`ConversationService.myConversations` 재사용, 차단 필터·배치 조회 포함) + **예약 채팅(메시지가 실제로 오간 방만)** 을 합쳐 `lastMessageAt` 내림차순 정렬해 `InboxThreadResponse[]` 반환.
+- **`InboxThreadResponse`** — `type`("dm"|"booking") 디스크리미네이터 + `conversationId`/`bookingId`(링크용) + guideProfileId/otherUserId/otherName/otherAvatarUrl/otherIsGuide/lastMessagePreview/lastMessageAt + `bookingStatus`(예약 스레드만). `dm()` 팩토리로 `ConversationResponse`에서 변환.
+- **스키마 무변경(compute-on-read)** — 예약 채팅엔 last-message 컬럼이 없어 읽기 시점에 계산. `MessageRepository.findByBookingIdInOrderByCreatedAtAsc(ids)` **배치 1회**로 예약별 마지막 메시지(오름차순이라 마지막 put이 최신), 상대 가이드 프로필·유저는 `findAllById` 배치 — 원격 DB(Sydney ~250ms) N+1 회피. 여행자 방향(`findByTravelerId…`) + 가이드 방향(`findByUserId`로 내 프로필 → `findByGuideProfileId…`) 둘 다 모아 mode 무관하게 표시.
+- **프론트 `/messages/page.tsx`** — `/api/conversations` → `/api/inbox`로 교체. dm→`/messages/{conversationId}`, booking→`/chat/{bookingId}` 링크 분기. 예약 스레드는 amber `🎫 예약 대화` 배지(DM은 기존 가이드/여행자 배지 유지) — advisor 지적대로 같은 가이드가 DM+예약 두 줄로 보여도 배지로 구분됨. `ChatRoom.tsx`·`/chat/[bookingId]`·`/messages/[id]` 래퍼는 **무수정**.
+- **의도적 범위 제외(팔로업)**: ① ~~예약 채팅 안읽음 배지~~ → **아래 별도 항목으로 완료(2026-07-07)**. ② 예약 스레드는 **차단 필터 미적용**(Wave 5 "예약 채팅 차단 enforce 안 함"과 일관). ③ 메시지 0건 예약은 인박스에 안 뜸(빈 DM 방은 뜸 — DM 생성은 명시적 "대화 시작" 행위라 의도적 비대칭).
+
+## 예약 채팅 안읽음 배지 (2026-07-07 — 백엔드+프론트, compileJava·tsc·curl·브라우저 검증)
+A2에서 남겼던 팔로업. 사이드바 💬 배지가 DM만 세던 걸 **DM + 예약 채팅 통합**으로.
+- **스키마(additive nullable, ddl 안전)** — `Booking`에 `traveler_last_read_at`/`guide_last_read_at` 2컬럼(재시작 시 `bookings`에 `add column` 확인). `Conversation`의 동명 컬럼 패턴과 동일. `Booking.markChatRead(boolean isTraveler)`.
+- **읽음 처리** — `MessageService.history()`를 `@Transactional`(writable)로 바꿔 예약 채팅방 열 때(`GET /api/bookings/{id}/messages`, ChatRoom 마운트 시 호출) 뷰어 쪽 last-read를 지금으로. 여행자/가이드는 `booking.getTravelerId().equals(userId)`로 판정.
+- **집계** — `MessageRepository.unreadCount(userId, guideProfileId)` 단일 COUNT(Message⋈Booking, 상대 발신 + 내 last_read 이후). `guideProfileId`가 null(가이드 아님)이면 가이드 분기 미매칭(`:guideProfileId is not null` 가드). 예약 채팅은 차단 enforce 대상 아니라 DM unread와 달리 **차단 서브쿼리 없음**.
+- **통합 엔드포인트** — `InboxService.unreadCount(userId)` = `conversationService.unreadCount`(기존 DM) + `messageRepository.unreadCount`(신규 예약). `GET /api/inbox/unread-count` {count}. `Sidebar.tsx`가 `/api/conversations/unread-count` → `/api/inbox/unread-count`로 폴링 대상 변경(30초 폴링·pathname 변경 refetch 그대로). 기존 `/api/conversations/unread-count`는 미사용이지만 하위호환 위해 유지.
+- **검증**: curl 전이(가이드 2건→여행자 unread 2 / 방 열기 후 0 / 새 1건 후 1 / 발신자 본인은 0) + DM 1 + 예약 1 = **합산 2** + 순수 여행자(guideProfileId null) 무오류 + Playwright 데스크탑 사이드바에 💬 메시지 빨강 배지 "1"(예약 채팅만 있는 계정, 이전 엔드포인트였다면 0) 렌더 확인.
+- **한계(기존과 동일)**: 배지 즉시 클리어는 pathname 변경 시 refetch에 의존(booking pending-count·DM과 동일, 30초 내 자기보정). 예약 채팅에는 여전히 실시간 read-receipt/방별 안읽음 표시는 없음(사이드바 총합만).
+- i18n: `dm.bookingBadge`("예약 대화"/"Trip chat"/"预约对话") ko/en/zh 추가.
+- **검증**: `gradle compileJava` + `npx tsc --noEmit` 통과. curl 양방향(여행자 인박스=예약+DM 2줄 최신순, 가이드 인박스=예약 스레드 여행자 기준) + Playwright(모바일 뷰 렌더 스크린샷 + 클릭 라우팅: booking→/chat/14 Haeundae 메시지, dm→/messages/5 Sunday 메시지 확인). 테스트 계정 `inbox_t_*/inbox_g1_*/inbox_g2_*@test.com`(비번 test1234) + booking/conversation 몇 건 실 dev DB에 남음(콘솔 정리 대상).
+
 ## Wave 4 (인앱 장소 상세) 프론트엔드 완료분 (2026-07-06 — designer, 프론트만, 새 백엔드 없음)
 `/explore`(지역 둘러보기)·`/trips/[id]`(여행일정 짜기)에서 장소를 누르면 카카오맵으로 이탈하던 걸 앱 안에서 상세를 보여주도록 개선. 새 API/백엔드 변경 없이 `/api/places`가 이미 내려주던 필드(id/name/category/phone/address/latitude/longitude/placeUrl/distanceMeters)만 사용.
 

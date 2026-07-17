@@ -38,7 +38,13 @@ public record CreateGuideProfileRequest(
         List<LanguageDto> languages,
 
         String mbti,           // 선택 (예: "ENFP")
-        List<String> interests // 선택 (예: ["FOOD", "CAFE"])
+        List<String> interests, // 선택 (예: ["FOOD", "CAFE"])
+
+        // 제공 서비스 카테고리 (선택, 예: ["DINING_COMPANION"]). 관광 카테고리는 인증 후에만 가능.
+        List<String> serviceCategories,
+
+        // 호스트 약관 동의 (필수). false/null이면 프로필 생성이 거부된다.
+        Boolean hostTermsAgreed
 ) {
 
     /**

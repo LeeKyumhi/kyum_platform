@@ -26,7 +26,11 @@ public record GuideSummaryResponse(
         List<String> interests,
         List<LanguageItem> languages,
         /** 로그인한 여행자와의 궁합 점수(0~99). 비로그인이거나 계산 근거가 없으면 null. */
-        Integer matchScore
+        Integer matchScore,
+        /** 관광통역안내사 자격 인증 상태 (NONE/PENDING/VERIFIED/REJECTED). 배지는 VERIFIED일 때만. */
+        String verificationStatus,
+        /** 제공 서비스 카테고리 (ServiceCategory 키). 카드의 서비스 태그·관광/비관광 필터에 사용. */
+        List<String> serviceCategories
 ) {
     public record LanguageItem(String language, LanguageLevel level) {}
 
@@ -42,7 +46,8 @@ public record GuideSummaryResponse(
                 profile.getHourlyRate(), profile.getCurrency(), profile.getRegion(),
                 profile.getCity(), profile.getLatitude(), profile.getLongitude(),
                 profile.getAvatarUrl(), avgRating, reviewCount, followerCount, bookingCount,
-                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, matchScore
+                guideGender, profile.isInstantBooking(), profile.getMbti(), profile.getInterestList(), langs, matchScore,
+                profile.getVerificationStatus().name(), profile.getServiceCategoryList()
         );
     }
 }

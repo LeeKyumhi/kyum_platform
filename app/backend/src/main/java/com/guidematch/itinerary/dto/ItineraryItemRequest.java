@@ -13,5 +13,11 @@ public record ItineraryItemRequest(
         String address,
         Double latitude,
         Double longitude,
-        String memo
+        String memo,
+        // 타임테이블 배치 (nullable — 미지정 시 시간 없는 자유 아이템)
+        Integer startHour,
+        Integer durationHours,
+        Integer laneIndex,
+        Integer laneSpan,
+        Long sourceCourseId
 ) {}

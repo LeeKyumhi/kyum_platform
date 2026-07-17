@@ -6,6 +6,7 @@ import java.time.Instant;
 public record ConversationResponse(
         Long id,
         Long guideProfileId,
+        Long otherUserId,
         String otherName,
         String otherAvatarUrl,
         boolean otherIsGuide,

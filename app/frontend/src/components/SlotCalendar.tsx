@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 
 type Slot = { id: number; startAt: string; endAt: string };
 
@@ -15,8 +16,9 @@ type GuideProps<T extends Slot> = {
 type TravelerProps<T extends Slot> = {
   mode: "traveler";
   slots: T[];
-  selectedSlot: T | null;
-  onSlotSelect: (slot: T | null) => void;
+  /** 다중 선택 — 여러 날짜/슬롯을 골라 한 번에 예약(#3). */
+  selectedSlots: T[];
+  onToggleSlot: (slot: T) => void;
   hourlyRate?: number;
   currency?: string;
 };
@@ -28,7 +30,7 @@ const WEEK_DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 export default function SlotCalendar<T extends Slot>(props: Props<T>) {
   const { t, lang } = useLanguage();
   const av = t.availability;
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   const todayDate = useMemo(() => {
     const d = new Date();
@@ -57,6 +59,18 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
     return map;
   }, [props.slots]);
 
+  // 여행자 다중 선택 — 날짜별 선택된 슬롯 수 (셀 표시용, #3)
+  // deps를 [props] 전체로 두면 부모 렌더마다 새 객체라 메모가 무효 — 실제 원본 배열만 본다
+  const travelerSelected = props.mode === "traveler" ? props.selectedSlots : null;
+  const selectedCountByDate = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const s of travelerSelected ?? []) {
+      const d = s.startAt.slice(0, 10);
+      map[d] = (map[d] ?? 0) + 1;
+    }
+    return map;
+  }, [travelerSelected]);
+
   const cells = useMemo(() => {
     const firstDay = new Date(viewYear, viewMonth, 1).getDay();
     const startOffset = (firstDay + 6) % 7; // Monday-first
@@ -69,18 +83,17 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
     return arr;
   }, [viewYear, viewMonth]);
 
+  // 월 이동 시 열어둔 날짜만 접는다. 여행자 다중 선택은 월이 바뀌어도 유지한다(#3).
   function prevMonth() {
     if (viewMonth === 0) { setViewYear(y => y - 1); setViewMonth(11); }
     else setViewMonth(m => m - 1);
     setSelectedDate(null);
-    if (props.mode === "traveler") props.onSlotSelect(null);
   }
 
   function nextMonth() {
     if (viewMonth === 11) { setViewYear(y => y + 1); setViewMonth(0); }
     else setViewMonth(m => m + 1);
     setSelectedDate(null);
-    if (props.mode === "traveler") props.onSlotSelect(null);
   }
 
   function getDateStr(day: number) {
@@ -88,15 +101,8 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
   }
 
   function handleDayClick(dateStr: string) {
-    if (selectedDate === dateStr) {
-      setSelectedDate(null);
-      if (props.mode === "traveler") props.onSlotSelect(null);
-    } else {
-      setSelectedDate(dateStr);
-      if (props.mode === "traveler" && props.selectedSlot?.startAt.slice(0, 10) !== dateStr) {
-        props.onSlotSelect(null);
-      }
-    }
+    // 날짜는 슬롯 목록을 펼치는 용도일 뿐 — 다중 선택은 슬롯 클릭으로만 토글(#3).
+    setSelectedDate((prev) => (prev === dateStr ? null : dateStr));
   }
 
   async function handleAddSlot(e: React.FormEvent) {
@@ -161,6 +167,7 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
           const dateStr = getDateStr(day);
           const hasSlots = !!slotsByDate[dateStr];
           const isSelected = selectedDate === dateStr;
+          const pickedCount = selectedCountByDate[dateStr] ?? 0;
           const isPast = new Date(dateStr + "T00:00") < todayDate;
           const isToday = dateStr === todayStr;
           const isClickable = props.mode === "guide" ? !isPast : hasSlots;
@@ -194,9 +201,14 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
               {hasSlots && (
                 <span
                   className={`absolute bottom-1 h-1 w-1 rounded-full ${
-                    isSelected ? "bg-indigo-200" : "bg-indigo-400"
+                    isSelected ? "bg-indigo-200" : pickedCount > 0 ? "bg-emerald-500" : "bg-indigo-400"
                   }`}
                 />
+              )}
+              {pickedCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-emerald-500 px-1 text-[9px] font-bold text-white shadow-sm">
+                  {pickedCount}
+                </span>
               )}
             </button>
           );
@@ -260,7 +272,7 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
                     </div>
                   );
                 } else {
-                  const isSlotSelected = props.selectedSlot?.id === s.id;
+                  const isSlotSelected = props.selectedSlots.some((x) => x.id === s.id);
                   const price =
                     props.hourlyRate != null
                       ? (props.hourlyRate * hrs).toLocaleString()
@@ -269,24 +281,25 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => props.onSlotSelect(isSlotSelected ? null : s)}
-                      className={`w-full rounded-xl border-2 px-3 py-2.5 text-left transition-colors ${
+                      onClick={() => props.onToggleSlot(s)}
+                      className={`flex w-full items-center gap-2.5 rounded-xl border-2 px-3 py-2.5 text-left transition-colors ${
                         isSlotSelected
                           ? "border-indigo-500 bg-indigo-50"
                           : "border-gray-100 hover:border-indigo-200"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-gray-900">
-                          {startS} – {endS}
+                      <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 text-[11px] font-bold ${
+                        isSlotSelected ? "border-indigo-500 bg-indigo-500 text-white" : "border-gray-200 text-transparent"
+                      }`}>✓</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-gray-900">{startS} – {endS}</span>
+                          <span className="text-[10px] text-gray-400">{hrs}h</span>
                         </span>
-                        <span className="text-[10px] text-gray-400">{hrs}h</span>
-                      </div>
-                      {price && (
-                        <div className="text-xs text-indigo-600 font-medium mt-0.5">
-                          {price} {props.currency}
-                        </div>
-                      )}
+                        {price && (
+                          <span className="mt-0.5 block text-xs font-medium text-indigo-600">{price} {props.currency}</span>
+                        )}
+                      </span>
                     </button>
                   );
                 }

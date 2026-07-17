@@ -5,6 +5,43 @@
 > **재개 시 읽는 순서**: 이 문서 → `CLAUDE.md`(구조/패턴) → `app/PROGRESS.md`(최근 완료분).
 > ⚠️ **문서 위치**: HANDOFF.md·IDEAS.md는 리포 **루트**, PROGRESS.md는 `app/`에 있음. (Wave 2 designer가 실수로 `app/HANDOFF.md`·`app/IDEAS.md`를 만들었으나 코디네이터가 루트로 병합 후 삭제함.)
 
+## 0. 최신 (2026-07-07) — 통합 인박스 + 안읽음 배지 + 가이드 코스 드래그 빌더
+
+**세션 순서로 완료 (전부 tsc·compileJava·브라우저 E2E 통과)**:
+1. **A2 통합 인박스** — `GET /api/inbox`(DM+예약채팅 한 목록). §6 참고, 상세 `app/PROGRESS.md`.
+2. **예약 채팅 안읽음 배지** — `Booking.traveler/guide_last_read_at`, `GET /api/inbox/unread-count`(DM+예약 합산), 사이드바 폴링.
+3. **가이드 코스 빌더 = 드래그 타임테이블** — 여행자 일정과 동일 UX. `components/TimetableBuilder.tsx`(신규 공유 컴포넌트, 트립+코스 공용, `mode`/`singleDay` prop). `/trips/[id]`·`/guide/courses` 둘 다 이걸 씀. 코스 추천은 팔레트 ✨탭으로 통합(정차지 드래그 + 폼채우기). `TourCourseWaypoint`에 시간표 필드(start_hour 등, 편집전용) additive. 상세 `app/PROGRESS.md` 최상단.
+4. **가이드 사이드바 정리** — 데스크탑 레일에서 지역둘러보기·여행일정 제거(가이드 무관).
+5. **UX 배치 ①** (4건): 채팅 장소버튼 라벨, 인박스 채팅별 안읽음 점(`InboxThreadResponse.unread`), 슬롯 다중선택 예약, 예약 거절 배지(`Booking.rejection_seen`, `GET /api/bookings/traveler/rejected-count`).
+6. **UX 배치 ②** (2건, 프론트만): **다중일 시간범위 예약**(수동 폼 날짜별 행 편집기, 행별 예약+부분실패 요약), **채팅 일정/코스 공유**(`PEERUP::PLAN::` 스냅샷 규약, `lib/placeCard.ts` 통합 `parseCard`/`cardPreview`, `SharePickerModal`+`PlanCard.tsx`, ChatRoom "+" 첨부시트, DM·예약채팅 양쪽). 상세 `app/PROGRESS.md` 최상단.
+
+**✅ T1/T2/T3 (만남장소/예약상세/위치공유) — 백엔드+프론트 완료, 브라우저 E2E 검증** (2026-07-07). 채팅 장소카드(Kakao 검색+내위치)·만남장소 지정(`Booking.meeting_place_*` PATCH)·예약 상세 페이지 `/bookings/[id]`. 장소카드는 프론트 인코딩 규약(`lib/placeCard.ts`, 백엔드 불투명). 상세 `app/PROGRESS.md` 최상단.
+
+---
+
+## 0. Wave 6 (2026-07-06, 드래그 타임테이블 일정 빌더) 요약 — 백엔드+프론트 완료, tsc·compileJava·**브라우저 드래그 E2E** 통과
+`/trips/[id]` 일정 빌더를 ▲▼ 리스트에서 **시간표(캘린더 데이) 드래그앤드롭**으로 전면 개편.
+- **개념**: 하루 = 세로축 1시간 단위 시간표(06:00~24:00). 장소·투어코스 모듈을 팔레트/미배치 트레이에서 **끌어다 시간 슬롯에 놓음**. 블록의 **깊이(소요시간)·넓이(레인 수)를 `+/−`로 조절**, 같은 시간대 여러 개는 옆 레인으로 나란히. 블록 탭 → 상세(장소=PlaceDetailModal, 코스=정차지 미리보기). 지도 동선은 **시간→레인 순서로 자동 정렬**해 폴리라인.
+- **새 npm 패키지 `@dnd-kit/core` + `@dnd-kit/utilities`** (사용자 승인받음) — 모바일 터치 드래그 지원. `package.json`에 추가됨.
+- **스키마(additive nullable, ddl 안전)**: `ItineraryItem`에 `start_hour`/`duration_hours`/`lane_index`/`lane_span`/`source_course_id` 5컬럼. `ItineraryItemRequest`·`Response`·`toItems`에 반영(기존 생성자 유지 → `autoAddTourItem` 무손상). 레거시/미배치 아이템은 `start_hour=null`.
+- **핵심 구현 교훈**: `DragOverlay`를 쓰면 원본 노드가 제자리에 남아 @dnd-kit 기본 collision detection(정적 노드 rect 기준)이 **엉뚱한 셀을 집는다**. 그래서 셀 droppable을 버리고 `onDragEnd`에서 **포인터 좌표(`activatorEvent.clientX/Y + delta`)를 그리드 rect에 매핑**해 hour/lane을 직접 계산. 이게 캘린더 그리드엔 가장 견고. `resolveLane()`으로 같은 시간대 충돌 시 빈 레인 자동 배정.
+- **코스 드롭 = 단일 🎫 블록**(정차지 미리보기, `source_course_id`로 A4 예약 CTA 연결 예정). 유료 코스 무단 복제 방지.
+- **검증**: `npx tsc --noEmit` 통과, `gradle compileJava` 통과, curl 라운드트립(5개 새 필드 저장·조회), **Playwright 브라우저 드래그 총 17개 체크 전부 통과** — (1차 6개) 시간표 렌더/수동추가→트레이칩/드래그 배치/놓은 시간행 정렬/+시간 리사이즈/저장·새로고침 유지, (2차 11개) Kakao 장소 드롭→블록+**지도 폴리라인 렌더**/같은 시간대 2개→**옆 레인 자동 배치(resolveLane)**/넓이+(span)/**투어코스 드롭→🎫 블록**/블록 탭→정차지 미리보기 모달/저장 후 좌표·sourceCourseId 영속. ⚠️ Playwright 팁: @dnd-kit 드래그는 **합성 PointerEvent가 delta를 못 실어 실패** → `page.mouse`(신뢰 이벤트)로 해야 함. 저장 검증은 원격 DB(Sydney) 지연 때문에 **PUT 후 2초는 기다려야** 재조회에 반영됨.
+- **미확인(다음 세션)**: 실제 모바일 터치 드래그 — advisor 지적대로 팔레트가 지도 아래(그리드에서 멀리)라 폰에서 팔레트→그리드 롱드래그 시 (a) UX 사용성, (b) auto-scroll이 포인터 좌표 매핑을 틀어뜨리는지 미검증. 데스크탑은 완전 동작. **레이아웃 개선(팔레트를 그리드 옆/위로, 또는 하단 sticky 드로어) 후보** — 사용자와 상의.
+- **후속 개선(같은 세션, 브라우저 7체크 통과)**: ① 헤더에 `− 칸 줄이기` 추가(빈 레인 있을 때만, `canRemoveLane`). ② 블록·팔레트를 **네모 박스→대표 아이콘 타일 UI**로: `categoryIcon(name,cat,isTour)` 헬퍼가 이름·카테고리 키워드(ko/en/zh)로 이모지 매핑(궁궐🏯·식당🍽️·카페☕·전망대🗼·시장🛍️·문화🎭 등). ③ 블록의 **아이콘 클릭→카카오맵**(`kakaoMapUrl`: placeId 있으면 `place.map.kakao.com/{id}`, 없으면 좌표/검색 링크; 코스는 미리보기). ④ 팔레트 장소·코스를 **flex-wrap 칩→아이콘 카드**로. ⑤ **워크벤치 레이아웃**: `DndContext` 안을 `lg:grid grid-cols-[minmax(0,1fr)_20rem]`로 좌(시간표+지도)·우(팔레트) **나란히 배치**, 우측 팔레트는 `lg:sticky top-4`(스크롤 따라옴)+세로 스크롤, 페이지 폭 `max-w-6xl`. 모바일(<lg)은 기존대로 세로 스택. 팔레트 카드 그리드는 좁은 사이드바 맞춰 `lg:grid-cols-1`. ⑥ 검증: tsc 통과 + Playwright 총 10체크 통과(아이콘카드/드래그/카카오맵 팝업 URL/레인 +−, **팔레트가 시간표 우측에 side-by-side**·옆 패널에서 드래그 배치). ⑦ **배치된 블록 탭→상세 모달에 카카오맵 링크**: `openDetail`이 `placeUrl: kakaoMapUrl(it)`를 채워 `PlaceDetailModal`의 "카카오맵에서 열기" 버튼이 뜨게 함(이전엔 placeUrl 없어서 버튼 안 떴음). ⑧ **팔레트 카드 ⓘ→큰 "상세 정보" 글자 버튼**(카드 하단 full-width, `li.detailsBtn`). 둘 다 Playwright 5체크 통과.
+- 테스트 오염(실 dev DB): itinerary 20·22~30 등 + 테스트 유저 여럿 (콘솔 정리 대상).
+
+## 0. Wave 5 (2026-07-06, B2 신고·차단 [안전]) 요약 — 백엔드+프론트 완료, tsc·compileJava 통과 + curl E2E 검증
+DM으로 낯선 사람과 1:1 대화가 열리는데 차단 수단이 없던 문제 해결(가장 시급 항목).
+- **신규 `safety/` 패키지** — `Block`(blocker→blocked, unique쌍) / `Report`(reporter, targetType[USER/CONVERSATION/POST/REVIEW], targetId, reason[SPAM/HARASSMENT/SCAM/INAPPROPRIATE/OTHER], detail, status=OPEN) 엔티티·리포지토리·`SafetyService`·`SafetyController`. 엔드포인트 4개(전부 authenticated): `POST /api/blocks`{targetUserId}, `DELETE /api/blocks/{targetUserId}`, `GET /api/blocks`, `POST /api/reports`. **차단·신고 둘 다 멱등**(중복=no-op 200), **자기차단 400** — unique 위반→500위장401 함정(§3-4) 회피.
+- **차단 enforcement는 서비스 계층 한 곳**(`ConversationService`)에 둠 — REST(`/api/conversations/{id}/messages`)와 WebSocket(`/app/conversations/{id}/send`) **둘 다 `send()`를 통과**하므로 WS 우회 없음(확인함). `getOrCreate`/`send` 차단 시 400, `myConversations`는 `BlockRepository.relatedUserIds()` 배치 1회로 상호 숨김, `unreadCount` 쿼리에도 `not exists Block` 서브쿼리 추가(유령 안읽음 배지 방지). `GuideController`의 `list`/`similar`(추천)는 로그인 뷰어 기준 차단 가이드 숨김(배치 1회), `detail`은 차단 시 400으로 상세 자체를 숨김(차단해제는 `/profile`에서 하므로 스트랜딩 없음).
+- **프론트** — `components/ReportBlockMenu.tsx`(신규, 케밥⋯ + 신고 모달) = DM방·가이드프로필 **공유**. **공용 `ChatRoom.tsx`엔 안 넣음**(예약 채팅과 공유되므로) → DM 래퍼 `messages/[id]/page.tsx` 헤더에만. 가이드 상세 헤더(로그인시)·`components/BlockedUsersSection.tsx`(신규, `/profile` 차단목록+해제). 차단 성공 시 DM→`/messages`, 가이드→`/guides` 이동.
+- **DTO 확장** — `ConversationResponse.otherUserId`, `GuideDetailResponse.guideUserId` 추가(프론트가 사람을 차단/신고하려면 상대 userId 필요). 둘 다 additive.
+- i18n: 신규 최상위 그룹 `safety.*`(23개 키) ko/en/zh.
+- **검증**: `npx tsc --noEmit` 통과, `gradle compileJava` 통과, 백엔드 재시작(ddl-auto가 blocks/reports 테이블 생성 확인) 후 curl E2E — 차단 멱등/자기차단400/신고dedup/유효성400/차단후 DM전송400(양방향)/인박스 상호숨김/unread=0/차단중 새DM400/가이드목록 숨김 전부 통과. 브라우저 UI는 미확인(다음 세션 권장).
+- **남은 판단(백로그)**: ① 커뮤니티 피드/댓글에서 차단 사용자 콘텐츠 숨김은 미적용(피드 N+1 우려로 이번 범위 제외). ② **예약 채팅(`MessageService.send`)은 차단 enforce 안 함** — DM(`ConversationService`)만 적용. 확정된 예약 파트너와의 채팅에는 차단 컨트롤을 안 두는 Wave-2 판단과 일관된 의도적 경계(예약 채팅에 차단 UI 없음). ③ 신고 관리자 검토 도구 없음(저장만).
+- **테스트 데이터 오염**(실 Supabase dev DB, 콘솔서 수동 정리): users 44~47, guide profile 17, conversation 3, blocks/reports 몇 건.
+
 ## 0. Wave 4 (2026-07-06, 인앱 장소 상세) 요약 — 새 백엔드 없음, 프론트만
 `/explore`·`/trips/[id]`에서 장소를 누르면 카카오맵으로 나가버리던 걸 앱 안에서 바로 상세를 보게 개선.
 - **`components/PlaceDetailModal.tsx`(신규)** — 이름/카테고리, 단일 핀 지도(`TripMap` 재사용), 주소(+복사 버튼), 전화(`tel:` 링크), 거리, 명소 매칭 시 "이 명소 자세히 보기"(`/spots/[slug]`) 주 버튼, "카카오맵에서 열기"는 하단 보조(ghost) 버튼으로 강등. Esc/backdrop 클릭 닫기, 열릴 때 닫기 버튼 포커스, 열려있는 동안 `document.body.style.overflow` 잠금.
@@ -167,12 +204,12 @@ npm run dev               # :3000
 ## 6. 다음 할 일 (우선순위) — 상세는 `IDEAS.md` "2차 아이디어"
 
 **②번 묶음 (다음 차례)**:
-- ✅ **비밀번호 재설정 + 이메일 인증 — 백엔드+프론트 완료** (위 §2-9 참고). 남은 건 다음 세션 시작 시
-  `cd app/frontend && npx tsc --noEmit` 재확인뿐(이번 프론트 작업 세션엔 셸 도구가 없어 직접 실행하지 못함).
-- **신고·차단** [안전] — DM이 생겨 더 시급. 1:1 대화 여는데 차단 수단 없음.
+- ✅ **비밀번호 재설정 + 이메일 인증 — 백엔드+프론트 완료** (위 §2-9 참고).
+- ✅ **신고·차단 [안전] — 백엔드+프론트 완료, curl E2E 검증** (Wave 5 참고). 브라우저 UI만 다음 세션 확인 권장.
 
 **이메일 없이 바로 가능한 것** (키 대기 중 병렬):
-- **A2 통합 인박스** — `/messages`에 DM만 있고 예약 채팅은 예약 목록에서만 진입. 한 곳에 합치기.
+- ✅ **A2 통합 인박스 — 백엔드+프론트 완료, tsc·compileJava·브라우저 E2E 검증** (2026-07-07). `GET /api/inbox`(`chat/InboxService`)가 DM+예약채팅을 한 목록으로. `/messages`가 dm→`/messages/{id}`·booking→`/chat/{bookingId}` 분기, 예약 스레드 🎫 배지. 상세는 `app/PROGRESS.md` 최상단.
+- ✅ **예약 채팅 안읽음 배지 — 완료** (2026-07-07). `Booking`에 traveler/guide_last_read_at 추가, `MessageService.history`가 방 열 때 읽음 처리, `GET /api/inbox/unread-count`가 DM+예약 합산, 사이드바 💬 배지가 이 통합 카운트를 폴링. 상세는 `app/PROGRESS.md`.
 - **A4 투어 코스 예약** — 코스가 등록/노출만 되고 **예약 버튼이 없음**. 결제 붙이기 전 마지막 준비물.
 - **A5 궁합 근거 표시**, **C3 게시물 permalink+공유**, **C4 환율 병기**, **C5 슬롯 KST 표기** — 각 반나절급.
 

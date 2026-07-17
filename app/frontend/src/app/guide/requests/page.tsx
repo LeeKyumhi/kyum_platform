@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
+import { STATUS_CLS, STATUS_ICON } from "@/lib/bookingStatus";
 import { CalendarIcon, ChatIcon } from "@/components/icons";
-
-const STATUS_ICON: Record<string, string> = {
-  REQUESTED: "⏳", ACCEPTED: "✅", REJECTED: "❌", CANCELLED: "🚫", COMPLETED: "🏁",
-};
-const STATUS_CLS: Record<string, string> = {
-  REQUESTED: "badge-amber", ACCEPTED: "badge-emerald", REJECTED: "badge-red",
-  CANCELLED: "badge-gray",  COMPLETED: "badge-indigo",
-};
 
 type Booking = {
   id: number; travelerName: string;
@@ -25,7 +19,7 @@ export default function GuideRequestsPage() {
   const router = useRouter();
   const { t, lang } = useLanguage();
   const l = t.guideRequests;
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [error, setError]       = useState("");
@@ -138,6 +132,7 @@ export default function GuideRequestsPage() {
                   {(b.status === "REQUESTED" || b.status === "ACCEPTED") && (
                     <Link href={`/chat/${b.id}`} className="btn-secondary px-4 py-2 text-sm">{l.chat}</Link>
                   )}
+                  <Link href={`/bookings/${b.id}`} className="btn-ghost px-4 py-2 text-sm">{t.bookingDetail.detailBtn}</Link>
                 </div>
               </div>
             );

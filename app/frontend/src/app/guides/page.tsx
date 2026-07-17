@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 import CitySelect from "@/components/CitySelect";
+import { SERVICE_CATEGORIES, type ServiceCategoryKey } from "@/lib/serviceCategories";
 import PostCard, { type FeedPost } from "@/components/PostCard";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
@@ -53,6 +55,7 @@ export default function GuidesPage() {
   const [guidesError, setGuidesError]     = useState("");
   const [sortKey, setSortKey]     = useState<SortKey>("default");
   const [langFilter, setLangFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");  // "" = 전체, 아니면 ServiceCategory 키
 
   // Posts tab state
   const [posts, setPosts]         = useState<FeedPost[]>([]);
@@ -66,12 +69,13 @@ export default function GuidesPage() {
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesLoaded, setCoursesLoaded]   = useState(false);
 
-  async function loadGuides(cityFilter = "", range: { from: string; to: string } | null = null) {
+  async function loadGuides(cityFilter = "", range: { from: string; to: string } | null = null, cat = "") {
     setGuidesLoading(true); setGuidesError("");
     try {
       const q = new URLSearchParams();
       if (cityFilter) q.set("city", cityFilter);
       if (range) { q.set("availableFrom", range.from); q.set("availableTo", range.to); }
+      if (cat) q.set("category", cat);
       q.set("lang", lang);
       // auth를 붙여야 내 관심사·MBTI 기준 궁합 점수(matchScore)가 내려온다
       setGuides(await api<Guide[]>(`/api/guides?${q.toString()}`, { auth: true }));
@@ -119,15 +123,20 @@ export default function GuidesPage() {
     if (k === "courses") loadCourses();
   }
 
-  function onCityChange(key: string) { setCity(key); loadGuides(key, dateRange); }
-  function clearSearch() { setCity(""); loadGuides("", dateRange); }
-  function clearDateRange() { setDateRange(null); loadGuides(city, null); }
+  function onCityChange(key: string) { setCity(key); loadGuides(key, dateRange, categoryFilter); }
+  function clearSearch() { setCity(""); loadGuides("", dateRange, categoryFilter); }
+  function clearDateRange() { setDateRange(null); loadGuides(city, null, categoryFilter); }
+  function onCategoryChange(cat: string) {
+    const next = cat === categoryFilter ? "" : cat;   // 같은 칩 다시 누르면 해제
+    setCategoryFilter(next);
+    loadGuides(city, dateRange, next);
+  }
 
   function handleLikeChange(postId: number, liked: boolean, likeCount: number) {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: liked, likeCount } : p));
   }
 
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   // 로드된 가이드에서 사용 언어 목록 도출 (하드코딩 X).
   // 자유 입력 값이라 "English"/"english" 같은 대소문자 중복은 하나로 합친다 (첫 등장 표기 사용).
@@ -237,6 +246,26 @@ export default function GuidesPage() {
                   )}
                 </div>
               )}
+            </div>
+
+            {/* 서비스 카테고리 필터 (관광/비관광 분리) */}
+            <div className="shelf -mx-4 mb-1 px-4 !pb-3">
+              <button
+                onClick={() => onCategoryChange("")}
+                className={categoryFilter === "" ? "chip-active" : "chip"}
+              >
+                {l.langAll}
+              </button>
+              {SERVICE_CATEGORIES.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => onCategoryChange(c.key)}
+                  className={categoryFilter === c.key ? "chip-active" : "chip"}
+                >
+                  {c.requiresLicense && "🎫 "}
+                  {t.serviceCategories[c.key as ServiceCategoryKey]}
+                </button>
+              ))}
             </div>
 
             {/* Sort chips */}

@@ -129,9 +129,16 @@ public class ItineraryService {
 
     private List<ItineraryItem> toItems(List<ItineraryItemRequest> reqs) {
         if (reqs == null) return List.of();
-        return reqs.stream().map(r -> new ItineraryItem(
-                r.dayIndex(), r.sortOrder(), r.placeId(), r.placeName(),
-                r.category(), r.address(), r.latitude(), r.longitude(), r.memo()
-        )).toList();
+        return reqs.stream().map(r -> {
+            ItineraryItem item = new ItineraryItem(
+                    r.dayIndex(), r.sortOrder(), r.placeId(), r.placeName(),
+                    r.category(), r.address(), r.latitude(), r.longitude(), r.memo());
+            item.setStartHour(r.startHour());
+            item.setDurationHours(r.durationHours());
+            item.setLaneIndex(r.laneIndex());
+            item.setLaneSpan(r.laneSpan());
+            item.setSourceCourseId(r.sourceCourseId());
+            return item;
+        }).toList();
     }
 }

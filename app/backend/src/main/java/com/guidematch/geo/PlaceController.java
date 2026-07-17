@@ -115,6 +115,23 @@ public class PlaceController {
         return new PlacesResponse(null, null, category, kakaoClient.isEnabled(), result);
     }
 
+    /**
+     * 자유 키워드 장소 검색 (만남 장소 지정용, T1). 위치 바이어스 없이 전국 정확도순.
+     * SecurityConfig permitAll에 없어 인증 필요(채팅 사용자는 항상 로그인) — 프론트에서 auth 헤더 전달.
+     */
+    @GetMapping("/api/places/search")
+    public PlacesResponse search(
+            @RequestParam String query,
+            @RequestParam(defaultValue = "ko") String lang
+    ) {
+        if (query == null || query.isBlank()) {
+            return new PlacesResponse(null, null, null, kakaoClient.isEnabled(), List.of());
+        }
+        List<Place> places = kakaoClient.searchByKeyword(query.trim());
+        List<Place> result = translateIfNeeded(places, lang);
+        return new PlacesResponse(null, null, null, kakaoClient.isEnabled(), result);
+    }
+
     /** lang != "ko" 면 장소명/카테고리 번역 (캐시 우선, 원문 폴백). ko거나 결과가 없으면 그대로 반환. */
     private List<Place> translateIfNeeded(List<Place> places, String lang) {
         String googleLang = GoogleTranslateClient.toGoogleLang(lang);

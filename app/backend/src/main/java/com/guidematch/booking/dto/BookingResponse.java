@@ -13,6 +13,8 @@ public record BookingResponse(
         Long guideProfileId,
         String guideName,
         String guideHeadline,
+        /** 가이드 프로필 사진 — 예약 상세에서 여행자가 "예약한 그 사람인지" 대조(계정 대여 탐지). */
+        String guideAvatarUrl,
         Long travelerId,
         String travelerName,
         Instant startAt,
@@ -22,14 +24,26 @@ public record BookingResponse(
         String currency,
         BookingStatus status,
         String message,
-        Instant createdAt
+        /** 예약한 서비스 카테고리 (ServiceCategory 키). 기존 예약은 null. */
+        String serviceCategory,
+        Instant createdAt,
+        MeetingPlace meetingPlace
 ) {
-    public static BookingResponse of(Booking b, String guideName, String guideHeadline, String travelerName) {
+    /** 만남 장소 (T1). 미지정이면 null. */
+    public record MeetingPlace(String name, String address, Double lat, Double lng, String url) {}
+
+    public static BookingResponse of(Booking b, String guideName, String guideHeadline,
+                                     String guideAvatarUrl, String travelerName) {
+        MeetingPlace mp = b.getMeetingPlaceLat() != null && b.getMeetingPlaceLng() != null
+                ? new MeetingPlace(b.getMeetingPlaceName(), b.getMeetingPlaceAddress(),
+                        b.getMeetingPlaceLat(), b.getMeetingPlaceLng(), b.getMeetingPlaceUrl())
+                : null;
         return new BookingResponse(
                 b.getId(),
                 b.getGuideProfileId(),
                 guideName,
                 guideHeadline,
+                guideAvatarUrl,
                 b.getTravelerId(),
                 travelerName,
                 b.getStartAt(),
@@ -39,7 +53,9 @@ public record BookingResponse(
                 b.getCurrency(),
                 b.getStatus(),
                 b.getMessage(),
-                b.getCreatedAt()
+                b.getServiceCategory() != null ? b.getServiceCategory().name() : null,
+                b.getCreatedAt(),
+                mp
         );
     }
 }

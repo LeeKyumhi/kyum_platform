@@ -9,6 +9,7 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { getMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 import { CameraIcon } from "@/components/icons";
 import PostComposeModal from "@/components/PostComposeModal";
 
@@ -18,7 +19,7 @@ export default function MyPostsPage() {
   const router = useRouter();
   const { t, lang } = useLanguage();
   const lp = t.guidePosts;
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   const [posts, setPosts] = useState<MyPost[]>([]);
   const [loading, setLoading] = useState(true);

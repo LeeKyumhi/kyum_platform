@@ -88,6 +88,18 @@ public class GuideProfileController {
 
     record PersonalityRequest(String mbti, List<String> interests) {}
 
+    /** 제공 서비스 카테고리 업데이트. 관광 카테고리는 인증(VERIFIED) 가이드만 담을 수 있다(서비스단 검증). */
+    @PatchMapping("/me/service-categories")
+    public GuideProfileResponse updateServiceCategories(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody ServiceCategoriesRequest request
+    ) {
+        GuideProfile profile = guideProfileService.updateServiceCategories(userId, request.serviceCategories());
+        return GuideProfileResponse.from(profile);
+    }
+
+    record ServiceCategoriesRequest(List<String> serviceCategories) {}
+
     /** 활동 위치(도시 + 좌표) 업데이트 */
     @PatchMapping("/me/location")
     public GuideProfileResponse updateLocation(

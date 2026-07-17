@@ -23,3 +23,10 @@ app/frontend/node_modules/
 
 # Logs
 *.log
+
+# Eclipse/IDE build output
+app/backend/bin/
+
+# Scratch files that landed in the tree by accident
+app/SCR-*.png
+app/iTerm2-Color-Schemes/

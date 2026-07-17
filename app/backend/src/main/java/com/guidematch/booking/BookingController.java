@@ -2,6 +2,7 @@ package com.guidematch.booking;
 
 import com.guidematch.booking.dto.BookingResponse;
 import com.guidematch.booking.dto.CreateBookingRequest;
+import com.guidematch.booking.dto.SetMeetingPlaceRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,6 +56,28 @@ public class BookingController {
     @GetMapping("/guide/pending-count")
     public java.util.Map<String, Long> pendingCount(@AuthenticationPrincipal Long userId) {
         return java.util.Map.of("count", bookingService.pendingCountForGuide(userId));
+    }
+
+    /** 여행자: 미확인 거절 예약 수 (사이드바 배지, #4). 목록을 열면 클리어된다. */
+    @GetMapping("/traveler/rejected-count")
+    public java.util.Map<String, Long> rejectedCount(@AuthenticationPrincipal Long userId) {
+        return java.util.Map.of("count", bookingService.rejectedUnseenCount(userId));
+    }
+
+    /** 예약 상세 (T2) — 참여자만. literal /traveler·/guide가 우선 매칭되므로 충돌 없음. */
+    @GetMapping("/{id}")
+    public BookingResponse detail(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+        return bookingService.getDetail(userId, id);
+    }
+
+    /** 만남 장소 지정/변경 (T1) — 참여자(여행자/가이드) 누구나. */
+    @PatchMapping("/{id}/meeting-place")
+    public BookingResponse setMeetingPlace(
+            @AuthenticationPrincipal Long userId,
+            @PathVariable Long id,
+            @Valid @RequestBody SetMeetingPlaceRequest request
+    ) {
+        return bookingService.setMeetingPlace(userId, id, request);
     }
 
     /** 가이드: 수락 */

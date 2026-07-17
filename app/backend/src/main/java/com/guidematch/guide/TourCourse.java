@@ -3,6 +3,8 @@ package com.guidematch.guide;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -43,6 +45,14 @@ public class TourCourse {
     /** 코스가 진행되는 도시 (KoreanCity key 기준) */
     @Column
     private String city;
+
+    /**
+     * 서비스 카테고리 (ServiceCategory 키). 관광(requiresGuideLicense) 카테고리 코스는 VERIFIED 가이드만 생성 가능.
+     * 기존 코스는 null(미분류) — 공개 탐색에서 숨기고 소유자에게 재분류를 안내한다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "service_category")
+    private ServiceCategory serviceCategory;
 
     /** 소요 시간 (시간 단위) */
     @Column(name = "duration_hours", nullable = false)
@@ -88,7 +98,7 @@ public class TourCourse {
 
     public TourCourse(Long guideProfileId, String title, String description, String city,
                       Integer durationHours, Integer price, String currency,
-                      Integer maxPeople, String imageUrl) {
+                      Integer maxPeople, String imageUrl, ServiceCategory serviceCategory) {
         this.guideProfileId = guideProfileId;
         this.title = title;
         this.description = description;
@@ -98,11 +108,12 @@ public class TourCourse {
         this.currency = currency;
         this.maxPeople = maxPeople;
         this.imageUrl = imageUrl;
+        this.serviceCategory = serviceCategory;
     }
 
-    /** 제목/설명/도시/시간/가격/인원/이미지 갱신 (currency는 최초 등록 시 스냅샷된 값 유지). */
+    /** 제목/설명/도시/시간/가격/인원/이미지/카테고리 갱신 (currency는 최초 등록 시 스냅샷된 값 유지). */
     public void updateMeta(String title, String description, String city, Integer durationHours,
-                           Integer price, Integer maxPeople, String imageUrl) {
+                           Integer price, Integer maxPeople, String imageUrl, ServiceCategory serviceCategory) {
         this.title = title;
         this.description = description;
         this.city = city;
@@ -110,6 +121,7 @@ public class TourCourse {
         this.price = price;
         this.maxPeople = maxPeople;
         this.imageUrl = imageUrl;
+        this.serviceCategory = serviceCategory;
     }
 
     /**
@@ -132,6 +144,7 @@ public class TourCourse {
     public String getCurrency() { return currency; }
     public Integer getMaxPeople() { return maxPeople; }
     public String getImageUrl() { return imageUrl; }
+    public ServiceCategory getServiceCategory() { return serviceCategory; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }

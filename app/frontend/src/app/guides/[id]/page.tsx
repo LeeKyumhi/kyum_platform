@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import { localeOf } from "@/lib/i18n";
 import SlotCalendar from "@/components/SlotCalendar";
 import TripMap from "@/components/TripMap";
+import ReportBlockMenu from "@/components/ReportBlockMenu";
 import {
   StarIcon, PinIcon, HeartIcon, ChatIcon, CheckBadgeIcon,
   CalendarIcon, ChevronLeftIcon,
@@ -15,11 +17,11 @@ import {
 type Language   = { language: string; level: string };
 type Credential = { id: number; type: string; title: string; fileUrl: string };
 type GuideDetail = {
-  id: number; guideName: string; headline: string; introduction: string | null;
+  id: number; guideUserId: number; guideName: string; headline: string; introduction: string | null;
   hourlyRate: number; currency: string; region: string; avatarUrl: string | null;
   avgRating: number; reviewCount: number; followerCount: number; isFollowing: boolean;
   mbti: string | null; interests: string[]; gender: string | null; instantBooking: boolean;
-  languages: Language[]; credentials: Credential[];
+  languages: Language[]; credentials: Credential[]; verificationStatus: string; serviceCategories: string[];
 };
 type Review   = { id: number; reviewerName: string; rating: number; comment: string | null; tags: string[]; createdAt: string };
 type ReviewStats = {
@@ -80,7 +82,7 @@ function PostCard({
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
+  const locale = localeOf(lang);
 
   // 게시글 번역: 이 카드는 한 게시글만 다루므로 단일 상태로 캐시
   const [translation, setTranslation] = useState<string | null>(null);
@@ -256,6 +258,9 @@ export default function GuideDetailPage() {
   const [error, setError]     = useState("");
   const [followLoading, setFollowLoading] = useState(false);
   const [dmLoading, setDmLoading] = useState(false);
+  // 로그인 여부 — 하이드레이션 불일치 방지를 위해 마운트 후에만 설정
+  const [loggedIn, setLoggedIn] = useState(false);
+  useEffect(() => { setLoggedIn(!!getToken()); }, []);
 
   // 리뷰 번역: reviewId → 번역문 / 표시 여부 캐시
   const [reviewTranslations, setReviewTranslations] = useState<Record<number, string>>({});
@@ -279,19 +284,25 @@ export default function GuideDetailPage() {
     }
   }
 
-  const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
+  const [selectedSlots, setSelectedSlots] = useState<AvailableSlot[]>([]); // 다중 선택(#3)
   const [useManual, setUseManual]       = useState(false);
 
   const [showForm, setShowForm]       = useState(false);
-  const [startAt, setStartAt]         = useState("");
-  const [hours, setHours]             = useState("2");
+  // 직접 입력 다중일 예약(#1): 각 행 = 하루의 날짜 + 시작~종료 시간
+  const [dayRows, setDayRows] = useState<{ date: string; from: string; to: string }[]>([{ date: "", from: "10:00", to: "12:00" }]);
   const [bookingMsg, setBookingMsg]   = useState("");
+  const [bookingCategory, setBookingCategory] = useState("");
   const [bookingError, setBookingError] = useState("");
   const [submitting, setSubmitting]   = useState(false);
-  const [bookingResult, setBookingResult] = useState<"REQUESTED" | "ACCEPTED" | null>(null);
+  // 예약 결과 요약(#3): 성공 건수 / 즉시확정 건수 / 실패 건수
+  const [bookingSummary, setBookingSummary] = useState<{ sent: number; accepted: number; failed: number } | null>(null);
 
   useEffect(() => {
-    api<GuideDetail>(`/api/guides/${id}`).then(setGuide).catch((e) => setError(e.message));
+    api<GuideDetail>(`/api/guides/${id}`).then((g) => {
+      setGuide(g);
+      // 제공 서비스가 하나뿐이면 자동 선택(마찰 감소), 여러 개면 여행자가 고른다.
+      if (g.serviceCategories?.length === 1) setBookingCategory(g.serviceCategories[0]);
+    }).catch((e) => setError(e.message));
     api<Review[]>(`/api/guides/${id}/reviews`).then(setReviews).catch(() => {});
     api<ReviewStats>(`/api/guides/${id}/review-stats`).then(setReviewStats).catch(() => {});
     api<GuidePost[]>(`/api/guides/${id}/posts`).then(setPosts).catch(() => {});
@@ -331,52 +342,75 @@ export default function GuideDetailPage() {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: liked, likeCount } : p));
   }
 
-  function onSlotSelect(slot: AvailableSlot) {
-    setSelectedSlot(slot);
-    // Pre-fill booking form
-    const start = new Date(slot.startAt);
-    const end   = new Date(slot.endAt);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    const fmt = (d: Date) =>
-      `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    setStartAt(fmt(start));
-    const durationHours = Math.round((end.getTime() - start.getTime()) / 3600000);
-    setHours(String(durationHours || 1));
-    setShowForm(true);
+  const slotHours = (s: AvailableSlot) =>
+    Math.max(1, Math.round((new Date(s.endAt).getTime() - new Date(s.startAt).getTime()) / 3600000));
+
+  function toggleSlot(slot: AvailableSlot) {
+    setSelectedSlots((prev) =>
+      prev.some((x) => x.id === slot.id) ? prev.filter((x) => x.id !== slot.id) : [...prev, slot]);
   }
 
-  function onBookClick() {
-    if (!getToken()) { router.push("/login"); return; }
-    if (slots.length > 0 && !useManual) {
-      // Show slot picker (handled by panel render)
-      setShowForm(false);
-    } else {
-      setShowForm(true);
+  /**
+   * 날짜별 예약 요청을 순차 생성 후 요약 보고 — 슬롯 다중선택·직접입력 다일 폼 공용.
+   * 하나 실패(시간겹침 등)해도 나머지는 진행. 즉시예약 가이드의 겹침 이중확정을 막기 위해
+   * 의도적으로 순차 실행한다 (병렬이면 겹침 검사가 서로를 못 본다).
+   */
+  async function postBookings(entries: { startAt: string; hours: number }[]) {
+    if (!bookingCategory) { setBookingError(t.serviceCategories.pickPrompt); return; }
+    setSubmitting(true); setBookingError("");
+    let sent = 0, accepted = 0, failed = 0;
+    for (const e of entries) {
+      try {
+        const res = await api<{ status: string }>("/api/bookings", {
+          method: "POST", auth: true,
+          body: { guideId: Number(id), startAt: e.startAt, hours: e.hours, serviceCategory: bookingCategory, message: bookingMsg },
+        });
+        if (res.status === "ACCEPTED") accepted++; else sent++;
+      } catch { failed++; }
     }
+    setBookingSummary({ sent, accepted, failed });
+    setSubmitting(false);
   }
 
-  async function onBookingSubmit(e: React.FormEvent) {
+  // 선택한 슬롯들을 날짜별 예약으로 각각 생성(#3).
+  async function confirmSlots() {
+    if (!getToken()) { router.push("/login"); return; }
+    if (selectedSlots.length === 0) return;
+    await postBookings(selectedSlots.map((s) => ({
+      startAt: new Date(s.startAt).toISOString(), hours: slotHours(s),
+    })));
+  }
+
+  // 시간 입력은 시간 단위(step=3600)로 제약 → 정수 시간 보장
+  function rowHours(r: { from: string; to: string }): number {
+    const [fh, fm] = r.from.split(":").map(Number);
+    const [th, tm] = r.to.split(":").map(Number);
+    return Math.round((th * 60 + tm - (fh * 60 + fm)) / 60);
+  }
+  function addDayRow() {
+    setDayRows((rows) => [...rows, { date: "", from: "10:00", to: "12:00" }]);
+  }
+  function removeDayRow(i: number) {
+    setDayRows((rows) => (rows.length <= 1 ? rows : rows.filter((_, idx) => idx !== i)));
+  }
+  function updateRow(i: number, patch: Partial<{ date: string; from: string; to: string }>) {
+    setDayRows((rows) => rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+  }
+
+  // 직접 입력한 날짜별 행을 각각 예약으로 생성. 부분 실패 요약(#1, #3과 동일).
+  async function submitManualDays(e: React.FormEvent) {
     e.preventDefault();
     setBookingError("");
-    if (!startAt || new Date(startAt).getTime() <= Date.now()) {
-      setBookingError(l.futureDateError);
-      return;
+    const rows = dayRows.filter((r) => r.date && r.from && r.to);
+    if (rows.length === 0) { setBookingError(l.futureDateError); return; }
+    for (const r of rows) {
+      const start = new Date(`${r.date}T${r.from}`);
+      if (isNaN(start.getTime()) || start.getTime() <= Date.now()) { setBookingError(l.futureDateError); return; }
+      if (rowHours(r) < 1) { setBookingError(l.hoursError); return; }
     }
-    const hoursNum = Number(hours);
-    if (!Number.isInteger(hoursNum) || hoursNum <= 0) {
-      setBookingError(l.hoursError);
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const res = await api<{ status: string }>("/api/bookings", {
-        method: "POST", auth: true,
-        body: { guideId: Number(id), startAt: new Date(startAt).toISOString(), hours: hoursNum, message: bookingMsg },
-      });
-      setBookingResult(res.status === "ACCEPTED" ? "ACCEPTED" : "REQUESTED");
-    } catch (err) {
-      setBookingError(err instanceof Error ? err.message : t.common.error);
-    } finally { setSubmitting(false); }
+    await postBookings(rows.map((r) => ({
+      startAt: new Date(`${r.date}T${r.from}`).toISOString(), hours: rowHours(r),
+    })));
   }
 
   if (error) return (
@@ -393,9 +427,25 @@ export default function GuideDetailPage() {
     </main>
   );
 
-  const totalPrice = guide.hourlyRate * (Number(hours) || 0);
-  const locale = lang === "ko" ? "ko-KR" : lang === "zh" ? "zh-CN" : "en-US";
-  const isVerified = guide.credentials.length > 0;
+  const totalManualPrice = dayRows.reduce((sum, r) => sum + guide!.hourlyRate * Math.max(0, rowHours(r)), 0);
+  const totalSelectedPrice = selectedSlots.reduce((sum, s) => sum + guide!.hourlyRate * slotHours(s), 0);
+  const locale = localeOf(lang);
+  // 관광통역안내사 자격 인증 배지는 관리자 승인(VERIFIED)일 때만. 파일 업로드만으로는 인증되지 않는다.
+  const isVerified = guide.verificationStatus === "VERIFIED";
+
+  // 예약할 서비스 선택 (관광/비관광). 가이드가 제공하는 서비스 중에서만 고른다 — 두 예약 플로우 공용.
+  const svcLabels = t.serviceCategories as Record<string, string>;
+  const bookingCategorySelect = guide.serviceCategories.length > 0 ? (
+    <div>
+      <label className="input-label">{t.serviceCategories.pickPrompt}</label>
+      <select value={bookingCategory} onChange={(e) => setBookingCategory(e.target.value)} className="input">
+        <option value="">—</option>
+        {guide.serviceCategories.map((k) => (
+          <option key={k} value={k}>{svcLabels[k] ?? k}</option>
+        ))}
+      </select>
+    </div>
+  ) : null;
 
   return (
     <main className="page px-4">
@@ -447,6 +497,12 @@ export default function GuideDetailPage() {
                     >
                       {guide.isFollowing ? t.personality.unfollowBtn : t.personality.followBtn}
                     </button>
+                    {loggedIn && (
+                      <ReportBlockMenu
+                        targetUserId={guide.guideUserId}
+                        onBlocked={() => router.push("/guides")}
+                      />
+                    )}
                   </div>
                 </div>
 
@@ -782,20 +838,25 @@ export default function GuideDetailPage() {
                 </div>
 
                 {/* Booking confirmation panel — replaces slot picker / form after submit */}
-                {bookingResult ? (
+                {bookingSummary ? (
                   <div className="p-5 text-center">
                     <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-md ${
-                      bookingResult === "ACCEPTED" ? "bg-gradient-to-br from-amber-400 to-orange-400" : "bg-gradient-to-br from-sky-400 to-cyan-400"
+                      bookingSummary.accepted > 0 ? "bg-gradient-to-br from-amber-400 to-orange-400" : "bg-gradient-to-br from-sky-400 to-cyan-400"
                     }`}>
-                      {bookingResult === "ACCEPTED" ? "⚡" : "📩"}
+                      {bookingSummary.accepted > 0 ? "⚡" : "📩"}
                     </div>
                     <p className="mb-1 font-bold text-stone-900">
-                      {bookingResult === "ACCEPTED" ? l.instantConfirmedTitle : l.requestedTitle}
+                      {bookingSummary.accepted > 0 && bookingSummary.sent === 0 ? l.instantConfirmedTitle : l.requestedTitle}
                     </p>
-                    <p className="mb-5 text-sm text-stone-500">
-                      {bookingResult === "ACCEPTED" ? l.instantConfirmedDesc : l.requestedDesc}
+                    <p className="mb-1 text-sm text-stone-500">
+                      {l.bookingSentSummary.replace("{n}", String(bookingSummary.sent + bookingSummary.accepted))}
                     </p>
-                    <Link href="/traveler/bookings" className="btn-primary block w-full py-3">
+                    {bookingSummary.failed > 0 && (
+                      <p className="mb-4 text-sm font-medium text-red-500">
+                        {l.bookingFailSummary.replace("{n}", String(bookingSummary.failed))}
+                      </p>
+                    )}
+                    <Link href="/traveler/bookings" className="btn-primary mt-3 block w-full py-3">
                       {l.viewBookingsBtn}
                     </Link>
                   </div>
@@ -821,27 +882,44 @@ export default function GuideDetailPage() {
                         </h3>
                         <p className="mb-3 text-xs text-stone-400">{t.availability.hint}</p>
 
+                        {bookingCategorySelect && <div className="mb-3">{bookingCategorySelect}</div>}
+
                         <SlotCalendar
                           mode="traveler"
                           slots={slots}
-                          selectedSlot={selectedSlot}
-                          onSlotSelect={(s) => setSelectedSlot(s)}
+                          selectedSlots={selectedSlots}
+                          onToggleSlot={toggleSlot}
                           hourlyRate={guide.hourlyRate}
                           currency={guide.currency}
                         />
 
-                        {selectedSlot && (
-                          <button
-                            onClick={() => { if (!getToken()) { router.push("/login"); return; } onSlotSelect(selectedSlot); }}
-                            className="btn-primary mt-3 mb-2 w-full py-3"
-                          >
-                            {t.availability.slotBtn}
-                          </button>
+                        {selectedSlots.length > 0 && (
+                          <div className="mt-3 rounded-2xl border border-sky-100 bg-sky-50/70 p-3">
+                            <div className="mb-1 flex items-center justify-between">
+                              <span className="text-xs font-bold text-sky-700">
+                                {l.selectedCount.replace("{n}", String(selectedSlots.length))}
+                              </span>
+                              <span className="text-sm font-extrabold text-stone-900">
+                                {totalSelectedPrice.toLocaleString()} {guide.currency}
+                              </span>
+                            </div>
+                            <textarea
+                              value={bookingMsg} onChange={(e) => setBookingMsg(e.target.value)}
+                              placeholder={l.messagePlaceholder} rows={2}
+                              className="input mt-1 resize-none text-sm"
+                            />
+                            <button
+                              onClick={confirmSlots} disabled={submitting}
+                              className="btn-primary mt-2 w-full py-3 disabled:opacity-60"
+                            >
+                              {submitting ? l.sending : l.confirmBookBtn.replace("{n}", String(selectedSlots.length))}
+                            </button>
+                          </div>
                         )}
 
                         <button
                           onClick={() => { if (!getToken()) { router.push("/login"); return; } setUseManual(true); setShowForm(true); }}
-                          className="mt-1 w-full py-1 text-xs text-stone-400 transition-colors hover:text-sky-500"
+                          className="mt-2 w-full py-1 text-xs text-stone-400 transition-colors hover:text-sky-500"
                         >
                           {t.availability.orManual} →
                         </button>
@@ -850,42 +928,47 @@ export default function GuideDetailPage() {
                   </div>
                 ) : (
                   /* Booking form */
-                  <form onSubmit={onBookingSubmit} className="flex flex-col gap-4 p-5">
+                  <form onSubmit={submitManualDays} className="flex flex-col gap-4 p-5">
                     <div className="flex items-center justify-between">
                       <h2 className="font-bold text-stone-900">{l.bookTitle}</h2>
-                      <button type="button" onClick={() => { setShowForm(false); setUseManual(false); setSelectedSlot(null); }}
+                      <button type="button" onClick={() => { setShowForm(false); setUseManual(false); }}
                         className="flex h-8 w-8 items-center justify-center rounded-full text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600">✕</button>
                     </div>
 
-                    {/* Selected slot badge */}
-                    {selectedSlot && (
-                      <div className="flex items-center gap-2.5 rounded-xl border border-sky-100 bg-sky-50 px-4 py-2.5">
-                        <CalendarIcon className="h-5 w-5 flex-shrink-0 text-sky-400" />
-                        <div>
-                          <p className="text-xs font-bold text-sky-700">
-                            {new Date(selectedSlot.startAt).toLocaleDateString(locale, { month: "short", day: "numeric", weekday: "short" })}
-                            {" · "}
-                            {new Date(selectedSlot.startAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                            {" – "}
-                            {new Date(selectedSlot.endAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                          <p className="text-xs text-sky-400">{t.availability.sectionTitle}</p>
+                    {/* 날짜별 시간 행 (일수 추가) */}
+                    <div className="flex flex-col gap-2">
+                      <label className="input-label">{l.daysLabel}</label>
+                      {dayRows.map((r, i) => (
+                        <div key={i} className="flex items-end gap-1.5 rounded-xl border border-stone-100 bg-stone-50/60 p-2">
+                          <span className="pb-2 text-xs font-bold text-sky-500">{l.dayNo.replace("{n}", String(i + 1))}</span>
+                          <div className="min-w-0 flex-1">
+                            <input type="date" value={r.date} min={new Date().toISOString().slice(0, 10)}
+                              onChange={(e) => updateRow(i, { date: e.target.value })} required className="input py-1.5 text-xs" />
+                            <div className="mt-1 flex items-center gap-1">
+                              <input type="time" step={3600} value={r.from} onChange={(e) => updateRow(i, { from: e.target.value })}
+                                required className="input py-1.5 text-xs" />
+                              <span className="text-xs text-stone-400">–</span>
+                              <input type="time" step={3600} value={r.to} onChange={(e) => updateRow(i, { to: e.target.value })}
+                                required className="input py-1.5 text-xs" />
+                            </div>
+                          </div>
+                          {dayRows.length > 1 && (
+                            <button type="button" onClick={() => removeDayRow(i)} aria-label={l.removeDay}
+                              className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-stone-300 hover:bg-red-50 hover:text-red-500">✕</button>
+                          )}
                         </div>
-                      </div>
-                    )}
+                      ))}
+                      <button type="button" onClick={addDayRow}
+                        className="w-full rounded-xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-400 transition-colors hover:border-sky-300 hover:text-sky-500">
+                        + {l.addDayBtn}
+                      </button>
+                    </div>
 
-                    <div>
-                      <label className="input-label">{l.startAt}</label>
-                      <input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required className="input" />
-                    </div>
-                    <div>
-                      <label className="input-label">{l.hours}</label>
-                      <input type="number" min={1} value={hours} onChange={(e) => setHours(e.target.value)} required className="input" />
-                    </div>
                     <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
                       <span className="text-sm text-stone-600">{l.estPrice}</span>
-                      <span className="font-extrabold text-stone-900">{totalPrice.toLocaleString()} {guide.currency}</span>
+                      <span className="font-extrabold text-stone-900">{totalManualPrice.toLocaleString()} {guide.currency}</span>
                     </div>
+                    {bookingCategorySelect}
                     <div>
                       <label className="input-label">
                         {l.message} <span className="text-stone-400 normal-case font-normal">{l.messageOpt}</span>

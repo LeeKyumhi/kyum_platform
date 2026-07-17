@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { api, getToken, clearToken, getUserName } from "@/lib/api";
+import { getToken, clearToken, getUserName } from "@/lib/api";
 import { getMode, clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
+import { usePolledCount } from "@/lib/usePolledCount";
 import type { Lang } from "@/lib/i18n";
 
 const LANG_OPTIONS: { code: Lang; flag: string; label: string }[] = [
@@ -25,8 +26,6 @@ export default function Sidebar() {
   const [mode, setMode] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
   const [langOpen, setLangOpen] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
-  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const token = !!getToken();
@@ -35,31 +34,10 @@ export default function Sidebar() {
     setUserName(token ? getUserName() : null);
   }, [pathname]);
 
-  // 가이드 모드: 대기 중 예약 요청 수 알림 배지 (경로 변경 시 + 30초 폴링)
-  useEffect(() => {
-    if (!loggedIn || mode !== "guide") { setPendingCount(0); return; }
-    let cancelled = false;
-    const load = () =>
-      api<{ count: number }>("/api/bookings/guide/pending-count", { auth: true })
-        .then((r) => { if (!cancelled) setPendingCount(r.count); })
-        .catch(() => {});
-    load();
-    const timer = setInterval(load, 30000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [loggedIn, mode, pathname]);
-
-  // 안읽은 DM 수 배지 — 여행자·가이드 모두 (경로 변경 시 + 30초 폴링)
-  useEffect(() => {
-    if (!loggedIn) { setUnreadCount(0); return; }
-    let cancelled = false;
-    const load = () =>
-      api<{ count: number }>("/api/conversations/unread-count", { auth: true })
-        .then((r) => { if (!cancelled) setUnreadCount(r.count); })
-        .catch(() => {});
-    load();
-    const timer = setInterval(load, 30000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [loggedIn, pathname]);
+  // 알림 배지 3종 — 30초 폴링 + 경로 변경 시 refetch (usePolledCount가 공통 처리)
+  const pendingCount  = usePolledCount("/api/bookings/guide/pending-count",     loggedIn && mode === "guide");    // 가이드: 대기 중 예약 요청
+  const unreadCount   = usePolledCount("/api/inbox/unread-count",               loggedIn);                        // 전 역할: 안읽은 메시지(DM+예약채팅)
+  const rejectedCount = usePolledCount("/api/bookings/traveler/rejected-count", loggedIn && mode === "traveler"); // 여행자: 미확인 거절
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -101,8 +79,6 @@ export default function Sidebar() {
       it("/guide/availability", "📅", n.availability, under("/guide/availability")),
       it("/guide/courses", "🎫", n.courses, under("/guide/courses")),
       it("/guide/manage", "⚙️", n.manage, under("/guide/manage")),
-      it("/explore", "🧭", n.explore, under("/explore")),
-      it("/trips", "🗺️", n.trips, under("/trips")),
     ];
   } else {
     items = [
@@ -113,7 +89,7 @@ export default function Sidebar() {
       it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
-      it("/traveler/bookings", "📋", n.bookings, under("/traveler/bookings")),
+      { ...it("/traveler/bookings", "📋", n.bookings, under("/traveler/bookings")), badge: rejectedCount || undefined },
       it("/traveler/following", "💙", n.following, under("/traveler/following")),
     ];
   }

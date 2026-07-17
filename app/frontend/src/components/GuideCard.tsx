@@ -13,6 +13,8 @@ export type GuideCardData = {
   gender: string | null;
   instantBooking?: boolean;
   matchScore?: number | null;
+  verificationStatus?: string;
+  serviceCategories?: string[];
 };
 
 function GuideAvatar({ src, name }: { src: string | null; name: string }) {
@@ -43,6 +45,9 @@ export default function GuideCard({ guide: g }: { guide: GuideCardData }) {
         <div className="min-w-0 flex-1 pt-0.5">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-bold text-stone-900">{g.guideName}</h2>
+            {g.verificationStatus === "VERIFIED" && (
+              <span className="badge-emerald text-[11px]">✓ {t.guideDetail.verified}</span>
+            )}
             {g.instantBooking && (
               <span className="rounded-md bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
                 ⚡ {t.guideDetail.instantBadge}
@@ -79,6 +84,17 @@ export default function GuideCard({ guide: g }: { guide: GuideCardData }) {
           <HeartIcon className="h-3.5 w-3.5" filled />
           {l.matchBadge.replace("{n}", String(g.matchScore))}
         </span>
+      )}
+
+      {/* 제공 서비스 태그 (관광 = emerald, 비관광 = gray) */}
+      {g.serviceCategories && g.serviceCategories.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {g.serviceCategories.map((k) => (
+            <span key={k} className={`text-[11px] ${k === "TOUR_GUIDE" ? "badge-emerald" : "badge-gray"}`}>
+              {(t.serviceCategories as Record<string, string>)[k] ?? k}
+            </span>
+          ))}
+        </div>
       )}
 
       {/* Headline */}

@@ -7,6 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
+import { useModalDismiss } from "@/lib/useModalDismiss";
 import { PinIcon } from "@/components/icons";
 import TripMap from "@/components/TripMap";
 import { matchSpot } from "@/lib/spots";
@@ -37,19 +38,8 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
-    closeBtnRef.current?.focus();
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", onKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
+  useModalDismiss(onClose);
+  useEffect(() => { closeBtnRef.current?.focus(); }, []);
 
   const hasCoords = typeof place.latitude === "number" && typeof place.longitude === "number";
   const spot = matchSpot(place.name);

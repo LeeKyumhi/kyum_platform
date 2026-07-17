@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import InterestPicker from "@/components/InterestPicker";
+import ServiceCategoryPicker from "@/components/ServiceCategoryPicker";
 import CitySelect from "@/components/CitySelect";
 
 const LEVELS_KEYS = ["NATIVE", "FLUENT", "INTERMEDIATE", "BASIC"] as const;
@@ -43,6 +44,8 @@ export default function BecomeGuidePage() {
   const [languages, setLanguages] = useState<Language[]>([{ language: "", level: "FLUENT" }]);
   const [mbti, setMbti]           = useState("");
   const [interests, setInterests] = useState<string[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<string[]>([]);
+  const [hostTermsAgreed, setHostTermsAgreed] = useState(false);
   const [error, setError]         = useState("");
   const [loading, setLoading]     = useState(false);
 
@@ -54,7 +57,9 @@ export default function BecomeGuidePage() {
   }
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault(); setError(""); setLoading(true);
+    e.preventDefault(); setError("");
+    if (!hostTermsAgreed) { setError(t.hostTerms.required); return; }
+    setLoading(true);
     try {
       await api("/api/guide-profiles", {
         method: "POST", auth: true,
@@ -62,7 +67,8 @@ export default function BecomeGuidePage() {
           ...form,
           hourlyRate: Number(form.hourlyRate),
           city: form.region, latitude: coords.lat, longitude: coords.lng,
-          languages, mbti: mbti || null, interests,
+          languages, mbti: mbti || null, interests, serviceCategories,
+          hostTermsAgreed,
         },
       });
       router.push("/guide/manage");
@@ -203,6 +209,34 @@ export default function BecomeGuidePage() {
             </div>
             <p className="mb-4 text-xs text-stone-400">{lp.interestsHint}</p>
             <InterestPicker selected={interests} onChange={setInterests} />
+          </div>
+
+          {/* Sec 6 — 제공 서비스 (신규 가이드는 미인증 → 관광 잠금) */}
+          <div className="card p-6">
+            <div className="mb-1">
+              <SectionHeading num="6" label={t.serviceCategories.sectionTitle} />
+            </div>
+            <p className="mb-4 text-xs text-stone-400">{t.serviceCategories.sectionHint}</p>
+            <ServiceCategoryPicker selected={serviceCategories} onChange={setServiceCategories} verified={false} />
+          </div>
+
+          {/* Sec 7 — 호스트 약관 동의 (계정·자격 대여 금지) */}
+          <div className="card p-6">
+            <div className="mb-1">
+              <SectionHeading num="7" label={t.hostTerms.title} />
+            </div>
+            <p className="mb-3 text-xs text-stone-400">{t.hostTerms.intro}</p>
+            <ul className="mb-4 flex flex-col gap-2 text-sm text-stone-600">
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule1}</li>
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule2}</li>
+              <li className="flex gap-2"><span className="text-emerald-500">•</span>{t.hostTerms.rule3}</li>
+            </ul>
+            <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-stone-50 px-4 py-3 text-sm font-semibold text-stone-800">
+              <input type="checkbox" checked={hostTermsAgreed}
+                onChange={(e) => setHostTermsAgreed(e.target.checked)}
+                className="h-4 w-4 accent-emerald-600" />
+              {t.hostTerms.agree}
+            </label>
           </div>
 
           {error && (

@@ -71,6 +71,26 @@ public class KakaoLocalClient {
     }
 
     /**
+     * 키워드로 전국 장소 검색 (keyword.json, 위치 바이어스 없음).
+     * 만남 장소 지정(T1)처럼 임의의 장소를 자유 검색할 때 사용 — 정확도순 상위 결과.
+     * 키가 없거나 실패하면 빈 목록.
+     */
+    public List<Place> searchByKeyword(String query) {
+        if (!isEnabled() || query == null || query.isBlank()) return List.of();
+        try {
+            PlaceSearchResponse res = restClient.get()
+                    .uri("https://dapi.kakao.com/v2/local/search/keyword.json?query={q}&size=15",
+                            query)
+                    .header("Authorization", "KakaoAK " + restApiKey)
+                    .retrieve()
+                    .body(PlaceSearchResponse.class);
+            return toPlaces(res);
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    /**
      * 지역명(예: "서울 강남구")을 대표 좌표로 지오코딩. 실패하면 null.
      * 1) 주소검색(address.json) → 2) 키워드검색(keyword.json) 폴백.
      * @return [lat, lng] 또는 null
@@ -160,45 +180,4 @@ public class KakaoLocalClient {
             @JsonProperty("distance") String distance
     ) {}
 
-    /** 좌표를 행정구역명으로 변환. 키가 없거나 실패하면 null. */
-    public KakaoRegion reverseGeocode(double lat, double lng) {
-        if (!isEnabled()) return null;
-        try {
-            RegionResponse res = restClient.get()
-                    .uri("https://dapi.kakao.com/v2/local/geo/coord2regioncode.json?x={x}&y={y}", lng, lat)
-                    .header("Authorization", "KakaoAK " + restApiKey)
-                    .retrieve()
-                    .body(RegionResponse.class);
-            if (res == null || res.documents() == null || res.documents().isEmpty()) return null;
-            // region_type "B"(법정동) 우선, 없으면 첫 문서
-            Document doc = res.documents().stream()
-                    .filter(d -> "B".equals(d.regionType()))
-                    .findFirst()
-                    .orElse(res.documents().get(0));
-            return new KakaoRegion(doc.region1depthName(), doc.region2depthName(), doc.region3depthName());
-        } catch (Exception e) {
-            return null; // 네트워크/키 오류 시 조용히 비활성 처리
-        }
-    }
-
-    /** 프론트에 돌려줄 간단한 행정구역 정보. */
-    public record KakaoRegion(String region1depth, String region2depth, String region3depth) {
-        public String label() {
-            StringBuilder sb = new StringBuilder();
-            if (region1depth != null) sb.append(region1depth);
-            if (region2depth != null && !region2depth.isBlank()) sb.append(" ").append(region2depth);
-            return sb.toString().trim();
-        }
-    }
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record RegionResponse(List<Document> documents) {}
-
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    private record Document(
-            @JsonProperty("region_type") String regionType,
-            @JsonProperty("region_1depth_name") String region1depthName,
-            @JsonProperty("region_2depth_name") String region2depthName,
-            @JsonProperty("region_3depth_name") String region3depthName
-    ) {}
 }
