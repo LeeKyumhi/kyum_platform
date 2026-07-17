@@ -90,7 +90,8 @@ public class ItineraryService {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void autoAddTourItem(Long travelerId, Long bookingId, Instant startAt,
-                               String guideHeadline, String guideCity, String travelerNote) {
+                               String guideHeadline, String guideCity, String travelerNote,
+                               String serviceCategory) {
         try {
             LocalDate tourDate = startAt.atZone(KST).toLocalDate();
 
@@ -105,8 +106,10 @@ public class ItineraryService {
                         .anyMatch(i -> bookingId.equals(i.getSourceBookingId()));
                 if (alreadyAdded) return;
             } else {
+                boolean isTour = "tour".equals(bookingItemCategory(serviceCategory));
+                String suffix = isTour ? " 투어" : " 동행";
                 String title = (guideHeadline != null && !guideHeadline.isBlank())
-                        ? guideHeadline + " 투어" : "가이드 투어";
+                        ? guideHeadline + suffix : (isTour ? "가이드 투어" : "동행 일정");
                 target = itineraryRepository.save(new Itinerary(travelerId, title, guideCity, tourDate, tourDate));
             }
 
@@ -116,8 +119,9 @@ public class ItineraryService {
                     .mapToInt(ItineraryItem::getSortOrder)
                     .max().orElse(-1) + 1;
 
-            ItineraryItem item = new ItineraryItem(dayIndex, nextSort, null, "🎫 가이드 투어",
-                    "tour", null, null, null, travelerNote);
+            ItineraryItem item = new ItineraryItem(dayIndex, nextSort, null,
+                    bookingItemLabel(serviceCategory), bookingItemCategory(serviceCategory),
+                    null, null, null, travelerNote);
             item.setSourceBookingId(bookingId);
             target.getItems().add(item);
             itineraryRepository.save(target);
@@ -125,6 +129,24 @@ public class ItineraryService {
             // 트립 자동 추가는 부가 기능이다 — 실패해도 예약 확정 자체는 반드시 성공해야 한다.
             log.warn("예약 {}건의 일정 자동 추가 실패: {}", bookingId, e.toString());
         }
+    }
+
+    /** 예약 카테고리 → 일정 아이템 표시 라벨. null(기존 예약)은 투어로 취급. */
+    private static String bookingItemLabel(String serviceCategory) {
+        if (serviceCategory == null) return "🎫 가이드 투어";
+        return switch (serviceCategory) {
+            case "MEDICAL_INTERPRETER" -> "🏥 병원 동행";
+            case "DINING_COMPANION"    -> "🍽️ 식사 동행";
+            case "CAFE_COMPANION"      -> "☕ 카페 동행";
+            case "SHOPPING_INTERPRETER"-> "🛍️ 쇼핑 통역";
+            case "LANGUAGE_EXCHANGE"   -> "🗣️ 언어 교환";
+            default -> "🎫 가이드 투어"; // TOUR_GUIDE 포함
+        };
+    }
+
+    /** 일정 아이템 category 값 — 프론트가 tour=amber / companion=중립 스타일로 구분. */
+    private static String bookingItemCategory(String serviceCategory) {
+        return (serviceCategory == null || "TOUR_GUIDE".equals(serviceCategory)) ? "tour" : "companion";
     }
 
     private List<ItineraryItem> toItems(List<ItineraryItemRequest> reqs) {

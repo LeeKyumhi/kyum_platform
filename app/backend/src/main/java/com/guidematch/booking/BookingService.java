@@ -102,7 +102,8 @@ public class BookingService {
         if (instant) {
             try {
                 itineraryService.autoAddTourItem(saved.getTravelerId(), saved.getId(), saved.getStartAt(),
-                        guide.getHeadline(), guide.getCity(), saved.getMessage());
+                        guide.getHeadline(), guide.getCity(), saved.getMessage(),
+                        saved.getServiceCategory() != null ? saved.getServiceCategory().name() : null);
             } catch (Exception e) {
                 log.warn("즉시 예약 {}건의 일정 자동 추가 중 예기치 못한 오류: {}", saved.getId(), e.toString());
             }
@@ -172,7 +173,8 @@ public class BookingService {
 
         try {
             itineraryService.autoAddTourItem(booking.getTravelerId(), booking.getId(), booking.getStartAt(),
-                    guide.getHeadline(), guide.getCity(), booking.getMessage());
+                    guide.getHeadline(), guide.getCity(), booking.getMessage(),
+                    booking.getServiceCategory() != null ? booking.getServiceCategory().name() : null);
         } catch (Exception e) {
             log.warn("예약 {}건 수락 후 일정 자동 추가 중 예기치 못한 오류: {}", booking.getId(), e.toString());
         }
