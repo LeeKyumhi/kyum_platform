@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { getToken, clearToken, getUserName } from "@/lib/api";
+import { api, getToken, clearToken, getUserName } from "@/lib/api";
 import { getMode, clearMode } from "@/lib/mode";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePolledCount } from "@/lib/usePolledCount";
@@ -33,6 +33,14 @@ export default function Sidebar() {
     setMode(getMode());
     setUserName(token ? getUserName() : null);
   }, [pathname]);
+
+  const [verified, setVerified] = useState(false);
+  useEffect(() => {
+    if (!loggedIn || mode !== "guide") { setVerified(false); return; }
+    api<{ verificationStatus?: string }>("/api/guide-profiles/me", { auth: true })
+      .then((p) => setVerified(p.verificationStatus === "VERIFIED"))
+      .catch(() => setVerified(false));
+  }, [loggedIn, mode]);
 
   // 알림 배지 3종 — 30초 폴링 + 경로 변경 시 refetch (usePolledCount가 공통 처리)
   const pendingCount  = usePolledCount("/api/bookings/guide/pending-count",     loggedIn && mode === "guide");    // 가이드: 대기 중 예약 요청
@@ -64,7 +72,8 @@ export default function Sidebar() {
   if (!loggedIn) {
     items = [
       it("/", "🏠", n.home, exact("/")),
-      it("/guides", "🔍", n.findGuide, under("/guides")),
+      it("/guides", "🎫", n.findGuide, under("/guides")),
+      it("/companions", "🤝", n.companions, under("/companions")),
       it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
@@ -77,14 +86,15 @@ export default function Sidebar() {
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/community", "👥", n.community, under("/community")),
       it("/guide/availability", "📅", n.availability, under("/guide/availability")),
-      it("/guide/courses", "🎫", n.courses, under("/guide/courses")),
+      ...(verified ? [it("/guide/courses", "🎫", n.courses, under("/guide/courses"))] : []),
       it("/guide/manage", "⚙️", n.manage, under("/guide/manage")),
     ];
   } else {
     items = [
       it("/", "🏠", n.home, exact("/")),
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
-      it("/guides", "🔍", n.findGuide, under("/guides")),
+      it("/guides", "🎫", n.findGuide, under("/guides")),
+      it("/companions", "🤝", n.companions, under("/companions")),
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
@@ -97,9 +107,12 @@ export default function Sidebar() {
   // Compact 5-item set for the mobile bottom bar
   let mobileItems: Item[];
   if (!loggedIn) {
-    // 홈·가이드찾기·커뮤니티·여행일정 + 로그인 (탐색은 데스크탑/홈 배너로)
+    // 홈·찾기·커뮤니티·여행일정 + 로그인 (탐색은 데스크탑/홈 배너로)
     mobileItems = [
-      items[0], items[1], items[2], items[4],
+      items[0],                                        // 홈
+      it("/find", "🔍", n.find, under("/find")),
+      it("/community", "👥", n.community, under("/community")),
+      it("/trips", "🗺️", n.trips, under("/trips")),
       it("/login", "👤", n.login, under("/login")),
     ];
   } else if (mode === "guide") {
@@ -115,7 +128,7 @@ export default function Sidebar() {
     // 커뮤니티는 여행자 홈의 배너로 진입 (하단 탭 5개 제한)
     mobileItems = [
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
-      it("/guides", "🔍", n.findGuide, under("/guides")),
+      it("/find", "🔍", n.find, under("/find") || under("/guides") || under("/companions")),
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/trips", "🗺️", n.trips, under("/trips")),
       it("/profile", "👤", n.profile, under("/profile")),
@@ -201,7 +214,7 @@ export default function Sidebar() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-stone-900">{userName ?? ""}</span>
                   <span className="block text-xs text-stone-400">
-                    {mode === "guide" ? "🗺️ Guide" : mode === "traveler" ? "🧳 Traveler" : ""}
+                    {mode === "guide" ? "🤝 Partner" : mode === "traveler" ? "🧳 Traveler" : ""}
                   </span>
                 </span>
               </Link>
