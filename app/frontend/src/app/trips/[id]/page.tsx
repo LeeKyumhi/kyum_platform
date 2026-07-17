@@ -143,6 +143,12 @@ export default function TripBuilderPage() {
         <TimetableBuilder
           items={items} onItemsChange={setItems}
           city={city} mode="trip" minDayCount={minDayCount}
+          dayCta={
+            <Link href="/find"
+              className="flex-shrink-0 whitespace-nowrap rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-600 transition-colors hover:border-sky-300 hover:bg-sky-100">
+              🤝 {li.findPartnerCta}
+            </Link>
+          }
         />
 
         {error && (

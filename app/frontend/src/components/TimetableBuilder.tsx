@@ -123,10 +123,12 @@ type Props = {
   minDayCount?: number;
   /** 코스 모드: "폼 채우기" 시 부모(코스 폼)에 추천 결과 전달 */
   onFillFormFromRec?: (rec: RecResponse) => void;
+  /** trip 모드: 일차 탭 줄 우측 끝에 렌더할 CTA (예: 동행 파트너 찾기 링크). singleDay(코스 모드)에선 일차 탭 자체가 숨겨지므로 자연히 렌더되지 않음. */
+  dayCta?: React.ReactNode;
 };
 
 export default function TimetableBuilder({
-  items, onItemsChange, city, mode, singleDay = false, minDayCount = 0, onFillFormFromRec,
+  items, onItemsChange, city, mode, singleDay = false, minDayCount = 0, onFillFormFromRec, dayCta,
 }: Props) {
   const { t, lang } = useLanguage();
   const li = t.itinerary;
@@ -403,6 +405,7 @@ export default function TimetableBuilder({
             className="flex-shrink-0 whitespace-nowrap rounded-full border border-dashed border-stone-300 px-4 py-2 text-sm font-medium text-stone-400 transition-colors hover:border-sky-300 hover:text-sky-500">
             {li.addDay}
           </button>
+          {dayCta && <div className="ml-auto flex-shrink-0">{dayCta}</div>}
         </div>
       )}
 
@@ -414,7 +417,7 @@ export default function TimetableBuilder({
           {unplaced.map((it) => (
             <PaletteChip key={it._k} id={`block:${it._k}`}
               data={{ kind: "block", _k: it._k, name: it.placeName }}
-              label={it.placeName} isTour={it.category === "tour"}
+              label={it.placeName} isTour={it.category === "tour"} isCompanion={it.category === "companion"}
               onInfo={() => openDetail(it)} onRemove={() => removeItem(it._k)} />
           ))}
         </UnplacedTray>
@@ -654,6 +657,7 @@ function PlacedBlock({ item, laneCount, icon, onIcon, onInfo, onRemove, onDur, o
     id: `block:${item._k}`, data: { kind: "block", _k: item._k, name: item.placeName },
   });
   const isTour = item.category === "tour";
+  const isCompanion = item.category === "companion";
   const sh = item.startHour ?? DAY_START;
   const dur = item.durationHours ?? 1;
   const laneIdx = item.laneIndex ?? 0;
@@ -674,7 +678,7 @@ function PlacedBlock({ item, laneCount, icon, onIcon, onInfo, onRemove, onDur, o
       <div className="flex min-h-0 flex-1 items-start gap-1.5">
         <button onClick={onIcon} title={isTour ? tourBadge : mapLabel}
           className={`mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg text-base shadow-sm transition-transform hover:scale-110 ${
-            isTour ? "bg-amber-100" : "bg-white"
+            isTour ? "bg-amber-100" : isCompanion ? "bg-sky-100" : "bg-white"
           }`}>
           {icon}
         </button>
@@ -683,7 +687,7 @@ function PlacedBlock({ item, laneCount, icon, onIcon, onInfo, onRemove, onDur, o
           <p className="truncate text-xs font-bold text-stone-900">{item.placeName}</p>
           {isTour ? (
             <p className="truncate text-[10px] font-semibold text-amber-600">🎫 {tourBadge}</p>
-          ) : item.category && (
+          ) : !isCompanion && item.category && (
             <p className="truncate text-[10px] text-stone-400">{item.category}</p>
           )}
         </button>
@@ -713,15 +717,15 @@ function StepBtn({ children, onClick }: { children: React.ReactNode; onClick: ()
   );
 }
 
-function PaletteChip({ id, data, label, sub, isTour, onInfo, onRemove }: {
-  id: string; data: ActiveData; label: string; sub?: string | null; isTour?: boolean;
+function PaletteChip({ id, data, label, sub, isTour, isCompanion, onInfo, onRemove }: {
+  id: string; data: ActiveData; label: string; sub?: string | null; isTour?: boolean; isCompanion?: boolean;
   onInfo?: () => void; onRemove?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   return (
     <div ref={setNodeRef} style={{ opacity: isDragging ? 0.4 : 1 }}
       className={`flex max-w-full items-center gap-1 rounded-full border px-1 py-1 shadow-sm ${
-        isTour ? "border-amber-200 bg-amber-50" : "border-stone-200 bg-white"
+        isTour ? "border-amber-200 bg-amber-50" : isCompanion ? "border-sky-200 bg-sky-50" : "border-stone-200 bg-white"
       }`}>
       <button {...listeners} {...attributes} data-testid="palette-chip"
         className="flex min-w-0 cursor-grab touch-none items-center gap-1 pl-2 active:cursor-grabbing">
