@@ -9,6 +9,7 @@ import { localeOf } from "@/lib/i18n";
 import SlotCalendar from "@/components/SlotCalendar";
 import TripMap from "@/components/TripMap";
 import ReportBlockMenu from "@/components/ReportBlockMenu";
+import TrackNotice from "@/components/TrackNotice";
 import {
   StarIcon, PinIcon, HeartIcon, ChatIcon, CheckBadgeIcon,
   CalendarIcon, ChevronLeftIcon,
@@ -300,8 +301,6 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
   useEffect(() => {
     api<GuideDetail>(`/api/guides/${id}`).then((g) => {
       setGuide(g);
-      // 제공 서비스가 하나뿐이면 자동 선택(마찰 감소), 여러 개면 여행자가 고른다.
-      if (g.serviceCategories?.length === 1) setBookingCategory(g.serviceCategories[0]);
     }).catch((e) => setError(e.message));
     api<Review[]>(`/api/guides/${id}/reviews`).then(setReviews).catch(() => {});
     api<ReviewStats>(`/api/guides/${id}/review-stats`).then(setReviewStats).catch(() => {});
@@ -309,6 +308,26 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
     api<AvailableSlot[]>(`/api/guides/${id}/slots`).then(setSlots).catch(() => {});
     api<TourCourse[]>(`/api/guides/${id}/courses`).then(setCourses).catch(() => {});
   }, [id]);
+
+  // 이 트랙에서 제공하는 서비스 카테고리 파생값 — 게이팅·자동선택·리다이렉트·크로스링크 공용
+  const categories = guide?.serviceCategories ?? [];
+  const hasTour = categories.includes("TOUR_GUIDE");
+  const hasCompanion = categories.some((k) => k !== "TOUR_GUIDE");
+  const trackCategories = categories.filter((k) =>
+    track === "tour" ? k === "TOUR_GUIDE" : k !== "TOUR_GUIDE");
+  const trackCategoryKey = trackCategories.join(",");
+
+  // 이 트랙에서 제공하는 서비스가 없으면 반대 트랙 상세로
+  useEffect(() => {
+    if (!guide) return;
+    if (track === "companion" && !hasCompanion && hasTour) router.replace(`/guides/${id}`);
+    if (track === "tour" && !hasTour && hasCompanion) router.replace(`/companions/${id}`);
+  }, [guide]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 이 트랙에서 선택 가능한 서비스가 하나뿐이면 자동 선택(마찰 감소) + 셀렉트는 숨긴다
+  useEffect(() => {
+    if (trackCategories.length === 1) setBookingCategory(trackCategories[0]);
+  }, [trackCategoryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onFollow() {
     if (!getToken()) { router.push("/login"); return; }
@@ -435,12 +454,13 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
 
   // 예약할 서비스 선택 (관광/비관광). 가이드가 제공하는 서비스 중에서만 고른다 — 두 예약 플로우 공용.
   const svcLabels = t.serviceCategories as Record<string, string>;
-  const bookingCategorySelect = guide.serviceCategories.length > 0 ? (
+  // 이 트랙에서 고를 수 있는 서비스가 둘 이상일 때만 셀렉트를 보인다 (하나뿐이면 위 useEffect가 자동 선택)
+  const bookingCategorySelect = trackCategories.length > 1 ? (
     <div>
       <label className="input-label">{t.serviceCategories.pickPrompt}</label>
       <select value={bookingCategory} onChange={(e) => setBookingCategory(e.target.value)} className="input">
         <option value="">—</option>
-        {guide.serviceCategories.map((k) => (
+        {trackCategories.map((k) => (
           <option key={k} value={k}>{svcLabels[k] ?? k}</option>
         ))}
       </select>
@@ -557,6 +577,18 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                       </span>
                     ))}
                   </div>
+
+                  {/* 트랙 크로스링크 — 투어+동행 겸업 프로필에서만 보인다 */}
+                  {track === "tour" && hasCompanion && (
+                    <Link href={`/companions/${id}`} className="mt-3 inline-flex items-center text-sm font-semibold text-sky-600 hover:underline">
+                      🤝 {t.companions.alsoCompanion} — {t.companions.viewCompanionProfile} →
+                    </Link>
+                  )}
+                  {track === "companion" && hasTour && guide.verificationStatus === "VERIFIED" && (
+                    <Link href={`/guides/${id}`} className="mt-3 inline-flex items-center text-sm font-semibold text-emerald-600 hover:underline">
+                      🎫 {t.companions.alsoCertified} — {t.companions.viewTourProfile} →
+                    </Link>
+                  )}
                 </div>
               </div>
             </div>
@@ -587,8 +619,8 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                   </div>
                 )}
 
-                {/* 투어 코스 상품 */}
-                {courses.length > 0 && (
+                {/* 투어 코스 상품 — 투어 트랙 전용 (동행 파트너는 관광안내 상품을 제공하지 않는다) */}
+                {track === "tour" && courses.length > 0 && (
                   <div className="card p-6">
                     <h2 className="mb-4 font-bold text-stone-900">🎫 {t.courses.tabTitle}</h2>
                     <div className="flex flex-col gap-3">
@@ -836,6 +868,13 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                     </div>
                   )}
                 </div>
+
+                {/* 동행 트랙 법적 안내 — 예약 위젯 상단, 관광안내 불가 고지 */}
+                {track === "companion" && (
+                  <div className="px-5 pt-5">
+                    <TrackNotice />
+                  </div>
+                )}
 
                 {/* Booking confirmation panel — replaces slot picker / form after submit */}
                 {bookingSummary ? (
