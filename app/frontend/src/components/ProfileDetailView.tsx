@@ -10,6 +10,7 @@ import SlotCalendar from "@/components/SlotCalendar";
 import TripMap from "@/components/TripMap";
 import ReportBlockMenu from "@/components/ReportBlockMenu";
 import TrackNotice from "@/components/TrackNotice";
+import { COMPANION_FIELDS, CHECKBOX_FIELDS, buildRequestDetails } from "@/lib/companionRequest";
 import {
   StarIcon, PinIcon, HeartIcon, ChatIcon, CheckBadgeIcon,
   CalendarIcon, ChevronLeftIcon,
@@ -293,6 +294,8 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
   const [dayRows, setDayRows] = useState<{ date: string; from: string; to: string }[]>([{ date: "", from: "10:00", to: "12:00" }]);
   const [bookingMsg, setBookingMsg]   = useState("");
   const [bookingCategory, setBookingCategory] = useState("");
+  // 동행 카테고리별 요청 상세(병원명·목적 등) — 카테고리 바뀌면 리셋(자동선택 useEffect·셀렉트 onChange 양쪽)
+  const [reqFields, setReqFields] = useState<Record<string, string>>({});
   const [bookingError, setBookingError] = useState("");
   const [submitting, setSubmitting]   = useState(false);
   // 예약 결과 요약(#3): 성공 건수 / 즉시확정 건수 / 실패 건수
@@ -326,7 +329,7 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
 
   // 이 트랙에서 선택 가능한 서비스가 하나뿐이면 자동 선택(마찰 감소) + 셀렉트는 숨긴다
   useEffect(() => {
-    if (trackCategories.length === 1) setBookingCategory(trackCategories[0]);
+    if (trackCategories.length === 1) { setBookingCategory(trackCategories[0]); setReqFields({}); }
   }, [trackCategoryKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function onFollow() {
@@ -382,7 +385,8 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
       try {
         const res = await api<{ status: string }>("/api/bookings", {
           method: "POST", auth: true,
-          body: { guideId: Number(id), startAt: e.startAt, hours: e.hours, serviceCategory: bookingCategory, message: bookingMsg },
+          body: { guideId: Number(id), startAt: e.startAt, hours: e.hours, serviceCategory: bookingCategory, message: bookingMsg,
+                  requestDetails: buildRequestDetails(bookingCategory, reqFields) },
         });
         if (res.status === "ACCEPTED") accepted++; else sent++;
       } catch { failed++; }
@@ -458,12 +462,36 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
   const bookingCategorySelect = trackCategories.length > 1 ? (
     <div>
       <label className="input-label">{t.serviceCategories.pickPrompt}</label>
-      <select value={bookingCategory} onChange={(e) => setBookingCategory(e.target.value)} className="input">
+      <select value={bookingCategory} onChange={(e) => { setBookingCategory(e.target.value); setReqFields({}); }} className="input">
         <option value="">—</option>
         {trackCategories.map((k) => (
           <option key={k} value={k}>{svcLabels[k] ?? k}</option>
         ))}
       </select>
+    </div>
+  ) : null;
+
+  // 동행 카테고리별 요청 상세 입력 필드 — 카테고리 셀렉트가 숨겨지는 단일 카테고리 케이스에서도
+  // (자동선택된) bookingCategory 기준으로 항상 렌더되어야 한다. bookingCategorySelect와 독립적으로 노출.
+  const companionRequestFields = COMPANION_FIELDS[bookingCategory] ? (
+    <div className="mt-3 flex flex-col gap-2">
+      <p className="text-xs font-semibold text-stone-500">
+        {t.companionBooking.detailsTitle} <span className="font-normal">({t.companionBooking.optionalHint})</span>
+      </p>
+      {COMPANION_FIELDS[bookingCategory].map((k) =>
+        CHECKBOX_FIELDS.has(k) ? (
+          <label key={k} className="flex items-center gap-2 text-sm text-stone-700">
+            <input type="checkbox" checked={reqFields[k] === "1"}
+              onChange={(e) => setReqFields((f) => ({ ...f, [k]: e.target.checked ? "1" : "" }))}
+              className="h-4 w-4 accent-sky-600" />
+            {t.companionBooking[k as keyof typeof t.companionBooking]}
+          </label>
+        ) : (
+          <input key={k} value={reqFields[k] ?? ""}
+            onChange={(e) => setReqFields((f) => ({ ...f, [k]: e.target.value }))}
+            placeholder={t.companionBooking[k as keyof typeof t.companionBooking]}
+            className="input text-sm" />
+        ))}
     </div>
   ) : null;
 
@@ -922,6 +950,7 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                         <p className="mb-3 text-xs text-stone-400">{t.availability.hint}</p>
 
                         {bookingCategorySelect && <div className="mb-3">{bookingCategorySelect}</div>}
+                        {companionRequestFields}
 
                         <SlotCalendar
                           mode="traveler"
@@ -1008,6 +1037,7 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                       <span className="font-extrabold text-stone-900">{totalManualPrice.toLocaleString()} {guide.currency}</span>
                     </div>
                     {bookingCategorySelect}
+                    {companionRequestFields}
                     <div>
                       <label className="input-label">
                         {l.message} <span className="text-stone-400 normal-case font-normal">{l.messageOpt}</span>
