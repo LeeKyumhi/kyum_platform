@@ -5,6 +5,16 @@
 > **재개 시 읽는 순서**: 이 문서 → `CLAUDE.md`(구조/패턴) → `app/PROGRESS.md`(최근 완료분).
 > ⚠️ **문서 위치**: HANDOFF.md·IDEAS.md는 리포 **루트**, PROGRESS.md는 `app/`에 있음. (Wave 2 designer가 실수로 `app/HANDOFF.md`·`app/IDEAS.md`를 만들었으나 코디네이터가 루트로 병합 후 삭제함.)
 
+## 0. 최신 (2026-07-18) — 투트랙 유저플로우 재편 (법규 대응 프론트 IA), 브랜치 `feat/two-track`
+
+관광진흥법 §38(무자격자 유상 관광안내 금지) 대응으로 앱을 **인증 가이드 투어** / **동행 파트너** 두 트랙으로 분리. 2026-07-13 백엔드 게이팅의 프론트 IA 완성편. **아직 `feat/two-track` 브랜치에만 있고 main 미머지.**
+
+**⚠ 재개 시 먼저 할 일**:
+1. **브라우저 스모크** — 이 작업은 정적 검증(tsc 0·compileJava SUCCESS·next lint 클린)만 통과, **Playwright E2E 미실행**(dev 서버 부재). `npm run dev`로 핵심 플로우 수동 확인 후 머지 판단: 겸업 인증가이드 `/guides/{id}`·`/companions/{id}` 양쪽 / 동행전용 파트너 `/guides/{id}`→`/companions/{id}` 리다이렉트 / become-guide 자격 분기(yes·no) 3언어 / 동행 카테고리별 요청 폼.
+2. **최종 브랜치 리뷰 + 머지** — 태스크별 리뷰는 끝났으나 전체 브랜치 통합 리뷰는 미실행. `.superpowers/sdd/progress.md`의 triage 항목(동행 수동폼 Enter 조기제출 등) 확인.
+
+**완료 요약**: `/find` 허브 + `TrackEntryCards` 진입, 사이드바 투어/동행 분리, `/guides`(투어 전용)·`/companions`(신규) 목록, `ProfileDetailView`(상세 트랙 공용) + `/companions/[id]`, 동행 카테고리별 요청 폼(`companionRequest.ts`+`RequestDetailsBlock`, `Booking.request_details` nullable 컬럼), become-guide 자격 분기(`hideTour`), 파트너홈 선언 배너, 여행일정 동행 CTA+sky 아이템, '가이드' 카피 소탕. 상세: `app/PROGRESS.md` 최상단 / 태스크 원장 `.superpowers/sdd/progress.md` / 스펙·플랜 `docs/superpowers/{specs,plans}/2026-07-17-two-track-userflow*`.
+
 ## 0. 최신 (2026-07-07) — 통합 인박스 + 안읽음 배지 + 가이드 코스 드래그 빌더
 
 **세션 순서로 완료 (전부 tsc·compileJava·브라우저 E2E 통과)**:

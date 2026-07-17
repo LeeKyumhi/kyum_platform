@@ -1,5 +1,30 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 투트랙 유저플로우 재편 — 법규 대응 프론트 IA (2026-07-17 스펙 / 2026-07-18 구현 완료, 브랜치 `feat/two-track`, tsc·compileJava 통과, ⚠ 브라우저 E2E 미실행)
+
+2026-07-13 백엔드 게이팅(위 섹션)의 **프론트 IA 완성편**. 관광진흥법 §38에 맞춰 앱을 **인증 가이드 투어** / **동행 파트너** 두 트랙으로 사용자가 오인 없이 분리. 자격증 보유자는 투어+동행 둘 다, 무자격자는 동행만. 스펙 `docs/superpowers/specs/2026-07-17-two-track-userflow-design.md`, 플랜 `docs/superpowers/plans/2026-07-17-two-track-userflow.md`, 태스크별 상세 원장 `.superpowers/sdd/progress.md`.
+
+**구현 방식**: Subagent-Driven Development(태스크당 신규 sonnet 구현자 → 코디네이터 리뷰 → 커밋). 16개 태스크(T1 booking.request_details 컬럼 → T16 문서). 브랜치 `feat/two-track`, 체크포인트 `ecd4c79`(기존 미커밋 105파일 격리) 위에 태스크별 커밋.
+
+**완료 항목 (커밋 순)**:
+- **백엔드(additive)**: `Booking.request_details` nullable text 컬럼(불투명 저장, 2000자 상한) + DTO 왕복(T1). 예약 자동추가 일정 라벨을 serviceCategory 기반 일반화(동행="🏥 병원 동행" 등 category="companion", 투어 유지)(T2).
+- **i18n**: 신규 그룹 `tracks/find/companions/companionBooking/onboardingFork` ko/en/zh(T3).
+- **진입/네비**: `TrackEntryCards`(랜딩·여행자홈), `/find` 허브, 사이드바 투어/동행 분리 + 코스메뉴 VERIFIED 게이팅(T4-6).
+- **목록**: `/guides` 투어 전용화(TOUR_GUIDE 고정, 배지 설명 시트), `/companions` 신규 + `GuideCard` track 변형(T7-8).
+- **상세**: `guides/[id]` 1001행을 `ProfileDetailView`(track prop)로 이관 + `/companions/[id]` 래퍼. 코스섹션 게이팅·예약셀렉트 트랙스코프·반대트랙 리다이렉트·겸업 교차링크(T9).
+- **동행 예약**: `companionRequest.ts`(카테고리별 요청 필드→JSON) + 예약위젯 폼 + `RequestDetailsBlock`(예약상세·가이드요청 렌더)(T10-11).
+- **온보딩**: become-guide Step 0 자격 분기(`hideTour`, `?license` 딥링크, 인증신청 리다이렉트)(T12). 파트너홈 서비스 미선언 배너(T13).
+- **여행일정 통합**: 일차 탭 "🤝 동행 찾기" CTA(`/find`) + 동행 아이템 sky 톤(T14).
+- **카피 소탕**: 동행 컨텍스트 '가이드/Guide/导游' 제거(공유 폼 submitBtn·플레이스홀더·취소정책 중립화, 인증 가이드 교차참조는 유지)(T15).
+
+**검증 방법**: 태스크마다 신규 구현자 커밋 → 코디네이터가 커밋 diff·통합 `tsc --noEmit`(0)·`next lint`·백엔드 `gradle compileJava`(SUCCESS)로 리뷰. 순수 이관(T9 ff668ee)은 옛 파일과 byte-identical 확인. T15 후 프론트 tsc 0 / 백엔드 compileJava 성공 / next lint는 기존 `explore/page.tsx:66` 경고 1건 외 클린.
+
+**⚠ 남은 판단·미검증**:
+- **브라우저 E2E 전면 미실행** — dev 서버 부재(작업 중 :3000 종료됨)로 Playwright 미실행, 정적 검증만. 머지 전 `npm run dev`로 수동 스모크 필요(특히: 겸업 인증가이드로 `/guides/{id}`·`/companions/{id}` 양쪽, 동행전용 파트너의 `/guides/{id}`→`/companions/{id}` 리다이렉트, become-guide 자격 분기 3언어).
+- **최종 triage(minor)**: 동행 수동시간입력 폼에서 텍스트 필드 Enter 시 예약 조기 제출 가능(슬롯 경로는 무관). onKeyDown 가드 여부 결정 필요.
+- **DB 오염**: 실 dev DB에 테스트 계정 2 + guide profile id 1(VERIFIED+TOUR_GUIDE,DINING_COMPANION로 변조) + 예약 몇 건 남음(T1-2 런타임 검증 잔재).
+- **아직 미머지**: `feat/two-track` 브랜치에만 존재. main 머지 안 함.
+
 ## 법률 컴플라이언스 트랙 — 관광진흥법 대응 (2026-07-13 — 백엔드+프론트, gradle compileJava·tsc --noEmit 통과, ⚠ end-to-end 미실행)
 
 계기: `창업 체크리스트/startup-platform-business-guide.md`. 외국인 대상 유상 관광안내는 **관광진흥법 제38조상 관광통역안내사 자격 필수**(무자격 시 제86조 과태료 150/300/500만). 전략 = **C 하이브리드**(자격 보유=관광, 무자격=비관광 동행만). 관광 카테고리 = **1개 `TOUR_GUIDE`로 통합**(사용자 결정). **모든 신규 엔티티/컬럼 nullable**(ddl-auto 추가형, 기존 행 안전).
