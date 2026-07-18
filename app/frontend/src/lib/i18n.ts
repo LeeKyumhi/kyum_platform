@@ -475,6 +475,25 @@ const t = {
       },
     },
 
+    /* 관리자 포털 셸 */
+    admin: {
+      loginTitle: "관리자 로그인",
+      loginSub: "운영자 계정으로만 접근할 수 있습니다.",
+      email: "이메일",
+      password: "비밀번호",
+      loginBtn: "로그인",
+      loggingIn: "로그인 중…",
+      notAdmin: "관리자 권한이 없는 계정입니다.",
+      logout: "로그아웃",
+      portalTitle: "관리자 포털",
+      tabDashboard: "대시보드",
+      tabUsers: "회원",
+      tabModeration: "가이드·게시글",
+      tabBookings: "예약",
+      tabVerifications: "자격인증",
+      tabReports: "신고",
+    },
+
     /* Select mode */
     selectMode: {
       title: "어떻게 이용하시겠어요?",
@@ -1553,6 +1572,25 @@ const t = {
       },
     },
 
+    /* Admin portal shell */
+    admin: {
+      loginTitle: "Admin login",
+      loginSub: "Operators only.",
+      email: "Email",
+      password: "Password",
+      loginBtn: "Sign in",
+      loggingIn: "Signing in…",
+      notAdmin: "This account is not an administrator.",
+      logout: "Log out",
+      portalTitle: "Admin Portal",
+      tabDashboard: "Dashboard",
+      tabUsers: "Members",
+      tabModeration: "Guides & Posts",
+      tabBookings: "Bookings",
+      tabVerifications: "Verifications",
+      tabReports: "Reports",
+    },
+
     selectMode: {
       title: "How would you like to use PeerUp?",
       sub: "You can switch roles at any time — one account does both.",
@@ -2614,6 +2652,25 @@ const t = {
         SPAM: "垃圾信息", HARASSMENT: "骚扰", SCAM: "诈骗",
         INAPPROPRIATE: "不当内容", IMPERSONATION: "冒充（出现的人不是本人）", OTHER: "其他",
       },
+    },
+
+    /* 管理后台外壳 */
+    admin: {
+      loginTitle: "管理员登录",
+      loginSub: "仅限运营人员访问。",
+      email: "邮箱",
+      password: "密码",
+      loginBtn: "登录",
+      loggingIn: "登录中…",
+      notAdmin: "该账号不是管理员。",
+      logout: "退出登录",
+      portalTitle: "管理后台",
+      tabDashboard: "仪表盘",
+      tabUsers: "会员",
+      tabModeration: "向导与帖子",
+      tabBookings: "预约",
+      tabVerifications: "资格认证",
+      tabReports: "举报",
     },
 
     selectMode: {
