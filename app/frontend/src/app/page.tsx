@@ -182,10 +182,13 @@ export default function Home() {
   function pickMode(m: Mode) {
     setMode(m);          // localStorage (기존 mode.ts 키 재사용)
     setModeState(m);     // 페이지 이동 없이 같은 "/"를 맞춤 렌더링
+    // TrackGate가 모드 확정을 감지해 세계 선택을 띄우도록 알린다 (모드 먼저 → 세계)
+    window.dispatchEvent(new Event("peerup-mode-changed"));
   }
   function resetMode() {
     clearMode();
     setModeState(null);  // 선택 화면으로 복귀 (새로고침 없이)
+    window.dispatchEvent(new Event("peerup-mode-changed"));
   }
 
   const features = [

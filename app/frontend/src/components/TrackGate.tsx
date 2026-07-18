@@ -4,10 +4,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
+import { getMode, type Mode } from "@/lib/mode";
 import {
   getTrack, setTrack, clearTrack, getTourLegalAck, ackTourLegal,
   TRACK_CHANGED_EVENT, type Track,
 } from "@/lib/track";
+
+// page.tsx·LanguagePicker가 여행자/가이드 모드를 정하면 쏘는 이벤트
+const MODE_CHANGED_EVENT = "peerup-mode-changed";
 
 /**
  * 진입 트랙 게이트 — layout에 상시 마운트.
@@ -27,31 +31,40 @@ export default function TrackGate() {
 
   const [mounted, setMounted] = useState(false);
   const [track, setTrackState] = useState<Track | null>(null);
+  const [mode, setModeState] = useState<Mode | null>(null);
   const [legalAck, setLegalAck] = useState(false);
   const [checked, setChecked] = useState(false);
 
-  // localStorage가 단일 소스 — 마운트·트랙 변경 이벤트 시 재읽기
+  // localStorage가 단일 소스 — 마운트·트랙/모드 변경 이벤트 시 재읽기
   useEffect(() => {
-    const sync = () => { setTrackState(getTrack()); setLegalAck(getTourLegalAck()); };
+    const sync = () => { setTrackState(getTrack()); setModeState(getMode()); setLegalAck(getTourLegalAck()); };
     sync();
     setMounted(true);
     window.addEventListener(TRACK_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(TRACK_CHANGED_EVENT, sync);
+    window.addEventListener(MODE_CHANGED_EVENT, sync);
+    return () => {
+      window.removeEventListener(TRACK_CHANGED_EVENT, sync);
+      window.removeEventListener(MODE_CHANGED_EVENT, sync);
+    };
   }, []);
 
-  // 딥링크 암묵 동기화: 세계 전용 경로에 들어오면 그 트랙으로
+  // 딥링크 암묵 동기화 + 경로 변경 시 모드/트랙 재읽기(외부 페이지에서 바뀐 값 반영)
   useEffect(() => {
     if (!mounted) return;
+    setModeState(getMode());
     const cur = getTrack();
     if (pathname.startsWith("/companions") && cur !== "companion") setTrack("companion");
     else if (pathname.startsWith("/guides") && cur !== "tour") setTrack("tour");
+    else setTrackState(cur);
   }, [pathname, mounted]);
 
   const excluded = EXCLUDED.some((p) => pathname === p || pathname.startsWith(p + "/"));
   // 세계 전용 경로에선 chooser를 띄우지 않는다 — 위 암묵 동기화가 트랙을 정하므로
   // (마운트 직후 1프레임 chooser 깜빡임 방지). 법적 게이트는 그대로 적용된다.
   const onWorldPath = pathname.startsWith("/companions") || pathname.startsWith("/guides");
-  const showChooser = mounted && !excluded && !onWorldPath && track === null;
+  // 모드(여행자/가이드)를 먼저 고른 뒤에야 세계 선택을 띄운다 — 두 진입 선택이 겹치지 않게.
+  // (여행자/가이드는 LanguagePicker 역할 스텝 또는 랜딩 ModeChooser가 먼저 처리)
+  const showChooser = mounted && !excluded && !onWorldPath && track === null && mode !== null;
   const showLegal = mounted && !excluded && track === "tour" && !legalAck;
   const visible = showChooser || showLegal;
 
