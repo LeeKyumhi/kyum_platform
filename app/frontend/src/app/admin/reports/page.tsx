@@ -55,6 +55,15 @@ export default function AdminReportsPage() {
     finally { setBusyId(null); }
   }
 
+  async function actOnTarget(reportId: number, action: "HIDE_POST" | "SUSPEND_USER") {
+    setError(""); setBusyId(reportId);
+    try {
+      await api(`/api/admin/reports/${reportId}/act`, { method: "POST", body: { action }, auth: true });
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+    finally { setBusyId(null); }
+  }
+
   function targetLabel(it: ReportItem) {
     if (it.targetType === "BOOKING") {
       return `${lr.booking} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
@@ -121,6 +130,18 @@ export default function AdminReportsPage() {
                     className="rounded-full border border-stone-300 bg-white px-5 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-60">
                     {lr.dismissBtn}
                   </button>
+                  {it.targetType === "POST" && (
+                    <button onClick={() => actOnTarget(it.id, "HIDE_POST")} disabled={busyId === it.id}
+                      className="rounded-lg bg-amber-100 px-3 py-1 text-sm text-amber-700 disabled:opacity-60">
+                      {t.admin.actHidePost}
+                    </button>
+                  )}
+                  {(it.targetType === "USER" || it.targetType === "BOOKING") && (
+                    <button onClick={() => actOnTarget(it.id, "SUSPEND_USER")} disabled={busyId === it.id}
+                      className="rounded-lg bg-red-100 px-3 py-1 text-sm text-red-700 disabled:opacity-60">
+                      {t.admin.actSuspendUser}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
