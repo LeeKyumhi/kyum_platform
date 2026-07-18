@@ -2,6 +2,7 @@ package com.guidematch.user;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.time.Instant;
 import java.util.Optional;
 
 /**
@@ -21,4 +22,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     /** 닉네임 중복 검사 (대소문자 무시) */
     boolean existsByNicknameIgnoreCase(String nickname);
+
+    /** 어드민 대시보드: 최근 N일 신규 가입자 수 (count 쿼리, N+1 없음) */
+    long countByCreatedAtAfter(Instant since);
 }

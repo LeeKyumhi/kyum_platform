@@ -29,4 +29,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "where b.guideProfileId in :ids and b.status in :statuses group by b.guideProfileId")
     List<Object[]> bookingCountsByGuideProfileIds(@Param("ids") Collection<Long> ids,
                                                   @Param("statuses") Collection<BookingStatus> statuses);
+
+    // 어드민 대시보드: 상태별 예약 수 (count 쿼리, N+1 없음)
+    long countByStatus(BookingStatus status);
 }
