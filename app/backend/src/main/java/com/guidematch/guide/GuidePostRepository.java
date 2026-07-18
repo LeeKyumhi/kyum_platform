@@ -26,4 +26,10 @@ public interface GuidePostRepository extends JpaRepository<GuidePost, Long> {
     @Modifying
     @Query("UPDATE GuidePost p SET p.viewCount = p.viewCount + 1 WHERE p.id = :id")
     int incrementViewCount(@Param("id") Long id);
+
+    // 관리자 게시글 목록 — onlyHidden=false면 전체, true면 숨김만
+    @Query("SELECT p FROM GuidePost p WHERE (:onlyHidden = false OR p.hidden = true) ORDER BY p.createdAt DESC")
+    org.springframework.data.domain.Page<GuidePost> adminList(
+            @Param("onlyHidden") boolean onlyHidden,
+            org.springframework.data.domain.Pageable pageable);
 }
