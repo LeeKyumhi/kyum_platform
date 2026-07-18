@@ -1034,6 +1034,12 @@ const t = {
       title: "어떤 서비스를 찾으세요?",
       sub: "언제든지 메뉴에서 바꿀 수 있어요",
     },
+    /* 동행 세계 전용 랜딩 */
+    companionLanding: {
+      becomeTitle: "동행 파트너로 활동해보세요",
+      becomeDesc: "자격증 없이도 식사·쇼핑·병원 동행으로 수익을 만들 수 있어요. 요금과 일정은 직접 정해요.",
+      becomeCta: "동행 파트너 되기",
+    },
     /* 투어 세계 법적 고지 게이트 */
     tourLegal: {
       gateTitle: "잠깐, 꼭 알아야 할 법적 안내",
@@ -2092,6 +2098,12 @@ const t = {
       title: "What are you looking for?",
       sub: "You can switch anytime from the menu",
     },
+    /* Companion-world landing */
+    companionLanding: {
+      becomeTitle: "Become a companion partner",
+      becomeDesc: "Earn by accompanying travelers to meals, shopping, or hospital visits — no license needed. You set your rate and schedule.",
+      becomeCta: "Become a Companion",
+    },
     /* Tour-world legal acknowledgment gate */
     tourLegal: {
       gateTitle: "One moment — an important legal notice",
@@ -3148,6 +3160,12 @@ const t = {
     trackChooser: {
       title: "您在寻找什么服务?",
       sub: "随时可在菜单中切换",
+    },
+    /* 同行世界专用着陆页 */
+    companionLanding: {
+      becomeTitle: "成为同行伙伴",
+      becomeDesc: "无需资格证,通过用餐·购物·就医陪同获得收入。费用和日程由您决定。",
+      becomeCta: "成为同行伙伴",
     },
     /* 导览世界法律告知 */
     tourLegal: {
