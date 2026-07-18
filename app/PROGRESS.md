@@ -1,5 +1,17 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 트랙 월드 분리 — 진입 게이트 + 법적 안내 (2026-07-18, 브랜치 `feat/track-worlds`, tsc·lint 통과, ⚠ 브라우저 E2E 미실행)
+
+투트랙 재편(아래 섹션)의 후속 — 사용자가 **진입하자마자** 세계를 선택. 스펙 `docs/superpowers/specs/2026-07-18-track-worlds-design.md`, 플랜 `docs/superpowers/plans/2026-07-18-track-worlds.md`. 프론트 전용, 백엔드 무변경.
+
+- **`lib/track.ts`** (mode.ts 미러) — `Track = companion | tour` localStorage + 투어 법적 동의(`tourLegalAckAt`) + `peerup-track-changed` 이벤트.
+- **`TrackGate`** (layout 상시 마운트) — 트랙 미선택 시 전체화면 세계 선택(z-90, LanguagePicker 아래라 첫 방문 = 언어→역할→세계). 투어 선택/딥링크 시 §38 법적 고지 동의 게이트(1회 기억, 체크박스+동의). `/companions*`·`/guides*` 딥링크는 암묵 트랙 설정(chooser 억제로 깜빡임 방지). 제외: /legal·인증 플로우·/select-mode.
+- **Sidebar 트랙 인지** — 동행 세계: /guides·투어코스 메뉴 제거, 투어 세계: /companions 제거 + ⚖️ /legal 링크. 모바일 find 탭 → 현 세계 목록 직행. 상시 "⇄ 다른 서비스 보기"(데스크탑 rail + 모바일 top bar) = clearTrack + 홈.
+- **동행 전용 랜딩 `CompanionLanding`** — 투어·가이드·명소 흔적 0 (히어로+카테고리 타일+여행일정/탐색 카드+파트너 되기 배너 → /become-guide?license=no). track=companion이면 랜딩이 이걸 렌더.
+- **흡수** — TrackEntryCards 삭제(랜딩·여행자홈에서 제거), /find는 clearTrack 후 홈 리다이렉트(세계 전환 딥링크), trips 일차 CTA → /companions 직행.
+- **`/legal`** — 상시 법적 안내 페이지(법적 근거·불법 행위·허용 동행·플랫폼 정책, ko/en/zh).
+- **검증**: tsc 0 · next lint 클린(기존 explore 경고 1건 외) · 동행 파일 '가이드' 스윕 클린(코드주석 메타 설명 2건은 예외 규칙대로 유지). ⚠ 브라우저 E2E 미실행 — 머지 전 수동 스모크(첫방문 3단 온보딩, 투어 법적 게이트 동의/뒤로, ⇄ 전환, 딥링크) 권장.
+
 ## 투트랙 유저플로우 재편 — 법규 대응 프론트 IA (2026-07-17 스펙 / 2026-07-18 구현 완료, 브랜치 `feat/two-track`, tsc·compileJava 통과, ⚠ 브라우저 E2E 미실행)
 
 2026-07-13 백엔드 게이팅(위 섹션)의 **프론트 IA 완성편**. 관광진흥법 §38에 맞춰 앱을 **인증 가이드 투어** / **동행 파트너** 두 트랙으로 사용자가 오인 없이 분리. 자격증 보유자는 투어+동행 둘 다, 무자격자는 동행만. 스펙 `docs/superpowers/specs/2026-07-17-two-track-userflow-design.md`, 플랜 `docs/superpowers/plans/2026-07-17-two-track-userflow.md`, 태스크별 상세 원장 `.superpowers/sdd/progress.md`.
