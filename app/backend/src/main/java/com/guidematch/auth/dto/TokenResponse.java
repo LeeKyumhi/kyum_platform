@@ -7,9 +7,10 @@ package com.guidematch.auth.dto;
  */
 public record TokenResponse(
         String accessToken,
-        String tokenType   // 보통 "Bearer"
+        String tokenType,   // 보통 "Bearer"
+        String role         // "USER" | "ADMIN" — 프론트가 관리자 포털 진입 판단에 사용
 ) {
-    public static TokenResponse bearer(String accessToken) {
-        return new TokenResponse(accessToken, "Bearer");
+    public static TokenResponse bearer(String accessToken, String role) {
+        return new TokenResponse(accessToken, "Bearer", role);
     }
 }

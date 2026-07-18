@@ -51,8 +51,8 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<TokenResponse> login(@Valid @RequestBody LoginRequest request) {
-        String token = authService.login(request);
-        return ResponseEntity.ok(TokenResponse.bearer(token));
+        AuthService.LoginResult result = authService.login(request);
+        return ResponseEntity.ok(TokenResponse.bearer(result.token(), result.role()));
     }
 
     /** 가입/재발송 메일의 인증 링크가 호출하는 엔드포인트. */
