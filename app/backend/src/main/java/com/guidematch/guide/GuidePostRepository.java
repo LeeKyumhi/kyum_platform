@@ -16,6 +16,10 @@ public interface GuidePostRepository extends JpaRepository<GuidePost, Long> {
     @Query("SELECT p FROM GuidePost p WHERE p.hidden IS NULL OR p.hidden = false ORDER BY p.createdAt DESC")
     List<GuidePost> findVisibleOrderByCreatedAtDesc();
 
+    // 가이드 프로필 공개 피드용 — 숨김(hidden=true) 제외. null은 노출(기존 행 안전).
+    @Query("SELECT p FROM GuidePost p WHERE p.guideProfileId = :guideProfileId AND (p.hidden IS NULL OR p.hidden = false) ORDER BY p.createdAt DESC")
+    List<GuidePost> findVisibleByGuideProfileIdOrderByCreatedAtDesc(@Param("guideProfileId") Long guideProfileId);
+
     // 내 게시글 전체 (author_user_id로 직접 작성한 것 + 과거 guide_profile 경유로 작성된 레거시 행 모두 포함)
     @Query("SELECT p FROM GuidePost p WHERE p.authorUserId = :userId " +
            "OR p.guideProfileId IN (SELECT gp.id FROM GuideProfile gp WHERE gp.userId = :userId) " +

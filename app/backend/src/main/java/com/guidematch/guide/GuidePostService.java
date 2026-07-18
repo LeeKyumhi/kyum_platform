@@ -66,7 +66,7 @@ public class GuidePostService {
 
     @Transactional(readOnly = true)
     public List<GuidePostResponse> listByGuideProfile(Long guideProfileId, Long currentUserId) {
-        List<GuidePost> posts = postRepository.findByGuideProfileIdOrderByCreatedAtDesc(guideProfileId);
+        List<GuidePost> posts = postRepository.findVisibleByGuideProfileIdOrderByCreatedAtDesc(guideProfileId);
         var stats = interactionService.statsFor(currentUserId, posts.stream().map(GuidePost::getId).toList());
         return posts.stream()
                 .map(post -> {

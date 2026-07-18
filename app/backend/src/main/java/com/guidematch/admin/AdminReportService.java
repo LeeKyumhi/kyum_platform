@@ -129,6 +129,9 @@ public class AdminReportService {
      */
     @Transactional
     public void act(Long reportId, Long adminId, String action, String reason) {
+        if (action == null || action.isBlank()) {
+            throw new IllegalArgumentException("조치를 선택하세요.");
+        }
         Report r = getOpen(reportId);
         switch (action) {
             case "HIDE_POST" -> {

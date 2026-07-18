@@ -50,6 +50,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long userId = jwtProvider.getUserId(token);
 
                 // 정지 계정 즉시 차단: 토큰이 유효해도 status=SUSPENDED면 인증하지 않는다.
+                // 정지 즉시 반영을 위해 인증 요청마다 계정 상태를 1회 조회한다(인덱스 PK 조회).
+                // 의도된 트레이드오프: 즉시성 우선. 부하가 문제되면 향후 캐시/클레임 기반으로 전환.
                 boolean suspended = userRepository.findById(userId)
                         .map(com.guidematch.user.User::isSuspended)
                         .orElse(false);
