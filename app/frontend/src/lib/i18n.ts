@@ -492,6 +492,15 @@ const t = {
       tabBookings: "예약",
       tabVerifications: "자격인증",
       tabReports: "신고",
+      statTotalUsers: "총 회원",
+      statGuides: "가이드",
+      statNew7d: "신규(7일)",
+      statRequested: "예약 요청",
+      statAccepted: "예약 확정",
+      statCompleted: "완료",
+      statPendingVerif: "인증 대기",
+      statOpenReports: "미처리 신고",
+      queueGo: "처리하러 가기",
     },
 
     /* Select mode */
@@ -1589,6 +1598,15 @@ const t = {
       tabBookings: "Bookings",
       tabVerifications: "Verifications",
       tabReports: "Reports",
+      statTotalUsers: "Total users",
+      statGuides: "Guides",
+      statNew7d: "New (7d)",
+      statRequested: "Requested",
+      statAccepted: "Accepted",
+      statCompleted: "Completed",
+      statPendingVerif: "Pending verifications",
+      statOpenReports: "Open reports",
+      queueGo: "Go handle",
     },
 
     selectMode: {
@@ -2671,6 +2689,15 @@ const t = {
       tabBookings: "预约",
       tabVerifications: "资格认证",
       tabReports: "举报",
+      statTotalUsers: "总会员",
+      statGuides: "向导",
+      statNew7d: "新增(7天)",
+      statRequested: "预约请求",
+      statAccepted: "已确认",
+      statCompleted: "已完成",
+      statPendingVerif: "待认证",
+      statOpenReports: "未处理举报",
+      queueGo: "去处理",
     },
 
     selectMode: {
