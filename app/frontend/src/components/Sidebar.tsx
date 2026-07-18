@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api, getToken, clearToken, getUserName } from "@/lib/api";
 import { getMode, clearMode } from "@/lib/mode";
+import { getTrack, clearTrack, TRACK_CHANGED_EVENT, type Track } from "@/lib/track";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePolledCount } from "@/lib/usePolledCount";
 import type { Lang } from "@/lib/i18n";
@@ -33,6 +34,21 @@ export default function Sidebar() {
     setMode(getMode());
     setUserName(token ? getUserName() : null);
   }, [pathname]);
+
+  // 트랙(동행/투어 세계) — TrackGate·/find가 바꾸면 이벤트로 알려온다
+  const [track, setTrackState] = useState<Track | null>(null);
+  useEffect(() => {
+    const sync = () => setTrackState(getTrack());
+    sync();
+    window.addEventListener(TRACK_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(TRACK_CHANGED_EVENT, sync);
+  }, [pathname]);
+
+  // ⇄ 다른 서비스 보기 — 트랙을 지우고 홈으로 (TrackGate chooser가 다시 뜬다)
+  function onSwitchService() {
+    clearTrack();
+    router.push("/");
+  }
 
   const [verified, setVerified] = useState(false);
   useEffect(() => {
@@ -67,13 +83,18 @@ export default function Sidebar() {
   const it = (href: string, icon: string, label: string, active: boolean): Item => ({ href, icon, label, active });
 
   const n = t.nav;
+  // 트랙(세계)별 목록 진입 항목 — 동행 세계엔 투어·가이드 항목이 아예 없다
+  const inCompanionWorld = track === "companion";
+  const listItem = inCompanionWorld
+    ? it("/companions", "🤝", n.companions, under("/companions"))
+    : it("/guides", "🎫", n.findGuide, under("/guides"));
+
   // Role-based navigation
   let items: Item[];
   if (!loggedIn) {
     items = [
       it("/", "🏠", n.home, exact("/")),
-      it("/guides", "🎫", n.findGuide, under("/guides")),
-      it("/companions", "🤝", n.companions, under("/companions")),
+      listItem,
       it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
       it("/trips", "🗺️", n.trips, under("/trips")),
@@ -86,15 +107,15 @@ export default function Sidebar() {
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/community", "👥", n.community, under("/community")),
       it("/guide/availability", "📅", n.availability, under("/guide/availability")),
-      ...(verified ? [it("/guide/courses", "🎫", n.courses, under("/guide/courses"))] : []),
+      // 투어 코스는 투어 세계 + 인증 가이드일 때만 (동행 세계엔 투어 흔적 없음)
+      ...(!inCompanionWorld && verified ? [it("/guide/courses", "🎫", n.courses, under("/guide/courses"))] : []),
       it("/guide/manage", "⚙️", n.manage, under("/guide/manage")),
     ];
   } else {
     items = [
       it("/", "🏠", n.home, exact("/")),
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
-      it("/guides", "🎫", n.findGuide, under("/guides")),
-      it("/companions", "🤝", n.companions, under("/companions")),
+      listItem,
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/community", "👥", n.community, under("/community")),
       it("/explore", "🧭", n.explore, under("/explore")),
@@ -106,11 +127,16 @@ export default function Sidebar() {
 
   // Compact 5-item set for the mobile bottom bar
   let mobileItems: Item[];
+  // 모바일 찾기 탭 — 현재 세계의 목록으로 직행
+  const mobileListItem = inCompanionWorld
+    ? it("/companions", "🔍", n.companions, under("/companions"))
+    : it("/guides", "🔍", n.findGuide, under("/guides"));
+
   if (!loggedIn) {
     // 홈·찾기·커뮤니티·여행일정 + 로그인 (탐색은 데스크탑/홈 배너로)
     mobileItems = [
       items[0],                                        // 홈
-      it("/find", "🔍", n.find, under("/find")),
+      mobileListItem,
       it("/community", "👥", n.community, under("/community")),
       it("/trips", "🗺️", n.trips, under("/trips")),
       it("/login", "👤", n.login, under("/login")),
@@ -128,7 +154,7 @@ export default function Sidebar() {
     // 커뮤니티는 여행자 홈의 배너로 진입 (하단 탭 5개 제한)
     mobileItems = [
       it("/traveler", "🧳", n.travelerHome, exact("/traveler")),
-      it("/find", "🔍", n.find, under("/find") || under("/guides") || under("/companions")),
+      mobileListItem,
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/trips", "🗺️", n.trips, under("/trips")),
       it("/profile", "👤", n.profile, under("/profile")),
@@ -189,6 +215,22 @@ export default function Sidebar() {
         <nav className="flex flex-col gap-1 overflow-y-auto">{items.map(railLink)}</nav>
 
         <div className="mt-auto flex flex-col gap-2 pt-4">
+          {/* 세계 전환 + (투어 세계) 법적 안내 */}
+          <button
+            onClick={onSwitchService}
+            className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100"
+          >
+            ⇄ {n.switchService}
+          </button>
+          {track === "tour" && (
+            <Link
+              href="/legal"
+              className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100"
+            >
+              ⚖️ {n.legal}
+            </Link>
+          )}
+
           <div data-langmenu className="relative">
             <button
               onClick={() => setLangOpen((o) => !o)}
@@ -240,6 +282,15 @@ export default function Sidebar() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="peerup" className="h-8 w-auto" />
         </Link>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={onSwitchService}
+          className="flex items-center gap-1 rounded-full border border-stone-200 px-2.5 py-1.5 text-sm font-medium text-stone-600"
+          title={n.switchService}
+          aria-label={n.switchService}
+        >
+          ⇄
+        </button>
         <div data-langmenu className="relative">
           <button
             onClick={() => setLangOpen((o) => !o)}
@@ -267,6 +318,7 @@ export default function Sidebar() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </header>
 
