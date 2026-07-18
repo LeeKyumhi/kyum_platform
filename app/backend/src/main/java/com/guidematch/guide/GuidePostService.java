@@ -82,7 +82,7 @@ public class GuidePostService {
      */
     @Transactional(readOnly = true)
     public List<GuidePostWithGuideResponse> listAll(Long currentUserId) {
-        List<GuidePost> posts = postRepository.findAllByOrderByCreatedAtDesc();
+        List<GuidePost> posts = postRepository.findVisibleOrderByCreatedAtDesc();
         if (posts.isEmpty()) return List.of();
 
         var stats = interactionService.statsFor(currentUserId, posts.stream().map(GuidePost::getId).toList());
