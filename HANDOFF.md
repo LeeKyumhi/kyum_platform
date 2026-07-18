@@ -5,6 +5,12 @@
 > **재개 시 읽는 순서**: 이 문서 → `CLAUDE.md`(구조/패턴) → `app/PROGRESS.md`(최근 완료분).
 > ⚠️ **문서 위치**: HANDOFF.md·IDEAS.md는 리포 **루트**, PROGRESS.md는 `app/`에 있음. (Wave 2 designer가 실수로 `app/HANDOFF.md`·`app/IDEAS.md`를 만들었으나 코디네이터가 루트로 병합 후 삭제함.)
 
+## 0. 최신 (2026-07-18 b) — 트랙 월드 분리: 진입 게이트 + 법적 안내, 브랜치 `feat/track-worlds`
+
+투트랙 재편(아래 섹션, main 머지됨)의 후속. **진입하자마자** 전체화면으로 세계(🤝 동행 / 🎫 투어)를 선택 — 동행 세계는 투어·가이드 흔적 0, 투어 세계는 관광진흥법 §38 법적 고지 동의 게이트(1회 기억) + 상시 `/legal` 페이지. localStorage `track`(mode.ts 미러) + `TrackGate`(layout) + 트랙 인지 Sidebar + `CompanionLanding`. `/find`·`TrackEntryCards`는 chooser로 흡수. **`feat/track-worlds` 브랜치에만 있고 main 미머지.**
+
+**⚠ 재개 시**: ① `npm run dev` 수동 스모크 — 첫방문 온보딩 3단(언어→역할→세계), 투어 법적 게이트(동의/뒤로), ⇄ 다른 서비스 보기, `/guides`·`/companions` 딥링크, 동행 세계 사이드바·랜딩에 투어 흔적 0 확인. ② 머지 결정. 상세: `app/PROGRESS.md` 최상단, 스펙·플랜 `docs/superpowers/{specs,plans}/2026-07-18-track-worlds*`.
+
 ## 0. 최신 (2026-07-18) — 투트랙 유저플로우 재편 (법규 대응 프론트 IA), 브랜치 `feat/two-track`
 
 관광진흥법 §38(무자격자 유상 관광안내 금지) 대응으로 앱을 **인증 가이드 투어** / **동행 파트너** 두 트랙으로 분리. 2026-07-13 백엔드 게이팅의 프론트 IA 완성편. **아직 `feat/two-track` 브랜치에만 있고 main 미머지.**

@@ -55,6 +55,15 @@ export default function AdminReportsPage() {
     finally { setBusyId(null); }
   }
 
+  async function actOnTarget(reportId: number, action: "HIDE_POST" | "SUSPEND_USER") {
+    setError(""); setBusyId(reportId);
+    try {
+      await api(`/api/admin/reports/${reportId}/act`, { method: "POST", body: { action }, auth: true });
+      await load();
+    } catch (err) { setError(err instanceof Error ? err.message : t.common.error); }
+    finally { setBusyId(null); }
+  }
+
   function targetLabel(it: ReportItem) {
     if (it.targetType === "BOOKING") {
       return `${lr.booking} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
@@ -63,22 +72,21 @@ export default function AdminReportsPage() {
   }
 
   if (loading) return (
-    <main className="page flex items-center justify-center">
+    <div className="flex items-center justify-center py-24">
       <div className="text-sm text-stone-400">{t.common.loading}</div>
-    </main>
+    </div>
   );
 
   if (denied) return (
-    <main className="page flex flex-col items-center justify-center px-4 text-center">
+    <div className="flex flex-col items-center justify-center px-4 py-24 text-center">
       <div className="mb-3 text-3xl">🔒</div>
       <p className="font-bold text-stone-900">{lr.notAdmin}</p>
-    </main>
+    </div>
   );
 
   return (
-    <main className="page px-4">
-      <div className="mx-auto max-w-3xl">
-        <div className="mb-2 flex items-center justify-between gap-2">
+    <div className="mx-auto max-w-3xl">
+      <div className="mb-2 flex items-center justify-between gap-2">
           <h1 className="text-xl font-extrabold tracking-tight text-stone-900">🚩 {lr.title}</h1>
           <Link href="/admin/verifications" className="text-sm font-semibold text-sky-600 hover:underline">
             {t.verification.adminTitle} →
@@ -121,12 +129,23 @@ export default function AdminReportsPage() {
                     className="rounded-full border border-stone-300 bg-white px-5 py-2 text-sm font-bold text-stone-600 hover:bg-stone-50 disabled:opacity-60">
                     {lr.dismissBtn}
                   </button>
+                  {it.targetType === "POST" && (
+                    <button onClick={() => actOnTarget(it.id, "HIDE_POST")} disabled={busyId === it.id}
+                      className="rounded-lg bg-amber-100 px-3 py-1 text-sm text-amber-700 disabled:opacity-60">
+                      {t.admin.actHidePost}
+                    </button>
+                  )}
+                  {(it.targetType === "USER" || it.targetType === "BOOKING") && (
+                    <button onClick={() => actOnTarget(it.id, "SUSPEND_USER")} disabled={busyId === it.id}
+                      className="rounded-lg bg-red-100 px-3 py-1 text-sm text-red-700 disabled:opacity-60">
+                      {t.admin.actSuspendUser}
+                    </button>
+                  )}
                 </div>
               </li>
             ))}
           </ul>
         )}
       </div>
-    </main>
   );
 }

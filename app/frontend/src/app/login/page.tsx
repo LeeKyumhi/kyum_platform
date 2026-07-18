@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api, saveToken, saveUserName } from "@/lib/api";
+import { api, saveToken, saveUserName, saveRole } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 
-type TokenResponse = { accessToken: string; tokenType: string };
+type TokenResponse = { accessToken: string; tokenType: string; role: string };
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,6 +27,7 @@ export default function LoginPage() {
     try {
       const res = await api<TokenResponse>("/api/auth/login", { method: "POST", body: form });
       saveToken(res.accessToken);
+      saveRole(res.role);
       const me = await api<{ fullName: string }>("/api/users/me", { auth: true });
       saveUserName(me.fullName);
       router.push("/select-mode");

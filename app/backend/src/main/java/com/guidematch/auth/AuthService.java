@@ -147,15 +147,22 @@ public class AuthService {
      * 보안 포인트: 이메일이 없는 경우와 비밀번호가 틀린 경우의 에러 메시지를 똑같이 둔다.
      * "이메일은 있는데 비번이 틀렸다"는 정보를 노출하면 공격자에게 힌트를 주기 때문.
      */
-    public String login(LoginRequest request) {
+    /** 로그인 결과 — 토큰과 권한(role)을 함께 돌려준다. */
+    public record LoginResult(String token, String role) {}
+
+    public LoginResult login(LoginRequest request) {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
-        // 입력한 비밀번호(원문)와 DB의 해시를 비교. matches가 내부에서 안전하게 대조한다.
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
-        return jwtProvider.createToken(user.getId(), user.getEmail(), user.getRole().name());
+        if (user.isSuspended()) {
+            throw new IllegalArgumentException("정지된 계정입니다. 고객센터에 문의하세요.");
+        }
+
+        String token = jwtProvider.createToken(user.getId(), user.getEmail(), user.getRole().name());
+        return new LoginResult(token, user.getRole().name());
     }
 }

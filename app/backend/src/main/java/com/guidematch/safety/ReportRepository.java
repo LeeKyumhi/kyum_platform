@@ -12,4 +12,7 @@ public interface ReportRepository extends JpaRepository<Report, Long> {
 
     /** 상태별 목록 (어드민 검토 대기열: OPEN). 최신순. */
     List<Report> findByStatusOrderByCreatedAtDesc(String status);
+
+    /** 어드민 대시보드: 상태별 신고 수 (count 쿼리, N+1 없음) */
+    long countByStatus(String status);
 }

@@ -3,6 +3,7 @@ import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import Sidebar from "@/components/Sidebar";
 import LanguagePicker from "@/components/LanguagePicker";
+import TrackGate from "@/components/TrackGate";
 
 export const metadata: Metadata = {
   title: "PeerUp — Peer up with locals for your personal trip!",
@@ -18,6 +19,7 @@ export default function RootLayout({
         <LanguageProvider>
           <Sidebar />
           <LanguagePicker />
+          <TrackGate />
           {/* Offset for the fixed left rail (desktop) + mobile top/bottom bars */}
           <div className="md:pl-64">{children}</div>
         </LanguageProvider>

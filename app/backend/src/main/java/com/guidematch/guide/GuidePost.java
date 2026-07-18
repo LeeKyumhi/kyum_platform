@@ -40,6 +40,9 @@ public class GuidePost {
     @Column(name = "view_count", nullable = false, columnDefinition = "bigint default 0")
     private long viewCount = 0;
 
+    @Column(name = "hidden")
+    private Boolean hidden;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -66,4 +69,8 @@ public class GuidePost {
     public String getCategory() { return category; }
     public long getViewCount() { return viewCount; }
     public Instant getCreatedAt() { return createdAt; }
+
+    public boolean isHidden() { return hidden != null && hidden; }
+    public void hide() { this.hidden = true; }
+    public void unhide() { this.hidden = false; }
 }

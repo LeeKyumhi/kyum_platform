@@ -27,15 +27,21 @@ public class AdminReportService {
     private final UserRepository userRepository;
     private final BookingRepository bookingRepository;
     private final GuideProfileRepository guideProfileRepository;
+    private final ModerationService moderationService;
+    private final AdminUserService adminUserService;
 
     public AdminReportService(ReportRepository reportRepository,
                               UserRepository userRepository,
                               BookingRepository bookingRepository,
-                              GuideProfileRepository guideProfileRepository) {
+                              GuideProfileRepository guideProfileRepository,
+                              ModerationService moderationService,
+                              AdminUserService adminUserService) {
         this.reportRepository = reportRepository;
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.guideProfileRepository = guideProfileRepository;
+        this.moderationService = moderationService;
+        this.adminUserService = adminUserService;
     }
 
     /** 관리자 신고 대기열 항목. targetSummary는 BOOKING(사칭 신고)일 때 대상 가이드 이름 등 조치용 문맥. */
@@ -115,5 +121,44 @@ public class AdminReportService {
             throw new IllegalArgumentException("이미 처리된 신고입니다.");
         }
         return r;
+    }
+
+    /**
+     * 신고 대상에 실제 조치를 취하고 신고를 REVIEWED로 닫는다.
+     * action: "HIDE_POST"(대상이 POST), "SUSPEND_USER"(대상이 USER 또는 BOOKING의 가이드).
+     */
+    @Transactional
+    public void act(Long reportId, Long adminId, String action, String reason) {
+        if (action == null || action.isBlank()) {
+            throw new IllegalArgumentException("조치를 선택하세요.");
+        }
+        Report r = getOpen(reportId);
+        switch (action) {
+            case "HIDE_POST" -> {
+                if (!"POST".equals(r.getTargetType())) {
+                    throw new IllegalArgumentException("이 신고 대상은 게시글이 아닙니다.");
+                }
+                moderationService.hidePost(r.getTargetId());
+            }
+            case "SUSPEND_USER" -> {
+                Long userId = resolveTargetUserId(r);
+                adminUserService.suspend(userId, adminId, reason);
+            }
+            default -> throw new IllegalArgumentException("알 수 없는 조치입니다.");
+        }
+        r.markReviewed();
+    }
+
+    /** 신고 대상에서 정지할 user id를 뽑는다. USER면 그대로, BOOKING이면 가이드 user. */
+    private Long resolveTargetUserId(Report r) {
+        if ("USER".equals(r.getTargetType())) return r.getTargetId();
+        if ("BOOKING".equals(r.getTargetType())) {
+            Booking b = bookingRepository.findById(r.getTargetId())
+                    .orElseThrow(() -> new IllegalArgumentException("대상 예약을 찾을 수 없습니다."));
+            GuideProfile p = guideProfileRepository.findById(b.getGuideProfileId())
+                    .orElseThrow(() -> new IllegalArgumentException("대상 가이드를 찾을 수 없습니다."));
+            return p.getUserId();
+        }
+        throw new IllegalArgumentException("이 신고 대상에는 회원 정지를 적용할 수 없습니다.");
     }
 }

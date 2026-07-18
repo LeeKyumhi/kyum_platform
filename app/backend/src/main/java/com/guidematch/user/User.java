@@ -90,6 +90,20 @@ public class User {
     @Column(name = "role")
     private UserRole role;
 
+    /**
+     * 계정 상태. nullable로 두어 기존 행은 null → getStatus()에서 ACTIVE로 취급한다
+     * (role과 동일한 이유: ddl-auto가 NOT NULL 컬럼을 추가하면 기존 행에서 실패).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
+    private UserStatus status;
+
+    @Column(name = "suspended_at")
+    private Instant suspendedAt;
+
+    @Column(name = "suspended_reason", columnDefinition = "text")
+    private String suspendedReason;
+
     /** 가입 시각. 한 번 저장되면 수정되지 않는다(updatable=false). */
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -216,4 +230,28 @@ public class User {
     public boolean isAdmin() {
         return getRole() == UserRole.ADMIN;
     }
+
+    /** null(기존 회원 포함)은 ACTIVE로 취급한다. */
+    public UserStatus getStatus() {
+        return status == null ? UserStatus.ACTIVE : status;
+    }
+
+    public boolean isSuspended() {
+        return getStatus() == UserStatus.SUSPENDED;
+    }
+
+    public void suspend(String reason) {
+        this.status = UserStatus.SUSPENDED;
+        this.suspendedAt = Instant.now();
+        this.suspendedReason = (reason == null || reason.isBlank()) ? null : reason.trim();
+    }
+
+    public void reactivate() {
+        this.status = UserStatus.ACTIVE;
+        this.suspendedAt = null;
+        this.suspendedReason = null;
+    }
+
+    public Instant getSuspendedAt() { return suspendedAt; }
+    public String getSuspendedReason() { return suspendedReason; }
 }

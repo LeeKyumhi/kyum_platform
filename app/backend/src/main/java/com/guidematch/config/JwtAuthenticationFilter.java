@@ -28,9 +28,12 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtProvider jwtProvider;
+    private final com.guidematch.user.UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtProvider jwtProvider) {
+    public JwtAuthenticationFilter(JwtProvider jwtProvider,
+                                   com.guidematch.user.UserRepository userRepository) {
         this.jwtProvider = jwtProvider;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -45,6 +48,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (token != null) {
             try {
                 Long userId = jwtProvider.getUserId(token);
+
+                // 정지 계정 즉시 차단: 토큰이 유효해도 status=SUSPENDED면 인증하지 않는다.
+                // 정지 즉시 반영을 위해 인증 요청마다 계정 상태를 1회 조회한다(인덱스 PK 조회).
+                // 의도된 트레이드오프: 즉시성 우선. 부하가 문제되면 향후 캐시/클레임 기반으로 전환.
+                boolean suspended = userRepository.findById(userId)
+                        .map(com.guidematch.user.User::isSuspended)
+                        .orElse(false);
+                if (suspended) {
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 // 권한(role) 반영: ADMIN이면 ROLE_ADMIN 권한을 부여해 /api/admin/** 접근을 허용한다.
                 // 그 외(기존 토큰·일반 사용자)는 권한 없음 — 기존 동작과 동일.

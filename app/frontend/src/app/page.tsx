@@ -6,10 +6,11 @@ import { useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import { getToken, api } from "@/lib/api";
 import { getMode, setMode, clearMode, type Mode } from "@/lib/mode";
+import { getTrack, TRACK_CHANGED_EVENT, type Track } from "@/lib/track";
 import { SPOTS } from "@/lib/spots";
 import CitySelect from "@/components/CitySelect";
 import { SearchIcon, PinIcon, CompassIcon, ArrowRightIcon } from "@/components/icons";
-import TrackEntryCards from "@/components/TrackEntryCards";
+import CompanionLanding from "@/components/CompanionLanding";
 
 type Me = { id: number; fullName: string; email: string };
 
@@ -156,28 +157,38 @@ export default function Home() {
   const l = t.landing;
 
   const [mode, setModeState] = useState<Mode | null>(null);
+  const [track, setTrackState] = useState<Track | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
     setModeState(getMode());
-    // 첫 방문 온보딩 모달(언어→역할)이 모드를 정하면 이벤트로 알려준다
+    setTrackState(getTrack());
+    // 첫 방문 온보딩 모달(언어→역할)·TrackGate(세계)가 값을 정하면 이벤트로 알려준다
     const onModeChanged = () => setModeState(getMode());
+    const onTrackChanged = () => setTrackState(getTrack());
     window.addEventListener("peerup-mode-changed", onModeChanged);
+    window.addEventListener(TRACK_CHANGED_EVENT, onTrackChanged);
     if (getToken()) {
       setHasToken(true);
       api<Me>("/api/users/me", { auth: true }).then(setMe).catch(() => {});
     }
-    return () => window.removeEventListener("peerup-mode-changed", onModeChanged);
+    return () => {
+      window.removeEventListener("peerup-mode-changed", onModeChanged);
+      window.removeEventListener(TRACK_CHANGED_EVENT, onTrackChanged);
+    };
   }, []);
 
   function pickMode(m: Mode) {
     setMode(m);          // localStorage (기존 mode.ts 키 재사용)
     setModeState(m);     // 페이지 이동 없이 같은 "/"를 맞춤 렌더링
+    // TrackGate가 모드 확정을 감지해 세계 선택을 띄우도록 알린다 (모드 먼저 → 세계)
+    window.dispatchEvent(new Event("peerup-mode-changed"));
   }
   function resetMode() {
     clearMode();
     setModeState(null);  // 선택 화면으로 복귀 (새로고침 없이)
+    window.dispatchEvent(new Event("peerup-mode-changed"));
   }
 
   const features = [
@@ -203,6 +214,11 @@ export default function Home() {
     { icon: "💬", title: l.guidePerk2title, desc: l.guidePerk2desc },
     { icon: "⭐", title: l.guidePerk3title, desc: l.guidePerk3desc },
   ];
+
+  /* ═══════════ 동행 세계 전용 랜딩 — 투어·가이드·명소 흔적 없음 ═══════════ */
+  if (track === "companion") {
+    return <CompanionLanding />;
+  }
 
   /* ═══════════ 가이드 모드 맞춤 랜딩 ═══════════ */
   if (mode === "guide") {
@@ -335,8 +351,6 @@ export default function Home() {
                 </span>
               </Link>
             )}
-
-            <div className="mt-8"><TrackEntryCards /></div>
 
             <div className="mt-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-white/90">
               <Link href="/explore" className="inline-flex items-center gap-1.5 transition-colors hover:text-white">

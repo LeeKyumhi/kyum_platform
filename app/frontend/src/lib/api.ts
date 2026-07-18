@@ -5,6 +5,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080"
 
 const TOKEN_KEY    = "accessToken";
 const USER_NAME_KEY = "userName";
+const ROLE_KEY = "userRole";
 
 export function saveToken(token: string) {
   if (typeof window !== "undefined") localStorage.setItem(TOKEN_KEY, token);
@@ -19,6 +20,7 @@ export function clearToken() {
   if (typeof window !== "undefined") {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_NAME_KEY);
+    localStorage.removeItem(ROLE_KEY);
   }
 }
 
@@ -29,6 +31,19 @@ export function saveUserName(name: string) {
 export function getUserName(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem(USER_NAME_KEY);
+}
+
+export function saveRole(role: string) {
+  if (typeof window !== "undefined") localStorage.setItem(ROLE_KEY, role);
+}
+
+export function getRole(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(ROLE_KEY);
+}
+
+export function isAdmin(): boolean {
+  return getRole() === "ADMIN";
 }
 
 type ApiOptions = {
