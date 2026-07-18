@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useLanguage } from "@/context/LanguageContext";
 import {
   getTrack, setTrack, clearTrack, getTourLegalAck, ackTourLegal,
@@ -22,6 +22,7 @@ const EXCLUDED = ["/legal", "/login", "/signup", "/forgot-password", "/reset-pas
 
 export default function TrackGate() {
   const pathname = usePathname();
+  const router = useRouter();
   const { t } = useLanguage();
 
   const [mounted, setMounted] = useState(false);
@@ -47,7 +48,10 @@ export default function TrackGate() {
   }, [pathname, mounted]);
 
   const excluded = EXCLUDED.some((p) => pathname === p || pathname.startsWith(p + "/"));
-  const showChooser = mounted && !excluded && track === null;
+  // 세계 전용 경로에선 chooser를 띄우지 않는다 — 위 암묵 동기화가 트랙을 정하므로
+  // (마운트 직후 1프레임 chooser 깜빡임 방지). 법적 게이트는 그대로 적용된다.
+  const onWorldPath = pathname.startsWith("/companions") || pathname.startsWith("/guides");
+  const showChooser = mounted && !excluded && !onWorldPath && track === null;
   const showLegal = mounted && !excluded && track === "tour" && !legalAck;
   const visible = showChooser || showLegal;
 
@@ -131,7 +135,8 @@ export default function TrackGate() {
 
                 <div className="mt-2 flex items-center gap-3">
                   <button
-                    onClick={() => { setChecked(false); clearTrack(); }}
+                    // 뒤로 = 트랙 초기화 + 홈 (세계 경로 위에서 chooser가 억제되므로 홈에서 다시 고른다)
+                    onClick={() => { setChecked(false); clearTrack(); router.push("/"); }}
                     className="btn-ghost text-sm"
                   >
                     {tl.backBtn}
