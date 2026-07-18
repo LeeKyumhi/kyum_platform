@@ -158,6 +158,10 @@ public class AuthService {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
         }
 
+        if (user.isSuspended()) {
+            throw new IllegalArgumentException("정지된 계정입니다. 고객센터에 문의하세요.");
+        }
+
         String token = jwtProvider.createToken(user.getId(), user.getEmail(), user.getRole().name());
         return new LoginResult(token, user.getRole().name());
     }
