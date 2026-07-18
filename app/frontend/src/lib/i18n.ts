@@ -48,6 +48,8 @@ const t = {
       messages: "메시지",
       manage: "프로필 관리",
       switchMode: "모드 전환",
+      switchService: "다른 서비스 보기",
+      legal: "법적 안내",
       profile: "프로필",
       login: "로그인",
       signup: "회원가입",
@@ -1027,6 +1029,36 @@ const t = {
       companionNotice: "동행 파트너는 관광안내(명소·문화유산 해설 등)를 제공할 수 없어요. 관광 안내가 필요하면 인증 가이드 투어를 이용해 주세요.",
       companionNoticeLink: "인증 가이드 투어 보기",
     },
+    /* 진입 트랙 선택 (전체화면 게이트) */
+    trackChooser: {
+      title: "어떤 서비스를 찾으세요?",
+      sub: "언제든지 메뉴에서 바꿀 수 있어요",
+    },
+    /* 투어 세계 법적 고지 게이트 */
+    tourLegal: {
+      gateTitle: "잠깐, 꼭 알아야 할 법적 안내",
+      gateSub: "인증 가이드 투어는 관광진흥법을 따르는 서비스예요.",
+      point1: "유상 관광안내(명소·문화유산 해설 등)는 국가 자격 '관광통역안내사' 보유자만 제공할 수 있어요 (관광진흥법 제38조).",
+      point2: "무자격 유상 관광안내는 과태료(1차 150만 · 2차 300만 · 3차 500만 원) 대상이며, 자격·계정 대여도 금지돼요.",
+      point3: "이 플랫폼의 투어는 운영진이 자격 증빙을 확인한 '인증 가이드'만 제공해요. 자격이 없는 파트너는 식사·쇼핑·병원 등 동행 서비스만 제공할 수 있어요.",
+      checkLabel: "위 내용을 읽고 이해했습니다",
+      agreeBtn: "동의하고 계속하기",
+      backBtn: "← 뒤로",
+      detailLink: "법적 안내 자세히 보기",
+    },
+    /* 상시 법적 안내 페이지 */
+    legalPage: {
+      title: "법적 안내",
+      sub: "PeerUp의 투어·동행 서비스와 관광진흥법",
+      sec1Title: "법적 근거",
+      sec1Body: "관광진흥법 제38조에 따라, 외국인 관광객을 대상으로 한 유상 관광안내는 국가 자격 '관광통역안내사'를 보유한 사람만 할 수 있어요. 무자격 유상 관광안내는 과태료 부과 대상이에요 (1차 150만 · 2차 300만 · 3차 500만 원).",
+      sec2Title: "무엇이 불법인가요?",
+      sec2Body: "자격 없이 돈을 받고 명소·문화유산·역사 해설 등 관광안내를 제공하는 것, 그리고 타인의 자격증이나 인증 계정을 빌려 활동하는 것 모두 법 위반이에요. 프로필과 다른 사람이 현장에 나타나는 것도 신고 대상이에요.",
+      sec3Title: "허용되는 동행 서비스",
+      sec3Body: "관광안내가 아닌 일상 동행 — 식사 동행, 쇼핑 통역, 병원 동행, 카페 동행, 언어교환 — 은 자격 없이 제공할 수 있어요. 동행 파트너는 관광안내(명소·문화유산 해설 등)를 제공할 수 없어요.",
+      sec4Title: "플랫폼 정책",
+      sec4Body: "투어는 운영진이 자격 증빙을 확인한 '인증 가이드'에게만 열려요. 위반이 의심되면 예약 화면의 신고 기능을 이용해 주세요. 위반 확인 시 서비스 이용이 제한될 수 있어요.",
+    },
     find: {
       title: "무엇이 필요하세요?",
       sub: "투어와 동행, 두 가지 방법으로 현지인을 만나보세요",
@@ -1096,6 +1128,8 @@ const t = {
       messages: "Messages",
       manage: "Manage Profile",
       switchMode: "Switch mode",
+      switchService: "Switch service",
+      legal: "Legal notice",
       profile: "Profile",
       login: "Log in",
       signup: "Sign up",
@@ -2053,6 +2087,36 @@ const t = {
       companionNotice: "Companions cannot provide sightseeing guidance (landmark or heritage commentary). For sightseeing, please book a certified guide tour.",
       companionNoticeLink: "See certified guide tours",
     },
+    /* Entry track chooser (full-screen gate) */
+    trackChooser: {
+      title: "What are you looking for?",
+      sub: "You can switch anytime from the menu",
+    },
+    /* Tour-world legal acknowledgment gate */
+    tourLegal: {
+      gateTitle: "One moment — an important legal notice",
+      gateSub: "Certified guide tours operate under Korea's Tourism Promotion Act.",
+      point1: "Paid sightseeing guidance (landmark or heritage commentary) may only be provided by holders of the national tourist-interpreter license (Tourism Promotion Act, Article 38).",
+      point2: "Unlicensed paid sightseeing guidance is subject to fines (₩1.5M / ₩3M / ₩5M for 1st / 2nd / 3rd offenses), and lending licenses or accounts is also prohibited.",
+      point3: "Tours on this platform are provided only by certified guides whose license was verified by our team. Partners without a license may only offer companion services such as dining, shopping, or hospital visits.",
+      checkLabel: "I have read and understood the above",
+      agreeBtn: "Agree and continue",
+      backBtn: "← Back",
+      detailLink: "Read the full legal notice",
+    },
+    /* Standing legal notice page */
+    legalPage: {
+      title: "Legal Notice",
+      sub: "PeerUp's tour & companion services and the Tourism Promotion Act",
+      sec1Title: "Legal basis",
+      sec1Body: "Under Article 38 of Korea's Tourism Promotion Act, paid sightseeing guidance for foreign visitors may only be provided by holders of the national tourist-interpreter license. Unlicensed paid guidance is subject to fines (₩1.5M for the 1st offense, ₩3M for the 2nd, ₩5M for the 3rd).",
+      sec2Title: "What is illegal?",
+      sec2Body: "Providing paid sightseeing guidance — landmark, heritage, or history commentary — without a license is illegal, as is operating with a borrowed license or verified account. A different person showing up than the profile shown is also reportable.",
+      sec3Title: "Allowed companion services",
+      sec3Body: "Everyday accompaniment that is not sightseeing guidance — dining companion, shopping interpretation, hospital visits, cafe companion, language exchange — may be offered without a license. Companions cannot provide sightseeing guidance (landmark or heritage commentary).",
+      sec4Title: "Platform policy",
+      sec4Body: "Tours are open only to certified guides whose license evidence was verified by our team. If you suspect a violation, please use the report feature on the booking screen. Confirmed violations may result in service restrictions.",
+    },
     find: {
       title: "What do you need?",
       sub: "Two ways to meet a local — tours and companions",
@@ -2121,6 +2185,8 @@ const t = {
       messages: "消息",
       manage: "资料管理",
       switchMode: "切换模式",
+      switchService: "查看其他服务",
+      legal: "法律须知",
       profile: "我的",
       login: "登录",
       signup: "注册",
@@ -3077,6 +3143,36 @@ const t = {
       badgeExplainBody: "此徽章仅授予由运营团队核实国家“观光翻译导游”资格的导游。观光讲解(景点·文化遗产解说等)仅限认证导游提供。",
       companionNotice: "同行伙伴不能提供观光讲解(景点·文化遗产解说等)。如需观光讲解,请预约认证导游导览。",
       companionNoticeLink: "查看认证导游导览",
+    },
+    /* 入口服务选择 (全屏) */
+    trackChooser: {
+      title: "您在寻找什么服务?",
+      sub: "随时可在菜单中切换",
+    },
+    /* 导览世界法律告知 */
+    tourLegal: {
+      gateTitle: "请稍等 — 重要法律告知",
+      gateSub: "认证导游导览服务遵循韩国《观光振兴法》。",
+      point1: "有偿观光讲解(景点·文化遗产解说等)仅限持有国家资格“观光翻译导游”的人员提供(《观光振兴法》第38条)。",
+      point2: "无资格提供有偿观光讲解将被处以罚款(第1次150万 / 第2次300万 / 第3次500万韩元),出借资格证或账号同样被禁止。",
+      point3: "本平台的导览仅由运营团队核实资格的“认证导游”提供。无资格的伙伴仅可提供用餐·购物·就医等陪同服务。",
+      checkLabel: "我已阅读并理解上述内容",
+      agreeBtn: "同意并继续",
+      backBtn: "← 返回",
+      detailLink: "查看完整法律须知",
+    },
+    /* 常设法律须知页面 */
+    legalPage: {
+      title: "法律须知",
+      sub: "PeerUp 的导览·陪同服务与《观光振兴法》",
+      sec1Title: "法律依据",
+      sec1Body: "根据韩国《观光振兴法》第38条,面向外国游客的有偿观光讲解仅限持有国家资格“观光翻译导游”的人员提供。无资格的有偿讲解将被处以罚款(第1次150万、第2次300万、第3次500万韩元)。",
+      sec2Title: "什么是违法行为?",
+      sec2Body: "无资格收费提供景点·文化遗产·历史讲解等观光讲解属于违法,借用他人资格证或认证账号活动同样违法。到场人员与资料页不符也可举报。",
+      sec3Title: "允许的陪同服务",
+      sec3Body: "不属于观光讲解的日常陪同 — 用餐陪同、购物翻译、就医陪同、咖啡陪同、语言交换 — 无需资格即可提供。同行伙伴不能提供观光讲解(景点·文化遗产解说等)。",
+      sec4Title: "平台政策",
+      sec4Body: "导览仅向经运营团队核实资格证明的“认证导游”开放。如怀疑存在违规,请使用预约页面的举报功能。确认违规后可能限制服务使用。",
     },
     find: {
       title: "您需要什么?",
