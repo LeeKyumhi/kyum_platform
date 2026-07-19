@@ -51,6 +51,7 @@ public class SecurityConfig {
                         // 가이드 검색/조회(GET)는 비로그인 여행자도 둘러볼 수 있게 공개
                         .requestMatchers(HttpMethod.GET, "/api/guides", "/api/guides/**", "/api/posts", "/api/courses").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/followers/count").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/saved/counts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/slots").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()
                         // 게시글 조회수 증가는 비로그인 방문자도 카운트 (임프레션)
