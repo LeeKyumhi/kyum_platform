@@ -52,6 +52,7 @@ export default function CompanionsPage() {
     <main className="page px-4">
       <div className="container-lg">
         <div className="mb-5">
+          <span className="mb-3 block h-1.5 w-10 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400" />
           <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">🤝 {c.title}</h1>
           <p className="mt-1 text-sm text-stone-500">{c.sub}</p>
         </div>

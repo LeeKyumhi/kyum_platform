@@ -39,6 +39,7 @@ export default function CommunityPage() {
       <div className="container-sm">
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
+            <span className="mb-3 block h-1.5 w-10 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400" />
             <h1 className="text-2xl font-extrabold tracking-tight text-stone-900">👥 {t.nav.community}</h1>
             <p className="mt-1 text-sm text-stone-500">{l.communitySub}</p>
           </div>

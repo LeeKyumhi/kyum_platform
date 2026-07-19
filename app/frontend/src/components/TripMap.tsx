@@ -122,9 +122,9 @@ export default function TripMap({ points, className = "" }: { points: MapPoint[]
   }
   if (located.length === 0) {
     return (
-      <p className={`text-center text-gray-400 text-sm py-6 ${className}`}>{lm.noLocated}</p>
+      <p className={`text-center text-stone-400 text-sm py-6 ${className}`}>{lm.noLocated}</p>
     );
   }
 
-  return <div ref={boxRef} className={`w-full h-64 rounded-xl overflow-hidden border border-gray-100 ${className}`} />;
+  return <div ref={boxRef} className={`w-full h-64 rounded-xl overflow-hidden border border-stone-100 ${className}`} />;
 }

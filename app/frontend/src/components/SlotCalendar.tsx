@@ -136,15 +136,15 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
         <button
           type="button"
           onClick={prevMonth}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 text-lg transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 text-stone-500 text-lg transition-colors"
         >
           ‹
         </button>
-        <span className="text-sm font-semibold text-gray-800">{monthLabel}</span>
+        <span className="text-sm font-semibold text-stone-800">{monthLabel}</span>
         <button
           type="button"
           onClick={nextMonth}
-          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 text-lg transition-colors"
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 text-stone-500 text-lg transition-colors"
         >
           ›
         </button>
@@ -153,7 +153,7 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
       {/* Week day headers */}
       <div className="grid grid-cols-7 mb-1">
         {WEEK_DAYS.map((d) => (
-          <div key={d} className="text-center text-[10px] font-medium text-gray-400 py-1">
+          <div key={d} className="text-center text-[10px] font-medium text-stone-400 py-1">
             {d}
           </div>
         ))}
@@ -181,27 +181,27 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
               className={[
                 "relative mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-xs font-medium transition-colors",
                 isSelected
-                  ? "bg-indigo-600 text-white"
+                  ? "bg-sky-600 text-white"
                   : isToday && !isPast
                     ? hasSlots
-                      ? "ring-2 ring-indigo-400 text-indigo-700 hover:bg-indigo-50"
+                      ? "ring-2 ring-sky-400 text-sky-700 hover:bg-sky-50"
                       : props.mode === "guide"
-                        ? "ring-2 ring-indigo-300 text-gray-700 hover:bg-gray-100"
-                        : "ring-2 ring-gray-300 text-gray-300 cursor-default"
+                        ? "ring-2 ring-sky-300 text-stone-700 hover:bg-stone-100"
+                        : "ring-2 ring-stone-300 text-stone-300 cursor-default"
                     : isPast
-                      ? "text-gray-300 cursor-default"
+                      ? "text-stone-300 cursor-default"
                       : hasSlots
-                        ? "text-indigo-700 hover:bg-indigo-50"
+                        ? "text-sky-700 hover:bg-sky-50"
                         : props.mode === "guide"
-                          ? "text-gray-700 hover:bg-gray-100"
-                          : "text-gray-300 cursor-default",
+                          ? "text-stone-700 hover:bg-stone-100"
+                          : "text-stone-300 cursor-default",
               ].join(" ")}
             >
               {day}
               {hasSlots && (
                 <span
                   className={`absolute bottom-1 h-1 w-1 rounded-full ${
-                    isSelected ? "bg-indigo-200" : pickedCount > 0 ? "bg-emerald-500" : "bg-indigo-400"
+                    isSelected ? "bg-sky-200" : pickedCount > 0 ? "bg-emerald-500" : "bg-sky-400"
                   }`}
                 />
               )}
@@ -217,13 +217,13 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
 
       {/* Legend (traveler only) */}
       {props.mode === "traveler" && (
-        <div className="flex items-center gap-3 mt-3 pt-2 border-t border-gray-100">
-          <span className="flex items-center gap-1 text-[10px] text-gray-400">
-            <span className="h-2 w-2 rounded-full bg-indigo-400 inline-block" />
+        <div className="flex items-center gap-3 mt-3 pt-2 border-t border-stone-100">
+          <span className="flex items-center gap-1 text-[10px] text-stone-400">
+            <span className="h-2 w-2 rounded-full bg-sky-400 inline-block" />
             {av.legendAvailable ?? "예약 가능"}
           </span>
-          <span className="flex items-center gap-1 text-[10px] text-gray-400">
-            <span className="h-2 w-2 rounded-full bg-gray-200 inline-block" />
+          <span className="flex items-center gap-1 text-[10px] text-stone-400">
+            <span className="h-2 w-2 rounded-full bg-stone-200 inline-block" />
             {av.legendUnavailable ?? "불가"}
           </span>
         </div>
@@ -231,8 +231,8 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
 
       {/* Detail panel */}
       {selectedDate && (
-        <div className="mt-3 border-t border-gray-100 pt-3">
-          <p className="text-xs font-semibold text-gray-700 mb-2">
+        <div className="mt-3 border-t border-stone-100 pt-3">
+          <p className="text-xs font-semibold text-stone-700 mb-2">
             {new Date(selectedDate + "T00:00").toLocaleDateString(locale, {
               month: "long",
               day: "numeric",
@@ -254,13 +254,13 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
                   return (
                     <div
                       key={s.id}
-                      className="flex items-center justify-between rounded-lg bg-indigo-50 px-3 py-2"
+                      className="flex items-center justify-between rounded-lg bg-sky-50 px-3 py-2"
                     >
                       <div>
-                        <span className="text-xs font-semibold text-indigo-900">
+                        <span className="text-xs font-semibold text-sky-900">
                           {startS} – {endS}
                         </span>
-                        <span className="text-[10px] text-indigo-400 ml-2">({hrs}h)</span>
+                        <span className="text-[10px] text-sky-400 ml-2">({hrs}h)</span>
                       </div>
                       <button
                         type="button"
@@ -284,20 +284,20 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
                       onClick={() => props.onToggleSlot(s)}
                       className={`flex w-full items-center gap-2.5 rounded-xl border-2 px-3 py-2.5 text-left transition-colors ${
                         isSlotSelected
-                          ? "border-indigo-500 bg-indigo-50"
-                          : "border-gray-100 hover:border-indigo-200"
+                          ? "border-sky-500 bg-sky-50"
+                          : "border-stone-100 hover:border-sky-200"
                       }`}
                     >
                       <span className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md border-2 text-[11px] font-bold ${
-                        isSlotSelected ? "border-indigo-500 bg-indigo-500 text-white" : "border-gray-200 text-transparent"
+                        isSlotSelected ? "border-sky-500 bg-sky-500 text-white" : "border-stone-200 text-transparent"
                       }`}>✓</span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-gray-900">{startS} – {endS}</span>
-                          <span className="text-[10px] text-gray-400">{hrs}h</span>
+                          <span className="text-xs font-semibold text-stone-900">{startS} – {endS}</span>
+                          <span className="text-[10px] text-stone-400">{hrs}h</span>
                         </span>
                         {price && (
-                          <span className="mt-0.5 block text-xs font-medium text-indigo-600">{price} {props.currency}</span>
+                          <span className="mt-0.5 block text-xs font-medium text-sky-600">{price} {props.currency}</span>
                         )}
                       </span>
                     </button>
@@ -306,15 +306,15 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
               })}
             </div>
           ) : (
-            <p className="text-xs text-gray-400 text-center py-2">
+            <p className="text-xs text-stone-400 text-center py-2">
               {props.mode === "traveler" ? av.noSlotsOnDate : ""}
             </p>
           )}
 
           {/* Guide: add slot form */}
           {props.mode === "guide" && (
-            <form onSubmit={handleAddSlot} className="flex flex-col gap-2 mt-2 pt-2 border-t border-gray-100">
-              <p className="text-[10px] font-medium text-gray-500">{av.addTitle}</p>
+            <form onSubmit={handleAddSlot} className="flex flex-col gap-2 mt-2 pt-2 border-t border-stone-100">
+              <p className="text-[10px] font-medium text-stone-500">{av.addTitle}</p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="input-label text-[10px] mb-1">{av.startLabel}</label>
@@ -354,10 +354,10 @@ export default function SlotCalendar<T extends Slot>(props: Props<T>) {
 
       {/* Prompt when nothing selected */}
       {!selectedDate && props.mode === "traveler" && props.slots.length > 0 && (
-        <p className="text-xs text-gray-400 text-center pt-3">{av.selectDate}</p>
+        <p className="text-xs text-stone-400 text-center pt-3">{av.selectDate}</p>
       )}
       {!selectedDate && props.mode === "guide" && props.slots.length === 0 && (
-        <p className="text-xs text-gray-400 text-center pt-3">{av.empty}</p>
+        <p className="text-xs text-stone-400 text-center pt-3">{av.empty}</p>
       )}
     </div>
   );

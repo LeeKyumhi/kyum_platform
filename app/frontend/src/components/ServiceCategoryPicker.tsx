@@ -36,7 +36,7 @@ export default function ServiceCategoryPicker({ selected, onChange, verified, hi
         const hasLocked = g.items.some((c) => c.requiresLicense) && !verified;
         return (
           <div key={g.label}>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">{g.label}</p>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-400">{g.label}</p>
             <div className="flex flex-wrap gap-2">
               {g.items.map((c) => {
                 const locked = c.requiresLicense && !verified;
@@ -51,8 +51,8 @@ export default function ServiceCategoryPicker({ selected, onChange, verified, hi
                       active
                         ? "border-emerald-600 bg-emerald-600 text-white shadow-sm"
                         : locked
-                          ? "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300"
-                          : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300 hover:text-emerald-600"
+                          ? "cursor-not-allowed border-stone-100 bg-stone-50 text-stone-300"
+                          : "border-stone-200 bg-white text-stone-600 hover:border-emerald-300 hover:text-emerald-600"
                     }`}
                   >
                     {locked && "🔒 "}{ls[c.key as ServiceCategoryKey]}

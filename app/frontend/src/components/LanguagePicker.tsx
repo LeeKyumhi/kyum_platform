@@ -48,7 +48,7 @@ export default function LanguagePicker() {
         {step === "lang" ? (
           <>
             {/* Header */}
-            <div className="bg-gradient-to-br from-indigo-600 to-violet-700 px-8 pt-8 pb-10 text-white text-center">
+            <div className="bg-gradient-to-br from-sky-500 to-cyan-500 px-8 pt-8 pb-10 text-white text-center">
               <div className="text-4xl mb-3">🌏</div>
               <h2 className="text-xl font-bold">Choose your language</h2>
               <p className="text-sm text-white/70 mt-1">언어를 선택하세요 · 请选择语言</p>
@@ -60,18 +60,18 @@ export default function LanguagePicker() {
                 <button
                   key={l.code}
                   onClick={() => pickLang(l.code)}
-                  className="flex items-center gap-4 rounded-2xl border-2 border-gray-100 p-4 text-left transition-all hover:border-indigo-300 hover:bg-indigo-50/60 active:scale-[0.98]"
+                  className="flex items-center gap-4 rounded-2xl border-2 border-stone-100 p-4 text-left transition-all hover:border-sky-300 hover:bg-sky-50/60 active:scale-[0.98]"
                 >
                   <span className="text-3xl flex-shrink-0">{l.flag}</span>
                   <div>
-                    <p className="font-bold text-gray-900">{l.native}</p>
-                    <p className="text-xs text-gray-400">{l.label}</p>
+                    <p className="font-bold text-stone-900">{l.native}</p>
+                    <p className="text-xs text-stone-400">{l.label}</p>
                   </div>
                 </button>
               ))}
             </div>
 
-            <p className="text-center text-xs text-gray-400 pb-6 px-6">
+            <p className="text-center text-xs text-stone-400 pb-6 px-6">
               You can change this anytime from the menu.
             </p>
           </>
@@ -90,7 +90,7 @@ export default function LanguagePicker() {
                 <button
                   key={r.id}
                   onClick={() => pickRole(r.id)}
-                  className={`flex items-center gap-4 rounded-2xl border-2 border-gray-100 p-4 text-left transition-all active:scale-[0.98] ${
+                  className={`flex items-center gap-4 rounded-2xl border-2 border-stone-100 p-4 text-left transition-all active:scale-[0.98] ${
                     r.id === "guide"
                       ? "hover:border-emerald-300 hover:bg-emerald-50/60"
                       : "hover:border-sky-300 hover:bg-sky-50/60"
@@ -98,8 +98,8 @@ export default function LanguagePicker() {
                 >
                   <span className="text-3xl flex-shrink-0">{r.icon}</span>
                   <div>
-                    <p className="font-bold text-gray-900">{r.title}</p>
-                    <p className="text-xs text-gray-400 leading-snug">{r.desc}</p>
+                    <p className="font-bold text-stone-900">{r.title}</p>
+                    <p className="text-xs text-stone-400 leading-snug">{r.desc}</p>
                   </div>
                 </button>
               ))}

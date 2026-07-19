@@ -219,6 +219,7 @@ export default function GuidesPage() {
 
         {/* Page heading */}
         <div className="mb-5">
+          <span className="mb-3 block h-1.5 w-10 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400" />
           <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">
             {l.title}{" "}
             <button onClick={() => setBadgeOpen(true)}
