@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
 import Sidebar from "@/components/Sidebar";
+import Footer from "@/components/Footer";
 import LanguagePicker from "@/components/LanguagePicker";
 import TrackGate from "@/components/TrackGate";
 
@@ -21,7 +22,10 @@ export default function RootLayout({
           <LanguagePicker />
           <TrackGate />
           {/* Offset for the fixed left rail (desktop) + mobile top/bottom bars */}
-          <div className="md:pl-64">{children}</div>
+          <div className="md:pl-64">
+            {children}
+            <Footer />
+          </div>
         </LanguageProvider>
       </body>
     </html>

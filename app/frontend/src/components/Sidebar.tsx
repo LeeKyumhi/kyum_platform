@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api, getToken, clearToken, getUserName } from "@/lib/api";
-import { getMode, clearMode } from "@/lib/mode";
-import { getTrack, clearTrack, TRACK_CHANGED_EVENT, type Track } from "@/lib/track";
+import { getMode, setMode as saveMode, clearMode, type Mode } from "@/lib/mode";
+import { getTrack, setTrack, TRACK_CHANGED_EVENT, type Track } from "@/lib/track";
 import { useLanguage } from "@/context/LanguageContext";
 import { usePolledCount } from "@/lib/usePolledCount";
 import type { Lang } from "@/lib/i18n";
@@ -44,10 +44,26 @@ export default function Sidebar() {
     return () => window.removeEventListener(TRACK_CHANGED_EVENT, sync);
   }, [pathname]);
 
-  // ⇄ 다른 서비스 보기 — 트랙을 지우고 홈으로 (TrackGate chooser가 다시 뜬다)
-  function onSwitchService() {
-    clearTrack();
-    router.push("/");
+  // 세계(투어/동행) 세그먼트 — 반대 세계 전용 경로에 서 있으면 그 세계의 목록으로 이동
+  // (TrackGate의 딥링크 동기화가 /guides·/companions 위에서 트랙을 되돌리는 것 방지)
+  function onPickTrack(next: Track) {
+    if (next === track) return;
+    setTrack(next);
+    if (next === "companion") {
+      if (under("/guide/courses")) router.push("/guide");        // 가이드용 투어 전용 화면 → 파트너 대시보드
+      else if (under("/guides")) router.push("/companions");     // 투어 목록 → 동행 목록
+    } else if (next === "tour" && under("/companions")) {
+      router.push("/guides");                                    // 동행 목록 → 투어 목록
+    }
+  }
+
+  // 모드(여행자/파트너) 직접 전환 — 목적지 홈으로 이동
+  function onSwitchMode() {
+    const next: Mode = mode === "guide" ? "traveler" : "guide";
+    saveMode(next);
+    setMode(next);
+    window.dispatchEvent(new Event("peerup-mode-changed"));
+    router.push(next === "guide" ? "/guide" : "/traveler");
   }
 
   const [verified, setVerified] = useState(false);
@@ -188,7 +204,7 @@ export default function Sidebar() {
         href={item.href}
         className={`flex items-center gap-3.5 rounded-full px-4 py-2.5 text-[15px] transition-colors ${
           item.active
-            ? "bg-sky-50 font-semibold text-sky-600"
+            ? "bg-gradient-to-r from-sky-50 to-cyan-50/70 font-bold text-sky-600 ring-1 ring-inset ring-sky-100"
             : "font-medium text-stone-700 hover:bg-stone-100"
         }`}
       >
@@ -206,31 +222,41 @@ export default function Sidebar() {
   return (
     <>
       {/* ───────── Desktop left rail ───────── */}
-      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-stone-100 bg-white px-3 py-5 md:flex">
-        <Link href="/" className="mb-6 flex items-center px-2 transition-opacity hover:opacity-80">
+      <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r border-stone-200/60 bg-white/85 px-3 py-5 backdrop-blur-xl md:flex">
+        <Link href="/" className="mb-4 flex items-center px-2 transition-opacity hover:opacity-80">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo.png" alt="peerup" className="h-9 w-auto" />
         </Link>
 
+        {/* 세계 세그먼트 — "무엇을 볼까"는 항상 보이는 내비게이션 (Airbnb 숙소|체험 방식) */}
+        <div className="mb-5 px-1">
+          <div className="flex w-full items-center gap-1 rounded-full bg-stone-200/50 p-1 ring-1 ring-inset ring-stone-200/60">
+            <button
+              onClick={() => onPickTrack("tour")}
+              className={`flex-1 rounded-full px-2 py-1.5 text-[13px] font-semibold transition-all ${
+                track === "tour"
+                  ? "bg-white text-sky-700 shadow-sm"
+                  : "text-stone-500 hover:text-stone-800"
+              }`}
+            >
+              🎫 {n.trackTour}
+            </button>
+            <button
+              onClick={() => onPickTrack("companion")}
+              className={`flex-1 rounded-full px-2 py-1.5 text-[13px] font-semibold transition-all ${
+                track === "companion"
+                  ? "bg-white text-emerald-700 shadow-sm"
+                  : "text-stone-500 hover:text-stone-800"
+              }`}
+            >
+              🤝 {n.trackCompanion}
+            </button>
+          </div>
+        </div>
+
         <nav className="flex flex-col gap-1 overflow-y-auto">{items.map(railLink)}</nav>
 
         <div className="mt-auto flex flex-col gap-2 pt-4">
-          {/* 세계 전환 + (투어 세계) 법적 안내 */}
-          <button
-            onClick={onSwitchService}
-            className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100"
-          >
-            ⇄ {n.switchService}
-          </button>
-          {track === "tour" && (
-            <Link
-              href="/legal"
-              className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100"
-            >
-              ⚖️ {n.legal}
-            </Link>
-          )}
-
           <div data-langmenu className="relative">
             <button
               onClick={() => setLangOpen((o) => !o)}
@@ -246,9 +272,19 @@ export default function Sidebar() {
 
           {loggedIn ? (
             <>
-              <Link href="/select-mode" className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100">
-                🔄 {n.switchMode}
-              </Link>
+              {/* "누구로 쓸까"는 목적지를 명시한 라벨로 (Airbnb '호스트 모드로 전환' 방식) */}
+              {mode !== null ? (
+                <button
+                  onClick={onSwitchMode}
+                  className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100"
+                >
+                  {mode === "guide" ? <>🧳 {n.switchToTraveler}</> : <>🤝 {n.switchToPartner}</>}
+                </button>
+              ) : (
+                <Link href="/select-mode" className="rounded-full px-4 py-2 text-left text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100">
+                  🔄 {n.switchMode}
+                </Link>
+              )}
               <Link href="/profile" className="flex items-center gap-3 rounded-2xl border border-stone-100 bg-stone-50/60 px-3 py-2.5 transition-colors hover:bg-stone-100">
                 <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-cyan-500 text-sm font-bold text-white">
                   {avatarInitial}
@@ -283,14 +319,29 @@ export default function Sidebar() {
           <img src="/logo.png" alt="peerup" className="h-8 w-auto" />
         </Link>
         <div className="flex items-center gap-2">
-        <button
-          onClick={onSwitchService}
-          className="flex items-center gap-1 rounded-full border border-stone-200 px-2.5 py-1.5 text-sm font-medium text-stone-600"
-          title={n.switchService}
-          aria-label={n.switchService}
-        >
-          ⇄
-        </button>
+        {/* 세계 세그먼트 (컴팩트) — 활성 세계만 라벨 표시 */}
+        <div className="flex items-center rounded-full border border-stone-200 p-0.5 text-xs font-semibold">
+          <button
+            onClick={() => onPickTrack("tour")}
+            title={n.trackTour}
+            aria-label={n.trackTour}
+            className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+              track === "tour" ? "bg-sky-50 text-sky-700" : "text-stone-400"
+            }`}
+          >
+            🎫{track === "tour" && <span>{n.trackTour}</span>}
+          </button>
+          <button
+            onClick={() => onPickTrack("companion")}
+            title={n.trackCompanion}
+            aria-label={n.trackCompanion}
+            className={`flex items-center gap-1 rounded-full px-2 py-1 transition-colors ${
+              track === "companion" ? "bg-emerald-50 text-emerald-700" : "text-stone-400"
+            }`}
+          >
+            🤝{track === "companion" && <span>{n.trackCompanion}</span>}
+          </button>
+        </div>
         <div data-langmenu className="relative">
           <button
             onClick={() => setLangOpen((o) => !o)}
