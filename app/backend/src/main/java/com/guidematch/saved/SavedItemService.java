@@ -9,7 +9,6 @@ import com.guidematch.guide.dto.TourCourseResponse;
 import com.guidematch.saved.dto.SavedIdsResponse;
 import com.guidematch.saved.dto.SavedListResponse;
 import com.guidematch.saved.dto.SavedPlaceResponse;
-import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -125,14 +124,27 @@ public class SavedItemService {
         if (!courseIds.isEmpty()) {
             courseRepository.findAllById(courseIds).forEach(c -> courseMap.put(c.getId(), c));
         }
-        List<TourCourseResponse> courses = courseIds.stream()
+        List<TourCourse> activeCourses = courseIds.stream()
                 .map(courseMap::get)
                 .filter(c -> c != null && c.isActive())
+                .toList();
+
+        // 코스가 속한 가이드도 배치 조회 (가이드 분기와 동일한 패턴 — 코스마다 findById 호출 시 N+1 발생)
+        List<Long> courseProfileIds = activeCourses.stream()
+                .map(TourCourse::getGuideProfileId).distinct().toList();
+        Map<Long, GuideProfile> courseProfiles = new HashMap<>();
+        if (!courseProfileIds.isEmpty()) {
+            profileRepository.findAllById(courseProfileIds).forEach(p -> courseProfiles.put(p.getId(), p));
+        }
+        Map<Long, String> courseGuideNames = new HashMap<>();
+        if (!courseProfiles.isEmpty()) {
+            List<Long> courseUserIds = courseProfiles.values().stream().map(GuideProfile::getUserId).toList();
+            userRepository.findAllById(courseUserIds).forEach(u -> courseGuideNames.put(u.getId(), u.getFullName()));
+        }
+        List<TourCourseResponse> courses = activeCourses.stream()
                 .map(c -> {
-                    GuideProfile p = profileRepository.findById(c.getGuideProfileId()).orElse(null);
-                    String name = p != null
-                            ? userRepository.findById(p.getUserId()).map(User::getFullName).orElse("Unknown")
-                            : null;
+                    GuideProfile p = courseProfiles.get(c.getGuideProfileId());
+                    String name = p != null ? courseGuideNames.getOrDefault(p.getUserId(), "Unknown") : null;
                     return TourCourseResponse.from(c, name, p != null ? p.getAvatarUrl() : null);
                 })
                 .toList();
