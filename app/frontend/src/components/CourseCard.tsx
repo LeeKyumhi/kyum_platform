@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { PinIcon } from "@/components/icons";
+import SaveButton from "@/components/SaveButton";
 
 export type CourseCardData = {
   id: number; guideProfileId: number; title: string; description: string | null;
   city: string | null; durationHours: number; price: number; currency: string;
   maxPeople: number; imageUrl: string | null; guideName: string | null; guideAvatarUrl: string | null;
+  waypoints?: { latitude: number | null; longitude: number | null }[];
 };
 
 /**
@@ -18,7 +20,8 @@ export default function CourseCard({ course: c }: { course: CourseCardData }) {
   const { t } = useLanguage();
 
   return (
-    <Link href={`/guides/${c.guideProfileId}`} className="card-hover flex flex-col overflow-hidden">
+    <Link href={`/guides/${c.guideProfileId}`} className="card-hover relative flex flex-col overflow-hidden">
+      <SaveButton target={{ itemType: "COURSE", refId: c.id }} className="absolute right-3 top-3 z-10" />
       {c.imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={c.imageUrl} alt={c.title} className="aspect-video w-full object-cover" />
