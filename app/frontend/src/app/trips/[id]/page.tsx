@@ -107,7 +107,7 @@ export default function TripBuilderPage() {
 
   return (
     <main className="page px-4">
-      <div className="mx-auto w-full max-w-6xl px-4">
+      <div className="animate-fade-up mx-auto w-full max-w-6xl px-4">
         {/* Top bar */}
         <div className="mb-5 flex items-center justify-between">
           <Link href="/trips" className="btn-ghost text-sm">{li.back}</Link>

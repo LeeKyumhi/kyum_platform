@@ -1,5 +1,16 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 내부 페이지 프리미엄 폴리시 — Tier 1 (2026-07-19, 프론트 전용, tsc·lint·브라우저 스크린샷 검증 통과, 미커밋)
+
+리브랜딩 3커밋(`ab129e0`~`62fc880`) 후속 — 랜딩에만 있던 프리미엄 어휘를 여행자 핵심 퍼널로 확장. 스펙 `docs/superpowers/specs/2026-07-19-interior-page-polish-design.md` (실사 결과 반영해 1차안 축소: 스켈레톤·카드위계·빈상태는 대부분 이미 양호, 진짜 갭 = 헤더 불일치·fade-up 전무·companions 미완성).
+
+- **신규 공유 컴포넌트 2개**: `PageHeader`(accent bar+title+subtitle+back/action, sky|emerald — guides·companions에 손으로 쓰던 마크업 추출) / `EmptyState`(카드+gradient 아이콘 타일+title/message/CTA — trips·explore·traveler-bookings의 3중복 마크업 추출). **새 페이지 헤더·빈상태는 반드시 이 둘을 쓸 것.**
+- **적용**: guides(헤더+빈상태 3곳), companions(헤더+`…`로딩→스켈레톤+bare-p 빈상태→EmptyState), explore(헤더+장소카드 `card-hover`+빈상태 2곳), trips, traveler/bookings + fade-up: bookings/[id]·profile·trips/[id]·ProfileDetailView 컨테이너. explore 미사용 `Link` import 제거.
+- **원칙 유지**: 신규 i18n 0, admin 제외, 백엔드 무변경, 순수 프레젠테이션.
+- **검증**: tsc 0 · lint 클린(기존 explore 경고 1건 외) · Playwright 스크린샷 8장 눈 확인(guides ko/en, companions, explore, trips, traveler/bookings, profile, guides/[id]) — 페이지 에러 0, en 렌더 정상.
+- **잔재**: 테스트 계정 `polish_t_1@test.com`(user id 8) dev DB에 생성됨.
+- **다음**: Tier 2(가이드 사이드 5페이지) → Tier 3(auth/유틸) 각각 별도 스펙으로.
+
 ## 트랙 월드 분리 — 진입 게이트 + 법적 안내 (2026-07-18, 브랜치 `feat/track-worlds`, tsc·lint 통과, ⚠ 브라우저 E2E 미실행)
 
 투트랙 재편(아래 섹션)의 후속 — 사용자가 **진입하자마자** 세계를 선택. 스펙 `docs/superpowers/specs/2026-07-18-track-worlds-design.md`, 플랜 `docs/superpowers/plans/2026-07-18-track-worlds.md`. 프론트 전용, 백엔드 무변경.

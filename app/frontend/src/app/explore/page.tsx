@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
 import DistrictSelect from "@/components/DistrictSelect";
 import { PinIcon } from "@/components/icons";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
 
 type Place = {
   id: string;
@@ -71,13 +72,11 @@ export default function ExplorePage() {
     <main className="page px-4">
       <div className="container-sm">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
-            <h1 className="section-title">{le.title}</h1>
-          </div>
-          <p className="section-subtitle">{le.subtitle}</p>
-        </div>
+        <PageHeader
+          back={{ href: "/", label: t.common.back }}
+          title={le.title}
+          subtitle={le.subtitle}
+        />
 
         {/* 도시 + 세부 지역(구) 선택 */}
         <div className="card mb-5 flex flex-col gap-2.5 p-5">
@@ -86,12 +85,7 @@ export default function ExplorePage() {
         </div>
 
         {!city ? (
-          <div className="card p-8 py-16 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
-              🗺️
-            </div>
-            <p className="text-sm text-stone-500">{le.pickCity}</p>
-          </div>
+          <EmptyState icon="🗺️" message={le.pickCity} />
         ) : (
           <>
             {/* 카테고리 탭 */}
@@ -118,19 +112,14 @@ export default function ExplorePage() {
                 {[1, 2, 3, 4].map((i) => <div key={i} className="card h-24 animate-pulse p-4" />)}
               </div>
             ) : places.length === 0 ? (
-              <div className="card p-8 py-16 text-center">
-                <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
-                  {activeCat.icon}
-                </div>
-                <p className="text-sm text-stone-500">{le.empty}</p>
-              </div>
+              <EmptyState icon={activeCat.icon} message={le.empty} />
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="animate-fade-up flex flex-col gap-3">
                 {places.map((p) => (
                   <div
                     key={p.id}
                     onClick={() => setSelectedPlace(p)}
-                    className="card cursor-pointer p-4 transition-shadow hover:shadow-md"
+                    className="card-hover cursor-pointer p-4"
                   >
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">

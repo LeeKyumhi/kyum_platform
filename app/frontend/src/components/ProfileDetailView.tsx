@@ -497,7 +497,7 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
 
   return (
     <main className="page px-4">
-      <div className="mx-auto max-w-4xl">
+      <div className="animate-fade-up mx-auto max-w-4xl">
         <Link
           href="/guides"
           className="mb-5 inline-flex items-center gap-1.5 rounded-full py-1 pr-3 text-sm font-semibold text-stone-500 transition-colors hover:text-stone-900"

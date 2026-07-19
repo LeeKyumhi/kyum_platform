@@ -9,6 +9,8 @@ import { useModalDismiss } from "@/lib/useModalDismiss";
 import PostCard, { type FeedPost } from "@/components/PostCard";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
 import {
   SearchIcon, ChatIcon,
   StarIcon, GlobeIcon,
@@ -218,15 +220,16 @@ export default function GuidesPage() {
       <div className="container-lg">
 
         {/* Page heading */}
-        <div className="mb-5">
-          <span className="mb-3 block h-1.5 w-10 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400" />
-          <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">
-            {l.title}{" "}
-            <button onClick={() => setBadgeOpen(true)}
-              className="badge-emerald align-middle text-xs">✓ {t.tracks.badgeExplainTitle}</button>
-          </h1>
-          <p className="mt-1 text-sm text-stone-500">{l.tourTrackSub}</p>
-        </div>
+        <PageHeader
+          title={
+            <>
+              {l.title}{" "}
+              <button onClick={() => setBadgeOpen(true)}
+                className="badge-emerald align-middle text-xs">✓ {t.tracks.badgeExplainTitle}</button>
+            </>
+          }
+          subtitle={l.tourTrackSub}
+        />
 
         <TabBar
           active={tab}
@@ -321,23 +324,21 @@ export default function GuidesPage() {
             )}
             {guidesError && <p className="text-red-600 text-sm">{guidesError}</p>}
             {!guidesLoading && !guidesError && visibleGuides.length === 0 && (
-              <div className="py-16 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 text-stone-400">
-                  <SearchIcon className="h-7 w-7" />
-                </div>
-                <p className="text-stone-500">{l.empty}</p>
-                {(city || langFilter) && (
+              <EmptyState
+                icon={<SearchIcon className="h-6 w-6 text-white" />}
+                message={l.empty}
+                action={(city || langFilter) ? (
                   <button
                     onClick={() => { setLangFilter(""); clearSearch(); }}
-                    className="mt-4 text-sm font-semibold text-sky-500 hover:underline"
+                    className="text-sm font-semibold text-sky-500 hover:underline"
                   >
                     {l.showAll}
                   </button>
-                )}
-              </div>
+                ) : undefined}
+              />
             )}
             {!guidesLoading && (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
                 {visibleGuides.map((g) => (
                   <GuideCard key={g.id} guide={g} />
                 ))}
@@ -397,26 +398,24 @@ export default function GuidesPage() {
             )}
 
             {!postsLoading && posts.length === 0 && (
-              <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 text-stone-400">
-                  <ChatIcon className="h-7 w-7" />
-                </div>
-                <p className="mx-auto max-w-xs text-sm leading-relaxed text-stone-500">{l.feedEmpty}</p>
-              </div>
+              <EmptyState
+                icon={<ChatIcon className="h-6 w-6 text-white" />}
+                message={l.feedEmpty}
+              />
             )}
 
             {!postsLoading && posts.length > 0 && visiblePosts.length === 0 && (
-              <div className="py-16 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 text-stone-400">
-                  <GlobeIcon className="h-7 w-7" />
-                </div>
-                <p className="text-sm text-stone-500">{l.feedEmpty}</p>
-                <button onClick={() => setPostLangFilter("")} className="mt-4 text-sm font-semibold text-sky-500 hover:underline">{l.langAll}</button>
-              </div>
+              <EmptyState
+                icon={<GlobeIcon className="h-6 w-6 text-white" />}
+                message={l.feedEmpty}
+                action={
+                  <button onClick={() => setPostLangFilter("")} className="text-sm font-semibold text-sky-500 hover:underline">{l.langAll}</button>
+                }
+              />
             )}
 
             {!postsLoading && visiblePosts.length > 0 && (
-              <div className="max-w-[468px] mx-auto flex flex-col gap-3 sm:gap-5">
+              <div className="animate-fade-up max-w-[468px] mx-auto flex flex-col gap-3 sm:gap-5">
                 {visiblePosts.map((p) => (
                   <PostCard key={p.id} post={p} onLikeChange={handleLikeChange} />
                 ))}
@@ -443,16 +442,11 @@ export default function GuidesPage() {
             )}
 
             {!coursesLoading && coursesLoaded && courses.length === 0 && (
-              <div className="py-20 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-stone-100 text-2xl">
-                  🎫
-                </div>
-                <p className="mx-auto max-w-xs text-sm leading-relaxed text-stone-500">{t.courses.empty}</p>
-              </div>
+              <EmptyState icon="🎫" message={t.courses.empty} />
             )}
 
             {!coursesLoading && courses.length > 0 && (
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
                 {courses.map((c) => (
                   <CourseCard key={c.id} course={c} />
                 ))}

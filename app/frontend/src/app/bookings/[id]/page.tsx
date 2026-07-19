@@ -98,7 +98,7 @@ export default function BookingDetailPage() {
 
   return (
     <main className="page px-4">
-      <div className="container-sm">
+      <div className="animate-fade-up container-sm">
         <div className="mb-4 flex items-center justify-between gap-3">
           <Link href={viewerIsTraveler ? "/traveler/bookings" : "/guide/requests"} className="btn-ghost text-sm">{bd.back}</Link>
           <span className={`${STATUS_CLS[booking.status] ?? "badge-gray"} py-1`}>{statusLabel}</span>

@@ -6,6 +6,8 @@ import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import TrackNotice from "@/components/TrackNotice";
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
 import { NON_TOUR_CATEGORY_KEYS, type ServiceCategoryKey } from "@/lib/serviceCategories";
 
 const CAT_ICONS: Record<string, string> = {
@@ -51,11 +53,7 @@ export default function CompanionsPage() {
   return (
     <main className="page px-4">
       <div className="container-lg">
-        <div className="mb-5">
-          <span className="mb-3 block h-1.5 w-10 rounded-full bg-gradient-to-r from-emerald-400 to-teal-400" />
-          <h1 className="text-2xl font-extrabold tracking-tight text-stone-900 md:text-3xl">🤝 {c.title}</h1>
-          <p className="mt-1 text-sm text-stone-500">{c.sub}</p>
-        </div>
+        <PageHeader accent="emerald" title={<>🤝 {c.title}</>} subtitle={c.sub} />
         <TrackNotice />
         <p className="mb-2 text-sm font-semibold text-stone-700">{c.categoryPrompt}</p>
         <div className="shelf -mx-4 mb-3 px-4 !pb-3">
@@ -69,13 +67,29 @@ export default function CompanionsPage() {
         <div className="card mb-5 p-4">
           <CitySelect value={city} onChange={(key) => { setCity(key); load(key, category); }} />
         </div>
-        {loading && <p className="py-10 text-center text-sm text-stone-400">…</p>}
+        {loading && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="card animate-pulse p-5">
+                <div className="flex items-start gap-4">
+                  <div className="h-16 w-16 flex-shrink-0 rounded-2xl bg-stone-100" />
+                  <div className="flex-1 pt-1">
+                    <div className="mb-2 h-4 w-32 rounded bg-stone-100" />
+                    <div className="h-3 w-20 rounded bg-stone-100" />
+                  </div>
+                </div>
+                <div className="mt-4 h-3 w-full rounded bg-stone-100" />
+                <div className="mt-2 h-3 w-2/3 rounded bg-stone-100" />
+              </div>
+            ))}
+          </div>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {!loading && !error && partners.length === 0 && (
-          <p className="py-16 text-center text-stone-500">{c.empty}</p>
+          <EmptyState accent="emerald" icon="🤝" message={c.empty} />
         )}
         {!loading && (
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
             {partners.map((g) => <GuideCard key={g.id} guide={g} track="companion" />)}
           </div>
         )}

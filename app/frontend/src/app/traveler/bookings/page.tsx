@@ -9,6 +9,8 @@ import { localeOf } from "@/lib/i18n";
 import { STATUS_CLS, STATUS_ICON } from "@/lib/bookingStatus";
 import { CalendarIcon } from "@/components/icons";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
 
 type Booking = {
   id: number; guideProfileId: number; guideName: string; guideHeadline: string;
@@ -79,10 +81,10 @@ export default function TravelerBookingsPage() {
   return (
     <main className="page px-4">
       <div className="container-sm">
-        <div className="mb-6 flex items-center gap-3">
-          <Link href="/traveler" className="btn-ghost text-sm">{l.backHome}</Link>
-          <h1 className="section-title">{l.title}</h1>
-        </div>
+        <PageHeader
+          back={{ href: "/traveler", label: l.backHome }}
+          title={l.title}
+        />
 
         {loading && (
           <div className="flex flex-col gap-3">
@@ -93,17 +95,15 @@ export default function TravelerBookingsPage() {
           <p className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
         )}
         {!loading && !error && bookings.length === 0 && (
-          <div className="card p-8 py-16 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
-              📋
-            </div>
-            <p className="mb-1 font-bold text-stone-900">{l.emptyTitle}</p>
-            <p className="mb-5 text-sm text-stone-500">{l.emptyDesc}</p>
-            <Link href="/guides" className="btn-primary">{l.emptyBtn}</Link>
-          </div>
+          <EmptyState
+            icon="📋"
+            title={l.emptyTitle}
+            message={l.emptyDesc}
+            action={<Link href="/guides" className="btn-primary">{l.emptyBtn}</Link>}
+          />
         )}
 
-        <div className="flex flex-col gap-4">
+        <div className="animate-fade-up flex flex-col gap-4">
           {bookings.map((b) => {
             const cls   = STATUS_CLS[b.status]  ?? "badge-gray";
             const icon  = STATUS_ICON[b.status] ?? "•";

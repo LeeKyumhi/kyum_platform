@@ -6,6 +6,8 @@ import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
+import PageHeader from "@/components/PageHeader";
+import EmptyState from "@/components/EmptyState";
 import { PinIcon, CalendarIcon } from "@/components/icons";
 
 type TripSummary = {
@@ -63,13 +65,11 @@ export default function TripsPage() {
     <main className="page px-4">
       <div className="container-sm">
         {/* Header */}
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="btn-ghost text-sm">{t.common.back}</Link>
-            <h1 className="section-title">{li.title}</h1>
-          </div>
-          <p className="section-subtitle">{li.subtitle}</p>
-        </div>
+        <PageHeader
+          back={{ href: "/", label: t.common.back }}
+          title={li.title}
+          subtitle={li.subtitle}
+        />
 
         {!showForm ? (
           <button onClick={() => setShowForm(true)} className="btn-primary mb-5 w-full">
@@ -115,14 +115,9 @@ export default function TripsPage() {
             {[1, 2, 3].map((i) => <div key={i} className="card h-20 animate-pulse p-4" />)}
           </div>
         ) : trips.length === 0 ? (
-          <div className="card p-8 py-16 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-2xl shadow-md">
-              🧳
-            </div>
-            <p className="text-sm text-stone-500">{li.empty}</p>
-          </div>
+          <EmptyState icon="🧳" message={li.empty} />
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="animate-fade-up flex flex-col gap-3">
             {trips.map((trip) => (
               <Link key={trip.id} href={`/trips/${trip.id}`} className="card-hover flex items-center gap-3 p-4">
                 <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
