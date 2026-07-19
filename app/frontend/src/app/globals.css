@@ -2,10 +2,10 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800;900&display=swap');
 
 :root {
-  --bg: #F0F9FF;              /* light sky tint (sky-50) — cool travel brand */
+  --bg: #F7FAFC;              /* near-white cool canvas — aurora tints layered on body */
   --surface: #FFFFFF;
   --primary: #0EA5E9;         /* sky blue — fresh travel brand */
   --primary-dark: #0369A1;
@@ -17,9 +17,10 @@
   --text: #1C1917;
   --muted: #78716C;
   --radius: 16px;
-  --shadow-sm: 0 1px 2px rgba(15,23,42,0.05), 0 1px 3px rgba(15,23,42,0.04);
-  --shadow: 0 6px 20px rgba(15,23,42,0.07), 0 2px 6px rgba(15,23,42,0.05);
-  --shadow-lg: 0 16px 40px rgba(15,23,42,0.12), 0 4px 12px rgba(15,23,42,0.06);
+  /* brand-tinted layered shadows (blue-slate, not gray) */
+  --shadow-sm: 0 1px 2px rgba(2, 32, 71, 0.05), 0 1px 3px rgba(2, 32, 71, 0.04);
+  --shadow: 0 6px 20px rgba(2, 32, 71, 0.07), 0 2px 6px rgba(2, 32, 71, 0.05);
+  --shadow-lg: 0 16px 40px rgba(2, 32, 71, 0.12), 0 4px 12px rgba(2, 32, 71, 0.06);
 }
 
 * {
@@ -32,37 +33,42 @@ html {
 
 body {
   color: var(--text);
-  background: var(--bg);
-  font-family: 'Inter', 'Noto Sans KR', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* soft aurora — sky glow top-right, teal whisper left, on a cool near-white */
+  background:
+    radial-gradient(70rem 44rem at 85% -6%, rgba(14, 165, 233, 0.09), transparent 60%),
+    radial-gradient(52rem 36rem at -12% 18%, rgba(45, 212, 191, 0.07), transparent 55%),
+    var(--bg);
+  font-family: 'Plus Jakarta Sans', 'Noto Sans KR', ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'ss01' on;
 }
 
 /* ── Custom Component Layer ────────────────────────── */
 @layer components {
   /* Cards */
   .card {
-    @apply bg-white rounded-2xl border border-stone-100 shadow-sm;
+    @apply bg-white rounded-3xl border border-stone-200/60 shadow-[0_1px_2px_rgba(2,32,71,0.04),0_10px_28px_-14px_rgba(2,32,71,0.10)];
   }
   .card-hover {
-    @apply card transition-all duration-200 hover:shadow-lg hover:-translate-y-1 hover:border-sky-100;
+    @apply card transition-all duration-300 hover:-translate-y-1 hover:border-sky-200/70 hover:shadow-[0_2px_4px_rgba(2,32,71,0.05),0_20px_44px_-16px_rgba(14,165,233,0.22)];
   }
 
   /* Buttons */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-sky-500 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-sky-600 hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 px-6 py-2.5 text-sm font-bold text-white shadow-md shadow-sky-500/25 transition-all duration-200 hover:shadow-lg hover:shadow-sky-500/35 hover:brightness-[1.06] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none;
   }
   .btn-primary-lg {
     @apply btn-primary px-8 py-3.5 text-base;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-6 py-2.5 text-sm font-semibold text-stone-700 transition-all duration-150 hover:border-stone-400 hover:bg-stone-50 active:scale-95;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-6 py-2.5 text-sm font-semibold text-stone-700 shadow-sm transition-all duration-150 hover:border-sky-300 hover:text-sky-600 hover:shadow active:scale-95;
   }
   .btn-secondary-lg {
     @apply btn-secondary px-8 py-3.5 text-base;
   }
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-900;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-stone-500 transition-colors hover:bg-sky-50 hover:text-sky-600;
   }
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-all hover:bg-red-100;
@@ -70,7 +76,7 @@ body {
 
   /* Inputs */
   .input {
-    @apply w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 placeholder-stone-400 outline-none transition-all focus:border-sky-300 focus:ring-2 focus:ring-sky-100;
+    @apply w-full rounded-xl border border-stone-200 bg-white px-4 py-3 text-sm text-stone-900 placeholder-stone-400 outline-none transition-all duration-200 focus:border-sky-400 focus:ring-4 focus:ring-sky-100/80;
   }
   .input-label {
     @apply block text-xs font-semibold uppercase tracking-wide text-stone-500 mb-1.5;
@@ -78,25 +84,25 @@ body {
 
   /* Badges */
   .badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
   }
-  .badge-indigo  { @apply badge bg-sky-50 text-sky-600; }   /* brand badge (legacy name) */
-  .badge-emerald { @apply badge bg-emerald-50 text-emerald-700; }
-  .badge-amber   { @apply badge bg-amber-50 text-amber-700; }
-  .badge-red     { @apply badge bg-red-50 text-red-700; }
-  .badge-gray    { @apply badge bg-stone-100 text-stone-600; }
+  .badge-indigo  { @apply badge bg-sky-50 text-sky-600 ring-1 ring-inset ring-sky-100; }   /* brand badge (legacy name) */
+  .badge-emerald { @apply badge bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-100; }
+  .badge-amber   { @apply badge bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-100; }
+  .badge-red     { @apply badge bg-red-50 text-red-700 ring-1 ring-inset ring-red-100; }
+  .badge-gray    { @apply badge bg-stone-100 text-stone-600 ring-1 ring-inset ring-stone-200/60; }
 
   /* Filter chips — Klook/GetYourGuide pill row */
   .chip {
-    @apply inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 transition-all duration-150 hover:border-stone-400 hover:text-stone-900;
+    @apply inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-stone-200 bg-white px-4 py-2 text-sm font-medium text-stone-600 shadow-sm transition-all duration-150 hover:border-sky-300 hover:text-sky-600;
   }
   .chip-active {
-    @apply chip border-stone-900 bg-stone-900 text-white hover:border-stone-900 hover:text-white;
+    @apply chip border-stone-900 bg-stone-900 text-white shadow-md hover:border-stone-900 hover:text-white;
   }
 
   /* Segmented tab control */
   .seg-wrap {
-    @apply inline-flex items-center gap-1 rounded-full bg-stone-100 p-1;
+    @apply inline-flex items-center gap-1 rounded-full bg-stone-200/50 p-1 ring-1 ring-inset ring-stone-200/60;
   }
   .seg {
     @apply rounded-full px-5 py-2 text-sm font-semibold text-stone-500 transition-all hover:text-stone-800;
@@ -135,6 +141,20 @@ body {
   .section-subtitle {
     @apply mt-1 text-sm text-stone-500;
   }
+  /* Eyebrow label above section titles */
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-widest text-sky-500;
+  }
+
+  /* Brand gradient text */
+  .text-brand-gradient {
+    @apply bg-gradient-to-r from-sky-500 via-cyan-500 to-teal-400 bg-clip-text text-transparent;
+  }
+
+  /* Frosted glass panel (over photos) */
+  .glass {
+    @apply border border-white/25 bg-white/15 backdrop-blur-md;
+  }
 
   /* Divider */
   .divider {
@@ -154,8 +174,12 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-up {
-  animation: fadeUp 0.4s ease both;
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+/* stagger helpers — apply alongside animate-fade-up */
+.fade-delay-1 { animation-delay: 80ms; }
+.fade-delay-2 { animation-delay: 160ms; }
+.fade-delay-3 { animation-delay: 240ms; }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; }
@@ -163,6 +187,19 @@ body {
 }
 .animate-pulse-dot {
   animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+/* slow ken-burns drift for hero photos */
+@keyframes heroDrift {
+  from { transform: scale(1); }
+  to   { transform: scale(1.06); }
+}
+.animate-hero-drift {
+  animation: heroDrift 18s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up, .animate-hero-drift { animation: none; }
 }
 
 /* 여행 일정 지도 마커 (번호 핀) */

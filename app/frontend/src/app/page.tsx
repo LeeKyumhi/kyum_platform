@@ -141,7 +141,7 @@ function TravelerSearchBar() {
         {/* 검색 */}
         <button
           onClick={submit}
-          className="flex h-11 flex-shrink-0 items-center justify-center gap-2 rounded-full bg-sky-500 px-6 font-semibold text-white transition-colors hover:bg-sky-600 md:ml-2 md:h-12 md:w-12 md:px-0"
+          className="flex h-11 flex-shrink-0 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 px-6 font-bold text-white shadow-md shadow-sky-500/30 transition-all hover:shadow-lg hover:brightness-[1.06] md:ml-2 md:h-12 md:w-12 md:px-0"
           aria-label={l.searchGo}
         >
           <SearchIcon className="h-5 w-5" />
@@ -192,12 +192,12 @@ export default function Home() {
   }
 
   const features = [
-    { icon: "🤝", title: l.f1title, desc: l.f1desc, href: "/guides" },
-    { icon: "💬", title: l.f2title, desc: l.f2desc },
-    { icon: "🧭", title: t.explore.title, desc: t.explore.subtitle, href: "/explore" },
-    { icon: "🗺️", title: t.itinerary.title, desc: t.itinerary.subtitle, href: "/trips" },
-    { icon: "⭐", title: l.f3title, desc: l.f3desc },
-    { icon: "❤️", title: l.followTitle, desc: l.followDesc },
+    { icon: "🤝", title: l.f1title, desc: l.f1desc, href: "/guides", grad: "from-sky-400 to-cyan-400" },
+    { icon: "💬", title: l.f2title, desc: l.f2desc, grad: "from-violet-400 to-purple-400" },
+    { icon: "🧭", title: t.explore.title, desc: t.explore.subtitle, href: "/explore", grad: "from-emerald-400 to-teal-500" },
+    { icon: "🗺️", title: t.itinerary.title, desc: t.itinerary.subtitle, href: "/trips", grad: "from-amber-400 to-orange-400" },
+    { icon: "⭐", title: l.f3title, desc: l.f3desc, grad: "from-yellow-400 to-amber-500" },
+    { icon: "❤️", title: l.followTitle, desc: l.followDesc, grad: "from-rose-400 to-pink-500" },
   ];
   const steps = [
     { num: "01", title: l.s1title, desc: l.s1desc },
@@ -225,9 +225,9 @@ export default function Home() {
     return (
       <main className="min-h-screen">
         <section className="px-3 pt-[4.25rem] md:px-6 md:pt-6">
-          <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] shadow-xl">
+          <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] shadow-2xl shadow-emerald-950/25 ring-1 ring-black/5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={GUIDE_HERO_IMG} alt={l.guideHeroTitle2} className="absolute inset-0 h-full w-full object-cover" />
+            <img src={GUIDE_HERO_IMG} alt={l.guideHeroTitle2} className="absolute inset-0 h-full w-full object-cover animate-hero-drift" />
             <div className="absolute inset-0 bg-gradient-to-t from-emerald-950/85 via-emerald-900/55 to-teal-900/40" />
             <SwitchViewButton onClick={resetMode} />
 
@@ -288,9 +288,6 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="border-t border-stone-100 py-8 pb-24 text-center text-xs text-stone-400 md:pb-8">
-          {l.footerText}
-        </footer>
       </main>
     );
   }
@@ -305,10 +302,10 @@ export default function Home() {
 
       {/* ───────────── Hero — photo-forward, Airbnb style ───────────── */}
       <section className={`px-3 md:px-6 ${mode === null ? "pt-6" : "pt-[4.25rem] md:pt-6"}`}>
-        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] shadow-xl">
+        <div className="relative mx-auto max-w-6xl overflow-hidden rounded-[2rem] shadow-2xl shadow-sky-950/25 ring-1 ring-black/5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={HERO_IMG} alt={l.spotsTitle} className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/30" />
+          <img src={HERO_IMG} alt={l.spotsTitle} className="absolute inset-0 h-full w-full object-cover animate-hero-drift" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/45 to-sky-900/25" />
           {traveler && <SwitchViewButton onClick={resetMode} />}
 
           <div className="relative flex min-h-[540px] flex-col items-center justify-center px-5 py-16 text-center md:min-h-[600px] md:px-10">
@@ -346,7 +343,7 @@ export default function Home() {
                 <span className="flex-1 truncate text-sm font-medium text-stone-500 md:text-base">
                   {l.heroSearchLabel}
                 </span>
-                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-sky-500 text-white transition-colors group-hover:bg-sky-600">
+                <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-r from-sky-500 to-cyan-500 text-white shadow-md shadow-sky-500/30 transition-all group-hover:brightness-[1.06]">
                   <SearchIcon className="h-5 w-5" />
                 </span>
               </Link>
@@ -362,12 +359,15 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Trust stats */}
-            <div className="mt-12 flex flex-wrap items-center justify-center gap-x-10 gap-y-4">
-              {stats.map((s) => (
-                <div key={s.label} className="flex flex-col items-center gap-0.5">
-                  <span className="text-2xl font-extrabold text-white">{s.val}</span>
-                  <span className="text-xs font-medium uppercase tracking-wide text-white/70">{s.label}</span>
+            {/* Trust stats — frosted pill */}
+            <div className="mt-12 flex flex-wrap items-center justify-center gap-y-3 rounded-3xl glass px-3 py-4 md:rounded-full md:px-2">
+              {stats.map((s, i) => (
+                <div
+                  key={s.label}
+                  className={`flex flex-col items-center gap-0.5 px-6 md:px-9 ${i > 0 ? "sm:border-l sm:border-white/15" : ""}`}
+                >
+                  <span className="text-2xl font-extrabold tracking-tight text-white">{s.val}</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70">{s.label}</span>
                 </div>
               ))}
             </div>
@@ -397,7 +397,7 @@ export default function Home() {
                 <Link
                   key={s.slug}
                   href={`/spots/${s.slug}`}
-                  className="group relative aspect-[3/4] w-56 flex-shrink-0 snap-start overflow-hidden rounded-3xl bg-stone-200 shadow-md ring-1 ring-black/5 md:w-64"
+                  className="group relative aspect-[3/4] w-56 flex-shrink-0 snap-start overflow-hidden rounded-3xl bg-stone-200 shadow-md ring-1 ring-black/5 transition-shadow duration-300 hover:shadow-xl hover:shadow-sky-950/20 md:w-64"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -407,10 +407,10 @@ export default function Home() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                   <div className="absolute bottom-0 left-0 right-0 p-4 text-left text-white">
-                    <p className="flex items-center gap-1 text-xs font-medium text-white/80">
-                      <PinIcon className="h-3.5 w-3.5" /> {cityName}
+                    <p className="inline-flex items-center gap-1 rounded-full glass px-2.5 py-1 text-[11px] font-semibold">
+                      <PinIcon className="h-3 w-3" /> {cityName}
                     </p>
-                    <p className="mt-0.5 text-lg font-bold leading-snug drop-shadow">{name}</p>
+                    <p className="mt-1.5 text-lg font-bold leading-snug drop-shadow">{name}</p>
                   </div>
                 </Link>
               );
@@ -428,6 +428,7 @@ export default function Home() {
       {/* ───────────── Feature highlights ───────────── */}
       <section className="border-y border-stone-100 bg-white px-4 py-14 md:px-6 md:py-16">
         <div className="mx-auto mb-10 max-w-4xl text-center">
+          <span className="mx-auto mb-4 block h-1.5 w-12 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400" />
           <h2 className="text-3xl font-extrabold tracking-tight text-stone-900">{l.whyTitle}</h2>
           <p className="mt-3 text-stone-500">{l.whySub}</p>
         </div>
@@ -435,7 +436,7 @@ export default function Home() {
           {features.map((f) => {
             const inner = (
               <>
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-2xl">
+                <div className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${f.grad} text-2xl shadow-md`}>
                   {f.icon}
                 </div>
                 <h3 className="mb-1.5 text-lg font-bold text-stone-900">{f.title}</h3>
@@ -459,6 +460,7 @@ export default function Home() {
       {/* ───────────── How it works ───────────── */}
       <section className="px-4 py-14 md:px-6 md:py-16">
         <div className="mx-auto mb-10 max-w-4xl text-center">
+          <span className="mx-auto mb-4 block h-1.5 w-12 rounded-full bg-gradient-to-r from-sky-400 to-cyan-400" />
           <h2 className="text-3xl font-extrabold tracking-tight text-stone-900">{l.howTitle}</h2>
           <p className="mt-3 text-stone-500">{l.howSub}</p>
         </div>
@@ -468,7 +470,7 @@ export default function Home() {
               {i < steps.length - 1 && (
                 <div className="absolute left-[calc(50%+2rem)] right-0 top-5 hidden h-px border-t-2 border-dashed border-sky-200 sm:block" />
               )}
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-sky-500 text-sm font-bold text-white shadow-md shadow-sky-200">
+              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-sky-500 to-cyan-500 text-sm font-bold text-white shadow-lg shadow-sky-300/50">
                 {s.num}
               </div>
               <h3 className="mb-1.5 font-bold text-stone-900">{s.title}</h3>
@@ -480,10 +482,10 @@ export default function Home() {
 
       {/* ───────────── Final CTA — photo card ───────────── */}
       <section className="px-4 pb-16 md:px-6">
-        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] shadow-xl">
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-[2rem] shadow-2xl shadow-sky-950/20 ring-1 ring-black/5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={CTA_IMG} alt={l.ctaTitle} className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-r from-stone-950/85 via-stone-950/60 to-stone-900/30" />
+          <img src={CTA_IMG} alt={l.ctaTitle} className="absolute inset-0 h-full w-full object-cover animate-hero-drift" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-900/60 to-sky-950/30" />
           <div className="relative px-8 py-14 text-left md:px-14 md:py-16">
             <h2 className="max-w-md text-3xl font-extrabold tracking-tight text-white md:text-4xl">{l.ctaTitle}</h2>
             <p className="mt-3 mb-8 max-w-md text-white/80">{l.ctaSub}</p>
@@ -505,9 +507,6 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-stone-100 py-8 pb-24 text-center text-xs text-stone-400 md:pb-8">
-        {l.footerText}
-      </footer>
     </main>
   );
 }
