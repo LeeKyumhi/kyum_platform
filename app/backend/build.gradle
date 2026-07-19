@@ -47,6 +47,8 @@ dependencies {
 
     // 테스트 도구
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Gradle 9.x 테스트 실행기가 JUnit Platform launcher를 자동으로 못 찾는 이슈 — 명시적으로 추가
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
