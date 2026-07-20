@@ -74,7 +74,6 @@ export default function GuidesPage() {
   const [sortKey, setSortKey]     = useState<SortKey>("default");
   const [langFilter, setLangFilter] = useState("");
   const [badgeOpen, setBadgeOpen] = useState(false);   // 인증 배지 설명 시트
-  const [guideSaveCounts, setGuideSaveCounts] = useState<Record<string, number>>({}); // 가이드별 찜수 (공개 배치 조회)
 
   // Posts tab state
   const [posts, setPosts]         = useState<FeedPost[]>([]);
@@ -100,8 +99,6 @@ export default function GuidesPage() {
       // auth를 붙여야 내 관심사·MBTI 기준 궁합 점수(matchScore)가 내려온다
       const loaded = await api<Guide[]>(`/api/guides?${q.toString()}`, { auth: true });
       setGuides(loaded);
-      // 찜수 뱃지 — 공개 배치 조회라 실패해도 목록 렌더링에는 영향 없음
-      fetchSaveCounts("GUIDE", loaded.map((g) => g.id)).then(setGuideSaveCounts);
     } catch (err) {
       setGuidesError(err instanceof Error ? err.message : t.common.error);
     } finally { setGuidesLoading(false); }
@@ -146,12 +143,11 @@ export default function GuidesPage() {
   // ♡ 토글 시 카드 찜수 뱃지도 즉석 갱신 — SaveButton이 쏘는 이벤트를 받아 현재 목록만 재집계
   useEffect(() => {
     const refresh = () => {
-      if (guides.length) fetchSaveCounts("GUIDE", guides.map((g) => g.id)).then(setGuideSaveCounts);
       if (courses.length) fetchSaveCounts("COURSE", courses.map((c) => c.id)).then(setCourseSaveCounts);
     };
     window.addEventListener(SAVED_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(SAVED_CHANGED_EVENT, refresh);
-  }, [guides, courses]);
+  }, [courses]);
 
   function onTabChange(k: string) {
     setTab(k as "guides" | "posts" | "courses");
@@ -359,7 +355,7 @@ export default function GuidesPage() {
             {!guidesLoading && (
               <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
                 {visibleGuides.map((g) => (
-                  <GuideCard key={g.id} guide={g} saveCount={guideSaveCounts[String(g.id)] ?? 0} />
+                  <GuideCard key={g.id} guide={g} />
                 ))}
               </div>
             )}

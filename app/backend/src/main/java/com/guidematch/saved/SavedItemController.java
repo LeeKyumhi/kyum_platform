@@ -34,7 +34,7 @@ public class SavedItemController {
     public ResponseEntity<Void> save(@AuthenticationPrincipal Long userId, @RequestBody SaveRequest req) {
         SavedItemType type = parseType(req.itemType());
         switch (type) {
-            case GUIDE -> savedItemService.saveGuide(userId, requireRefId(req.refId()));
+            case GUIDE -> throw new IllegalArgumentException("가이드는 더 이상 저장할 수 없습니다.");
             case COURSE -> savedItemService.saveCourse(userId, requireRefId(req.refId()));
             case PLACE -> {
                 if (req.place() == null) throw new IllegalArgumentException("장소 정보가 없습니다.");
@@ -56,23 +56,23 @@ public class SavedItemController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 내 저장 목록 3종 (/saved 페이지). */
+    /** 내 저장 목록 (코스·장소, /profile?tab=saved). */
     @GetMapping
     public SavedListResponse myList(@AuthenticationPrincipal Long userId) {
         return savedItemService.myList(userId);
     }
 
-    /** 내가 저장한 참조 3종 (카드 ♡ 초기화, 경량). */
+    /** 내가 저장한 참조 (코스·장소, 카드 ♡ 초기화, 경량). */
     @GetMapping("/ids")
     public SavedIdsResponse myIds(@AuthenticationPrincipal Long userId) {
         return savedItemService.myIds(userId);
     }
 
-    /** 저장수 배치 (공개 — 소셜 프루프). PLACE는 미지원(스펙 §2.3). 공개 엔드포인트라 ids 개수 상한 필수. */
+    /** 저장수 배치 (공개 — 소셜 프루프). COURSE만 지원. 공개 엔드포인트라 ids 개수 상한 필수. */
     @GetMapping("/counts")
     public Map<Long, Long> counts(@RequestParam String type, @RequestParam List<Long> ids) {
         SavedItemType t = parseType(type);
-        if (t == SavedItemType.PLACE) throw new IllegalArgumentException("장소 저장수는 지원하지 않습니다.");
+        if (t != SavedItemType.COURSE) throw new IllegalArgumentException("저장수는 코스만 지원합니다.");
         if (ids != null && ids.size() > MAX_COUNT_IDS) {
             throw new IllegalArgumentException("ids는 최대 " + MAX_COUNT_IDS + "개까지 조회할 수 있습니다.");
         }

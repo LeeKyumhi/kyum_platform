@@ -4,7 +4,6 @@ import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.TourCourse;
 import com.guidematch.guide.TourCourseRepository;
-import com.guidematch.guide.dto.FollowingGuideResponse;
 import com.guidematch.guide.dto.TourCourseResponse;
 import com.guidematch.saved.dto.SavedIdsResponse;
 import com.guidematch.saved.dto.SavedListResponse;
@@ -33,17 +32,6 @@ public class SavedItemService {
         this.profileRepository = profileRepository;
         this.courseRepository = courseRepository;
         this.userRepository = userRepository;
-    }
-
-    @Transactional
-    public void saveGuide(Long userId, Long guideProfileId) {
-        if (!profileRepository.existsById(guideProfileId)) {
-            throw new IllegalArgumentException("가이드를 찾을 수 없습니다.");
-        }
-        if (savedItemRepository.existsByUserIdAndItemTypeAndRefId(userId, SavedItemType.GUIDE, guideProfileId)) {
-            return; // 이미 저장됨 — 무시 (idempotent)
-        }
-        savedItemRepository.save(new SavedItem(userId, SavedItemType.GUIDE, guideProfileId));
     }
 
     @Transactional
@@ -80,42 +68,23 @@ public class SavedItemService {
         }
     }
 
-    /** 카드 ♡ 초기 상태용 — 저장한 참조 3종 일괄. */
+    /** 카드 ♡ 초기 상태용 — 저장한 참조 2종 일괄. 가이드 저장은 폐기(Phase 0) — GUIDE 행은 무시. */
     @Transactional(readOnly = true)
     public SavedIdsResponse myIds(Long userId) {
         List<SavedItem> items = savedItemRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return new SavedIdsResponse(
-                items.stream().filter(s -> s.getItemType() == SavedItemType.GUIDE).map(SavedItem::getRefId).toList(),
                 items.stream().filter(s -> s.getItemType() == SavedItemType.COURSE).map(SavedItem::getRefId).toList(),
                 items.stream().filter(s -> s.getItemType() == SavedItemType.PLACE).map(SavedItem::getPlaceRef).toList()
         );
     }
 
     /**
-     * /saved 페이지용 목록 3종. 가이드/코스는 원본을 배치 재조회(원격 DB — 개별 조회 금지, N+1 방지)
-     * 하고, 사라진 가이드·비활성 코스는 조용히 제외한다.
+     * /saved 페이지용 목록 2종. 코스는 원본을 배치 재조회(원격 DB — 개별 조회 금지, N+1 방지)
+     * 하고, 비활성 코스는 조용히 제외한다. 가이드 저장은 폐기(Phase 0) — GUIDE 행은 무시.
      */
     @Transactional(readOnly = true)
     public SavedListResponse myList(Long userId) {
         List<SavedItem> items = savedItemRepository.findByUserIdOrderByCreatedAtDesc(userId);
-
-        // 가이드: 배치 조회 → 저장 순서 유지 조립
-        List<Long> guideIds = items.stream()
-                .filter(s -> s.getItemType() == SavedItemType.GUIDE).map(SavedItem::getRefId).toList();
-        Map<Long, GuideProfile> profiles = new HashMap<>();
-        if (!guideIds.isEmpty()) {
-            profileRepository.findAllById(guideIds).forEach(p -> profiles.put(p.getId(), p));
-        }
-        Map<Long, String> names = new HashMap<>();
-        if (!profiles.isEmpty()) {
-            List<Long> userIds = profiles.values().stream().map(GuideProfile::getUserId).toList();
-            userRepository.findAllById(userIds).forEach(u -> names.put(u.getId(), u.getFullName()));
-        }
-        List<FollowingGuideResponse> guides = guideIds.stream()
-                .map(profiles::get)
-                .filter(p -> p != null)
-                .map(p -> FollowingGuideResponse.from(p, names.getOrDefault(p.getUserId(), "Unknown")))
-                .toList();
 
         // 코스: 배치 조회 → active만
         List<Long> courseIds = items.stream()
@@ -155,7 +124,7 @@ public class SavedItemService {
                 .map(SavedPlaceResponse::from)
                 .toList();
 
-        return new SavedListResponse(guides, courses, places);
+        return new SavedListResponse(courses, places);
     }
 
     /** 저장수 배치 집계 — 저장 0건 대상은 맵에 없음(프론트에서 ?? 0). */

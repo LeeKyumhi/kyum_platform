@@ -63,11 +63,8 @@ const t = {
     },
 
     saved: {
-      title: "저장됨",
-      tabGuides: "가이드",
       tabCourses: "코스",
       tabPlaces: "장소",
-      empty: "아직 저장한 항목이 없어요. 마음에 드는 가이드·코스·장소에 ♡를 눌러보세요.",
       browseCta: "둘러보기",
       saveBtn: "저장",
       savedBtn: "저장됨",
@@ -1090,6 +1087,9 @@ const t = {
       nicknameCancel: "취소",
       nicknamePlaceholder: "영문·숫자·밑줄",
       nicknameHint: "3~20자, 영문·숫자·밑줄(_). 비우면 이메일 앞부분으로 표시돼요.",
+      postsTab: "게시글",
+      savedTab: "저장됨",
+      savedEmpty: "아직 저장한 코스·장소가 없어요.",
     },
 
     /* Account (legacy /me) */
@@ -1264,11 +1264,8 @@ const t = {
     },
 
     saved: {
-      title: "Saved",
-      tabGuides: "Guides",
       tabCourses: "Courses",
       tabPlaces: "Places",
-      empty: "Nothing saved yet. Tap ♡ on guides, courses and places you like.",
       browseCta: "Start browsing",
       saveBtn: "Save",
       savedBtn: "Saved",
@@ -2271,6 +2268,9 @@ const t = {
       nicknameCancel: "Cancel",
       nicknamePlaceholder: "letters, numbers, _",
       nicknameHint: "3–20 chars: letters, numbers, underscore. Leave empty to show your email prefix.",
+      postsTab: "Posts",
+      savedTab: "Saved",
+      savedEmpty: "No saved courses or places yet.",
     },
 
     mePage: {
@@ -2441,11 +2441,8 @@ const t = {
     },
 
     saved: {
-      title: "收藏",
-      tabGuides: "向导",
       tabCourses: "路线",
       tabPlaces: "地点",
-      empty: "还没有收藏。点击喜欢的向导、路线和地点上的 ♡ 吧。",
       browseCta: "去逛逛",
       saveBtn: "收藏",
       savedBtn: "已收藏",
@@ -3448,6 +3445,9 @@ const t = {
       nicknameCancel: "取消",
       nicknamePlaceholder: "字母·数字·下划线",
       nicknameHint: "3~20位字母、数字或下划线(_)。留空则显示邮箱前缀。",
+      postsTab: "帖子",
+      savedTab: "已保存",
+      savedEmpty: "还没有保存的路线或地点。",
     },
 
     mePage: {
