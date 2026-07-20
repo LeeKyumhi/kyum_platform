@@ -9,6 +9,7 @@ import { PinIcon } from "@/components/icons";
 import PlaceDetailModal from "@/components/PlaceDetailModal";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import SaveButton from "@/components/SaveButton";
 
 type Place = {
   id: string;
@@ -119,7 +120,7 @@ export default function ExplorePage() {
                   <div
                     key={p.id}
                     onClick={() => setSelectedPlace(p)}
-                    className="card-hover cursor-pointer p-4"
+                    className="card-hover relative cursor-pointer p-4"
                   >
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
@@ -143,6 +144,13 @@ export default function ExplorePage() {
                           {p.phone && <span>{p.phone}</span>}
                         </div>
                       </div>
+                      <SaveButton
+                        target={{ itemType: "PLACE", place: {
+                          ref: `kakao:${p.id}`, name: p.name, category: p.category,
+                          address: p.address, lat: p.latitude, lng: p.longitude, image: null,
+                        } }}
+                        className="mt-0.5 flex-shrink-0"
+                      />
                       <span className="mt-1 flex-shrink-0 text-xs text-stone-300">›</span>
                     </div>
                   </div>
