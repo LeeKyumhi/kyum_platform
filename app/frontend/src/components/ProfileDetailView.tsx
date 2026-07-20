@@ -8,6 +8,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { localeOf } from "@/lib/i18n";
 import SlotCalendar from "@/components/SlotCalendar";
 import TripMap from "@/components/TripMap";
+import FollowButton from "@/components/FollowButton";
 import ReportBlockMenu from "@/components/ReportBlockMenu";
 import TrackNotice from "@/components/TrackNotice";
 import { COMPANION_FIELDS, CHECKBOX_FIELDS, buildRequestDetails } from "@/lib/companionRequest";
@@ -258,7 +259,6 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
   const [courses, setCourses] = useState<TourCourse[]>([]);
   const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
   const [error, setError]     = useState("");
-  const [followLoading, setFollowLoading] = useState(false);
   const [dmLoading, setDmLoading] = useState(false);
   // 로그인 여부 — 하이드레이션 불일치 방지를 위해 마운트 후에만 설정
   const [loggedIn, setLoggedIn] = useState(false);
@@ -331,22 +331,6 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
   useEffect(() => {
     if (trackCategories.length === 1) { setBookingCategory(trackCategories[0]); setReqFields({}); }
   }, [trackCategoryKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function onFollow() {
-    if (!getToken()) { router.push("/login"); return; }
-    if (!guide) return;
-    setFollowLoading(true);
-    try {
-      if (guide.isFollowing) {
-        await api(`/api/guides/${guide.id}/follow`, { method: "DELETE", auth: true });
-        setGuide({ ...guide, isFollowing: false, followerCount: guide.followerCount - 1 });
-      } else {
-        await api(`/api/guides/${guide.id}/follow`, { method: "POST", auth: true });
-        setGuide({ ...guide, isFollowing: true, followerCount: guide.followerCount + 1 });
-      }
-    } catch { /* ignore */ }
-    finally { setFollowLoading(false); }
-  }
 
   // 예약 전 문의 — 대화방을 얻어(없으면 생성) 메시지 화면으로 이동
   async function onMessage() {
@@ -534,17 +518,11 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                     >
                       <ChatIcon className="h-3.5 w-3.5" /> {t.dm.messageBtn}
                     </button>
-                    <button
-                      onClick={onFollow}
-                      disabled={followLoading}
-                      className={`rounded-full px-5 py-2 text-xs font-bold transition-all ${
-                        guide.isFollowing
-                          ? "bg-stone-900 text-white hover:bg-stone-700"
-                          : "border border-stone-300 bg-white text-stone-800 hover:border-stone-900"
-                      } disabled:opacity-60`}
-                    >
-                      {guide.isFollowing ? t.personality.unfollowBtn : t.personality.followBtn}
-                    </button>
+                    <FollowButton
+                      userId={guide.guideUserId}
+                      initialFollowing={guide.isFollowing}
+                      onChange={(f) => setGuide({ ...guide, isFollowing: f, followerCount: guide.followerCount + (f ? 1 : -1) })}
+                    />
                     {loggedIn && (
                       <ReportBlockMenu
                         targetUserId={guide.guideUserId}

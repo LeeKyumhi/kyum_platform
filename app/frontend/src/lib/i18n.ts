@@ -995,6 +995,12 @@ const t = {
       viewProfile: "프로필 보기 →",
     },
 
+    follow: {
+      follow: "팔로우",
+      following: "팔로잉",
+      followers: "팔로워",
+    },
+
     interestCategoryLabels: {
       food:    "🍽️ 음식 & 음료",
       culture: "🏛️ 문화 & 역사",
@@ -2177,6 +2183,12 @@ const t = {
       viewProfile: "View profile →",
     },
 
+    follow: {
+      follow: "Follow",
+      following: "Following",
+      followers: "Followers",
+    },
+
     interestCategoryLabels: {
       food:    "🍽️ Food & Drink",
       culture: "🏛️ Culture & History",
@@ -3352,6 +3364,12 @@ const t = {
       followingTitle: "关注列表",
       followingEmpty: "您还没有关注任何导游。",
       viewProfile: "查看主页 →",
+    },
+
+    follow: {
+      follow: "关注",
+      following: "已关注",
+      followers: "粉丝",
     },
 
     interestCategoryLabels: {
