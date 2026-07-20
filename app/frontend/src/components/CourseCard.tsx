@@ -1,9 +1,13 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { PinIcon } from "@/components/icons";
 import SaveButton from "@/components/SaveButton";
+import { getToken } from "@/lib/api";
+import { followCourse } from "@/lib/followCourse";
 
 export type CourseCardData = {
   id: number; guideProfileId: number; title: string; description: string | null;
@@ -18,6 +22,23 @@ export type CourseCardData = {
  */
 export default function CourseCard({ course: c }: { course: CourseCardData }) {
   const { t } = useLanguage();
+  const router = useRouter();
+  const [following, setFollowing] = useState(false);
+
+  async function onFollowCourse(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!getToken()) { router.push("/login"); return; }
+    if (following) return;
+    setFollowing(true);
+    try {
+      const tripId = await followCourse(c);
+      router.push(`/trips/${tripId}`);
+    } catch {
+      alert(t.saved.followCourseFail);
+      setFollowing(false);
+    }
+  }
 
   return (
     <Link href={`/guides/${c.guideProfileId}`} className="card-hover relative flex flex-col overflow-hidden">
@@ -57,6 +78,10 @@ export default function CourseCard({ course: c }: { course: CourseCardData }) {
             <span className="text-xs font-medium text-stone-400"> {c.currency}/{t.courses.perPerson}</span>
           </span>
         </div>
+        <button onClick={onFollowCourse} disabled={following}
+          className="mt-3 w-full rounded-xl bg-stone-900 py-2 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60">
+          🗺️ {t.saved.followCourse}
+        </button>
       </div>
     </Link>
   );
