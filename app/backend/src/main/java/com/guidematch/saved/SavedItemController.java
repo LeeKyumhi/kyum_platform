@@ -56,19 +56,19 @@ public class SavedItemController {
         return ResponseEntity.noContent().build();
     }
 
-    /** 내 저장 목록 3종 (/saved 페이지). */
+    /** 내 저장 목록 (코스·장소, /profile?tab=saved). */
     @GetMapping
     public SavedListResponse myList(@AuthenticationPrincipal Long userId) {
         return savedItemService.myList(userId);
     }
 
-    /** 내가 저장한 참조 3종 (카드 ♡ 초기화, 경량). */
+    /** 내가 저장한 참조 (코스·장소, 카드 ♡ 초기화, 경량). */
     @GetMapping("/ids")
     public SavedIdsResponse myIds(@AuthenticationPrincipal Long userId) {
         return savedItemService.myIds(userId);
     }
 
-    /** 저장수 배치 (공개 — 소셜 프루프). PLACE는 미지원(스펙 §2.3). 공개 엔드포인트라 ids 개수 상한 필수. */
+    /** 저장수 배치 (공개 — 소셜 프루프). COURSE만 지원. 공개 엔드포인트라 ids 개수 상한 필수. */
     @GetMapping("/counts")
     public Map<Long, Long> counts(@RequestParam String type, @RequestParam List<Long> ids) {
         SavedItemType t = parseType(type);

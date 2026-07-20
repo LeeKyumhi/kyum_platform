@@ -63,11 +63,8 @@ const t = {
     },
 
     saved: {
-      title: "저장됨",
-      tabGuides: "가이드",
       tabCourses: "코스",
       tabPlaces: "장소",
-      empty: "아직 저장한 항목이 없어요. 마음에 드는 가이드·코스·장소에 ♡를 눌러보세요.",
       browseCta: "둘러보기",
       saveBtn: "저장",
       savedBtn: "저장됨",
@@ -1267,11 +1264,8 @@ const t = {
     },
 
     saved: {
-      title: "Saved",
-      tabGuides: "Guides",
       tabCourses: "Courses",
       tabPlaces: "Places",
-      empty: "Nothing saved yet. Tap ♡ on guides, courses and places you like.",
       browseCta: "Start browsing",
       saveBtn: "Save",
       savedBtn: "Saved",
@@ -2447,11 +2441,8 @@ const t = {
     },
 
     saved: {
-      title: "收藏",
-      tabGuides: "向导",
       tabCourses: "路线",
       tabPlaces: "地点",
-      empty: "还没有收藏。点击喜欢的向导、路线和地点上的 ♡ 吧。",
       browseCta: "去逛逛",
       saveBtn: "收藏",
       savedBtn: "已收藏",
