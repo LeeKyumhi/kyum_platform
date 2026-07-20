@@ -58,6 +58,11 @@ public class FollowService {
     }
 
     @Transactional(readOnly = true)
+    public long followingCountOfUser(Long userId) {
+        return userFollows.countByFollowerUserId(userId);
+    }
+
+    @Transactional(readOnly = true)
     public Map<Long, Long> followerCountsByUserIds(Collection<Long> ids) {
         Map<Long, Long> out = new HashMap<>();
         if (ids == null || ids.isEmpty()) return out;
