@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/api";
+import { useLanguage } from "@/context/LanguageContext";
 import { HeartIcon } from "@/components/icons";
 import {
   loadSavedIds, saveItem, unsaveItem, SAVED_CHANGED_EVENT, type SaveTarget,
@@ -14,6 +15,7 @@ import {
 
 export default function SaveButton({ target, className = "" }: { target: SaveTarget; className?: string }) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [saved, setSaved] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -61,7 +63,7 @@ export default function SaveButton({ target, className = "" }: { target: SaveTar
     <button
       onClick={toggle}
       aria-pressed={saved}
-      aria-label="save"
+      aria-label={saved ? t.saved.savedBtn : t.saved.saveBtn}
       className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm ring-1 ring-stone-200/60 backdrop-blur transition-transform hover:scale-110 active:scale-95 ${className}`}
     >
       <HeartIcon className={`h-4 w-4 ${saved ? "text-rose-500" : "text-stone-400"}`} filled={saved} />

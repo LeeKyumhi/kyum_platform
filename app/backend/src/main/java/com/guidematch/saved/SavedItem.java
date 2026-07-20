@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -21,7 +22,9 @@ import java.time.Instant;
  */
 @Entity
 @Table(name = "saved_items",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "item_type", "ref_id", "place_ref"}))
+        uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "item_type", "ref_id", "place_ref"}),
+        // 공개 counts 배치(where item_type=? and ref_id in ...)용 — 복합 유니크는 user_id 선두라 이 패턴을 못 탄다
+        indexes = @Index(name = "idx_saved_items_type_ref", columnList = "item_type, ref_id"))
 public class SavedItem {
 
     @Id

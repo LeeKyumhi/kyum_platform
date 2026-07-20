@@ -18,21 +18,27 @@ export async function followCourse(c: FollowableCourse): Promise<number> {
     body: { title: c.title, city: c.city },
   });
   const first = c.waypoints?.[0];
-  await api(`/api/itineraries/me/${created.id}`, {
-    method: "PUT", auth: true,
-    body: {
-      title: c.title, city: c.city, startDate: null, endDate: null,
-      items: [{
-        dayIndex: 1, sortOrder: 0,
-        placeId: null, placeName: c.title, category: "tour", address: null,
-        latitude: first?.latitude ?? null, longitude: first?.longitude ?? null,
-        memo: null,
-        startHour: 10,
-        durationHours: Math.max(1, Math.min(c.durationHours ?? 2, 12)),
-        laneIndex: 0, laneSpan: 1,
-        sourceCourseId: c.id,
-      }],
-    },
-  });
+  try {
+    await api<{ id: number }>(`/api/itineraries/me/${created.id}`, {
+      method: "PUT", auth: true,
+      body: {
+        title: c.title, city: c.city, startDate: null, endDate: null,
+        items: [{
+          dayIndex: 1, sortOrder: 0,
+          placeId: null, placeName: c.title, category: "tour", address: null,
+          latitude: first?.latitude ?? null, longitude: first?.longitude ?? null,
+          memo: null,
+          startHour: 10,
+          durationHours: Math.max(1, Math.min(c.durationHours ?? 2, 12)),
+          laneIndex: 0, laneSpan: 1,
+          sourceCourseId: c.id,
+        }],
+      },
+    });
+  } catch (err) {
+    // 아이템 추가 실패 시 방금 만든 빈 일정을 정리(고아 방지) — 정리 실패는 무시하고 원래 에러를 올림
+    await api(`/api/itineraries/me/${created.id}`, { method: "DELETE", auth: true }).catch(() => {});
+    throw err;
+  }
   return created.id;
 }
