@@ -53,14 +53,24 @@ export async function unsaveItem(target: SaveTarget): Promise<void> {
   invalidate();
 }
 
-/** 저장수 배치 (공개) — 저장 0건 대상은 응답에 없으므로 `?? 0` 처리. */
+/** 서버 counts ids 상한(SavedItemController.MAX_COUNT_IDS)과 동기 — 넘기면 400. */
+const COUNTS_CHUNK = 100;
+
+/** 저장수 배치 (공개) — 저장 0건 대상은 응답에 없으므로 `?? 0` 처리. 100개 초과는 청크로 나눠 병합. */
 export async function fetchSaveCounts(
   type: "GUIDE" | "COURSE",
   ids: number[]
 ): Promise<Record<string, number>> {
   if (ids.length === 0) return {};
+  const chunks: number[][] = [];
+  for (let i = 0; i < ids.length; i += COUNTS_CHUNK) chunks.push(ids.slice(i, i + COUNTS_CHUNK));
   try {
-    return await api<Record<string, number>>(`/api/saved/counts?type=${type}&ids=${ids.join(",")}`);
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        api<Record<string, number>>(`/api/saved/counts?type=${type}&ids=${chunk.join(",")}`)
+      )
+    );
+    return Object.assign({}, ...results);
   } catch {
     return {};
   }
