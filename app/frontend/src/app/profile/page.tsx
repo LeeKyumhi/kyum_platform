@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api, clearToken, getToken, saveUserName } from "@/lib/api";
 import { clearMode, getMode } from "@/lib/mode";
@@ -9,6 +9,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { PinIcon } from "@/components/icons";
 import EmailVerifiedBanner from "@/components/EmailVerifiedBanner";
 import BlockedUsersSection from "@/components/BlockedUsersSection";
+import SavedGrid from "@/components/SavedGrid";
 
 type Me = {
   id: number;
@@ -37,7 +38,16 @@ type GuideProfile = {
 };
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfileContent />
+    </Suspense>
+  );
+}
+
+function ProfileContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useLanguage();
   const l = t.profilePage;
 
@@ -47,6 +57,10 @@ export default function ProfilePage() {
   const [mode, setMode] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [togglingActive, setTogglingActive] = useState(false);
+  // ?tab=saved로 진입하면 프로필→저장됨 탭이 바로 열림 (구 /saved 딥링크 호환)
+  const [tab, setTab] = useState<"posts" | "saved">(
+    searchParams.get("tab") === "saved" ? "saved" : "posts"
+  );
 
   // 닉네임(@핸들) 인라인 편집
   const [editingNick, setEditingNick] = useState(false);
@@ -280,6 +294,30 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* 게시글 | 저장됨 탭 */}
+        <div className="mb-5 inline-flex w-full rounded-full bg-stone-100 p-1">
+          <button
+            onClick={() => setTab("posts")}
+            className={`flex-1 rounded-full py-2 text-sm font-bold transition-all ${
+              tab === "posts" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"
+            }`}
+          >
+            {l.postsTab}
+          </button>
+          <button
+            onClick={() => setTab("saved")}
+            className={`flex-1 rounded-full py-2 text-sm font-bold transition-all ${
+              tab === "saved" ? "bg-white text-stone-900 shadow-sm" : "text-stone-500 hover:text-stone-800"
+            }`}
+          >
+            {l.savedTab}
+          </button>
+        </div>
+
+        {tab === "saved" && <SavedGrid />}
+
+        {tab === "posts" && (
+        <>
         {/* Guide region & rate */}
         {guide && (
           <div className="card mb-5 p-5">
@@ -353,6 +391,8 @@ export default function ProfilePage() {
         >
           {l.logoutBtn}
         </button>
+        </>
+        )}
       </div>
     </main>
   );

@@ -1090,6 +1090,9 @@ const t = {
       nicknameCancel: "취소",
       nicknamePlaceholder: "영문·숫자·밑줄",
       nicknameHint: "3~20자, 영문·숫자·밑줄(_). 비우면 이메일 앞부분으로 표시돼요.",
+      postsTab: "게시글",
+      savedTab: "저장됨",
+      savedEmpty: "아직 저장한 코스·장소가 없어요.",
     },
 
     /* Account (legacy /me) */
@@ -2271,6 +2274,9 @@ const t = {
       nicknameCancel: "Cancel",
       nicknamePlaceholder: "letters, numbers, _",
       nicknameHint: "3–20 chars: letters, numbers, underscore. Leave empty to show your email prefix.",
+      postsTab: "Posts",
+      savedTab: "Saved",
+      savedEmpty: "No saved courses or places yet.",
     },
 
     mePage: {
@@ -3448,6 +3454,9 @@ const t = {
       nicknameCancel: "取消",
       nicknamePlaceholder: "字母·数字·下划线",
       nicknameHint: "3~20位字母、数字或下划线(_)。留空则显示邮箱前缀。",
+      postsTab: "帖子",
+      savedTab: "已保存",
+      savedEmpty: "还没有保存的路线或地点。",
     },
 
     mePage: {
