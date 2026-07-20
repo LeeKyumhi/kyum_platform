@@ -1,5 +1,16 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 위시리스트 페이즈 1 — 찜 저장 (2026-07-19~20, 브랜치 `feat/wishlist`, 백엔드+프론트, 빌드·테스트·브라우저 스모크 7/7 통과, ⚠ main 미머지)
+
+여행자가 가이드·코스·장소를 ♡ 저장 → `/saved` 3탭에서 재열람 + 저장수 소셜 프루프 + "이 코스 따라하기". 스펙 `docs/superpowers/specs/2026-07-19-wishlist-design.md`, 플랜 `docs/superpowers/plans/2026-07-19-wishlist.md`, 태스크 원장 `.superpowers/sdd/progress.md`. Subagent-Driven Development(태스크당 구현자→리뷰→커밋), 총 14커밋 `e4b1b7e..0aa4efe`.
+
+- **백엔드(신규 `com.guidematch.saved` 패키지)**: 다형성 `saved_items` 테이블(GUIDE/COURSE=refId 참조, PLACE=placeRef+저장시점 스냅샷 — SPOTS slug 또는 `kakao:{id}`), `SavedItemService`(idempotent 저장/해제, 목록 배치 조립 — 원격 DB N+1 금지 준수, 사라진 가이드·비활성 코스 조용히 제외), REST 5개(`POST/DELETE/GET /api/saved`, `/ids`, `/counts` — counts만 public·SecurityConfig 등록). **이 레포 최초 `src/test`**: Mockito 15테스트(+build.gradle `junit-platform-launcher` testRuntimeOnly — Gradle 9 필수).
+- **프론트**: `lib/saved.ts`(ids 공유 캐시 = loadCities 패턴, `SAVED_CHANGED_EVENT`), `SaveButton`(낙관적 토글+롤백, 비로그인→/login), 부착점 4곳(GuideCard·CourseCard·explore 카드 인라인·spots 히어로 오버레이 — spot은 `name.ko` 고정 저장), `/saved` 3탭 페이지+사이드바 "저장됨"(데스크탑 여행자만, 모바일 5탭 무변), `lib/followCourse.ts`(POST+PUT 2호출로 코스 블록 1개짜리 새 일정 — **dayIndex는 1**, 빌더 일차 1-인덱스), 가이드/코스 카드 ♥N 뱃지(`fetchSaveCounts` 공개 배치).
+- **검증**: 태스크별 리뷰 전부 클린 + `gradle build -x bootJar` SUCCESS + `npm run build` 성공(/saved 라우트) + **Playwright 브라우저 스모크 7/7 PASS**(비로그인 리다이렉트/새로고침 유지/3탭/해제 즉시 반영/따라하기 빌더 블록/공개 뱃지/en·zh). 스모크가 플랜 코드 버그 1건 발견→수정(f59e5a2: followCourse dayIndex 0→1, 0이면 블록 영구 미표시) 후 재검증 PASS. 최종 브랜치 리뷰(opus): "With fixes" → 유일 필수건(유니크 제약 설명 부정확 — NULLS DISTINCT라 전 타입 비실효, 중복 방지는 서비스 레벨 단독) 정정 커밋(0aa4efe) 완료.
+- **백로그(최종 리뷰 triage — 전부 머지 비차단)**: ① `/api/saved/counts` public+ids 무제한+`(item_type,ref_id)` 인덱스 없음(시퀀셜 스캔 — v1 볼륨 허용, 성장 시 ids 상한+인덱스) ② 서비스 레벨 exists→save TOCTOU(Follow 패턴 동일) ③ guides 페이지 ♥뱃지는 로드 시 1회 조회(♡ 토글해도 즉석 갱신 안 됨) ④ followCourse PUT 실패 시 고아 빈 일정 ⑤ `/saved` fetch 실패=빈상태 구분 불가 ⑥ 해제 시 stale row 간헐(1/5, 이벤트 refetch 의존) ⑦ SaveButton aria-label 정적 "save".
+- **DB 오염**(실 dev DB, 콘솔 정리 대상): users 9·10(`wish_smoke_*@test.com`/test1234), guide profile 4, tour course 1, itinerary 7(버그 재현 잔재·dayIndex 0 아이템)·8, saved 4건. 상세는 `.superpowers/sdd/task-10-smoke-report.md`.
+- **미머지**: `feat/wishlist` 브랜치에만 존재. push 안 함. 머지는 사용자 결정 대기.
+
 ## 내부 페이지 프리미엄 폴리시 — Tier 1 (2026-07-19, 프론트 전용, tsc·lint·브라우저 스크린샷 검증 통과, 미커밋)
 
 리브랜딩 3커밋(`ab129e0`~`62fc880`) 후속 — 랜딩에만 있던 프리미엄 어휘를 여행자 핵심 퍼널로 확장. 스펙 `docs/superpowers/specs/2026-07-19-interior-page-polish-design.md` (실사 결과 반영해 1차안 축소: 스켈레톤·카드위계·빈상태는 대부분 이미 양호, 진짜 갭 = 헤더 불일치·fade-up 전무·companions 미완성).
