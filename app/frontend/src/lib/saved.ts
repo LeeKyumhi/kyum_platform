@@ -13,12 +13,12 @@ export type SavedPlaceSnapshot = {
   image: string | null;
 };
 
-export type SavedIds = { guideIds: number[]; courseIds: number[]; placeRefs: string[] };
+export type SavedIds = { courseIds: number[]; placeRefs: string[] };
 
 /** 저장/해제 후 모든 SaveButton이 다시 동기화하도록 쏘는 이벤트. */
 export const SAVED_CHANGED_EVENT = "peerup-saved-changed";
 
-const EMPTY: SavedIds = { guideIds: [], courseIds: [], placeRefs: [] };
+const EMPTY: SavedIds = { courseIds: [], placeRefs: [] };
 
 let idsPromise: Promise<SavedIds> | null = null;
 
@@ -36,7 +36,7 @@ function invalidate() {
 }
 
 export type SaveTarget =
-  | { itemType: "GUIDE" | "COURSE"; refId: number }
+  | { itemType: "COURSE"; refId: number }
   | { itemType: "PLACE"; place: SavedPlaceSnapshot };
 
 export async function saveItem(target: SaveTarget): Promise<void> {
@@ -58,7 +58,7 @@ const COUNTS_CHUNK = 100;
 
 /** 저장수 배치 (공개) — 저장 0건 대상은 응답에 없으므로 `?? 0` 처리. 100개 초과는 청크로 나눠 병합. */
 export async function fetchSaveCounts(
-  type: "GUIDE" | "COURSE",
+  type: "COURSE",
   ids: number[]
 ): Promise<Record<string, number>> {
   if (ids.length === 0) return {};

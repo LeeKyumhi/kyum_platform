@@ -24,11 +24,8 @@ export default function SaveButton({ target, className = "" }: { target: SaveTar
     const sync = () =>
       loadSavedIds().then((ids) => {
         if (cancelled) return;
-        // PLACE를 먼저 체크해야 TS가 나머지 분기에서 GUIDE|COURSE로 좁혀준다
-        // (itemType이 "GUIDE"|"COURSE" 유니언인 멤버는 부정 비교로는 좁혀지지 않음)
         if (target.itemType === "PLACE") setSaved(ids.placeRefs.includes(target.place.ref));
-        else if (target.itemType === "GUIDE") setSaved(ids.guideIds.includes(target.refId));
-        else setSaved(ids.courseIds.includes(target.refId));
+        else setSaved(ids.courseIds.includes(target.refId)); // COURSE
       });
     sync();
     window.addEventListener(SAVED_CHANGED_EVENT, sync);

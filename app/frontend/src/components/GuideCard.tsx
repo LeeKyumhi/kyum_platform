@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { StarIcon, PinIcon, CalendarIcon, UsersIcon, HeartIcon } from "@/components/icons";
-import SaveButton from "@/components/SaveButton";
 
 type Language = { language: string; level: string };
 
@@ -44,7 +43,6 @@ export default function GuideCard({ guide: g, href, track = "tour", saveCount }:
 
   return (
     <Link href={link} className="card-hover relative flex flex-col p-5">
-      <SaveButton target={{ itemType: "GUIDE", refId: g.id }} className="absolute right-4 top-4 z-10" />
       {/* Header: avatar + name + region */}
       <div className="flex items-start gap-4">
         <GuideAvatar src={g.avatarUrl} name={g.guideName} />

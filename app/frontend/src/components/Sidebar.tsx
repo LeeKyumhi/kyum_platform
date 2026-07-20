@@ -138,7 +138,6 @@ export default function Sidebar() {
       it("/trips", "🗺️", n.trips, under("/trips")),
       { ...it("/traveler/bookings", "📋", n.bookings, under("/traveler/bookings")), badge: rejectedCount || undefined },
       it("/traveler/following", "💙", n.following, under("/traveler/following")),
-      it("/saved", "❤️", n.saved, under("/saved")),
     ];
   }
 

@@ -109,7 +109,6 @@ export default function SavedPage() {
                     <PinIcon className="h-3.5 w-3.5 flex-shrink-0" /> {g.region} · {g.headline}
                   </p>
                 </div>
-                <SaveButton target={{ itemType: "GUIDE", refId: g.guideProfileId }} className="flex-shrink-0" />
               </Link>
             ))}
           </div>
