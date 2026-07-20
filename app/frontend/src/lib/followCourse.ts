@@ -23,7 +23,7 @@ export async function followCourse(c: FollowableCourse): Promise<number> {
     body: {
       title: c.title, city: c.city, startDate: null, endDate: null,
       items: [{
-        dayIndex: 0, sortOrder: 0,
+        dayIndex: 1, sortOrder: 0,
         placeId: null, placeName: c.title, category: "tour", address: null,
         latitude: first?.latitude ?? null, longitude: first?.longitude ?? null,
         memo: null,
