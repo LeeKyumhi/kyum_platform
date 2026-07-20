@@ -1001,6 +1001,16 @@ const t = {
       followers: "팔로워",
     },
 
+    publicProfile: {
+      followers: "팔로워",
+      following: "팔로잉",
+      posts: "게시글",
+      viewGuideProfile: "가이드 프로필 보기",
+      editProfile: "프로필 편집",
+      noPosts: "아직 게시글이 없어요.",
+      notFound: "사용자를 찾을 수 없어요.",
+    },
+
     interestCategoryLabels: {
       food:    "🍽️ 음식 & 음료",
       culture: "🏛️ 문화 & 역사",
@@ -2189,6 +2199,16 @@ const t = {
       followers: "Followers",
     },
 
+    publicProfile: {
+      followers: "Followers",
+      following: "Following",
+      posts: "Posts",
+      viewGuideProfile: "View guide profile",
+      editProfile: "Edit profile",
+      noPosts: "No posts yet.",
+      notFound: "User not found.",
+    },
+
     interestCategoryLabels: {
       food:    "🍽️ Food & Drink",
       culture: "🏛️ Culture & History",
@@ -3370,6 +3390,16 @@ const t = {
       follow: "关注",
       following: "已关注",
       followers: "粉丝",
+    },
+
+    publicProfile: {
+      followers: "粉丝",
+      following: "关注中",
+      posts: "帖子",
+      viewGuideProfile: "查看导游主页",
+      editProfile: "编辑资料",
+      noPosts: "还没有帖子。",
+      notFound: "未找到该用户。",
     },
 
     interestCategoryLabels: {

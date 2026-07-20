@@ -146,18 +146,32 @@ export default function PostCard({ post, onLikeChange }: {
     finally { setSubmitting(false); }
   }
 
+  // 작성자 링크 대상 — 가이드면 가이드 상세, 아니면(여행자) 공개 프로필. 둘 다 없으면 링크 없음.
+  const authorHref = post.isGuide && post.guideProfileId != null
+    ? `/guides/${post.guideProfileId}`
+    : post.authorHandle
+      ? `/users/${post.authorHandle}`
+      : null;
+
+  const authorAvatar = <AuthorAvatar src={post.guideAvatarUrl} name={post.guideName} />;
+  const authorNameBlock = (
+    <p className="flex items-baseline gap-1.5 text-sm font-bold leading-tight text-stone-900">
+      <span className="truncate">{post.guideName}</span>
+      {post.authorHandle && (
+        <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{post.authorHandle}</span>
+      )}
+    </p>
+  );
+
   return (
     <article ref={articleRef} className="card overflow-hidden">
       {/* Author header */}
       <div className="flex items-center gap-3 p-4">
-        <AuthorAvatar src={post.guideAvatarUrl} name={post.guideName} />
+        {authorHref ? (
+          <Link href={authorHref} className="flex-shrink-0">{authorAvatar}</Link>
+        ) : authorAvatar}
         <div className="min-w-0 flex-1">
-          <p className="flex items-baseline gap-1.5 text-sm font-bold leading-tight text-stone-900">
-            <span className="truncate">{post.guideName}</span>
-            {post.authorHandle && (
-              <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{post.authorHandle}</span>
-            )}
-          </p>
+          {authorHref ? <Link href={authorHref}>{authorNameBlock}</Link> : authorNameBlock}
           {post.isGuide && post.guideRegion ? (
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-stone-400">
               <PinIcon className="h-3 w-3 flex-shrink-0" /> {post.guideRegion}
