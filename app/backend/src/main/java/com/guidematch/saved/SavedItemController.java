@@ -20,6 +20,9 @@ import java.util.Map;
 @RequestMapping("/api/saved")
 public class SavedItemController {
 
+    /** counts 배치 조회 ids 상한 — 공개 라우트의 시퀀셜 스캔 남용 방지. 목록 페이지 1회 조회엔 충분. */
+    private static final int MAX_COUNT_IDS = 100;
+
     private final SavedItemService savedItemService;
 
     public SavedItemController(SavedItemService savedItemService) {
@@ -65,11 +68,14 @@ public class SavedItemController {
         return savedItemService.myIds(userId);
     }
 
-    /** 저장수 배치 (공개 — 소셜 프루프). PLACE는 미지원(스펙 §2.3). */
+    /** 저장수 배치 (공개 — 소셜 프루프). PLACE는 미지원(스펙 §2.3). 공개 엔드포인트라 ids 개수 상한 필수. */
     @GetMapping("/counts")
     public Map<Long, Long> counts(@RequestParam String type, @RequestParam List<Long> ids) {
         SavedItemType t = parseType(type);
         if (t == SavedItemType.PLACE) throw new IllegalArgumentException("장소 저장수는 지원하지 않습니다.");
+        if (ids != null && ids.size() > MAX_COUNT_IDS) {
+            throw new IllegalArgumentException("ids는 최대 " + MAX_COUNT_IDS + "개까지 조회할 수 있습니다.");
+        }
         return savedItemService.counts(t, ids);
     }
 

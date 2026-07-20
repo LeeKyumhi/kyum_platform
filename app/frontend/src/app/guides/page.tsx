@@ -11,7 +11,7 @@ import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
-import { fetchSaveCounts } from "@/lib/saved";
+import { fetchSaveCounts, SAVED_CHANGED_EVENT } from "@/lib/saved";
 import {
   SearchIcon, ChatIcon,
   StarIcon, GlobeIcon,
@@ -142,6 +142,16 @@ export default function GuidesPage() {
     if (range) setDateRange(range);
     loadGuides(cityParam, range);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ♡ 토글 시 카드 찜수 뱃지도 즉석 갱신 — SaveButton이 쏘는 이벤트를 받아 현재 목록만 재집계
+  useEffect(() => {
+    const refresh = () => {
+      if (guides.length) fetchSaveCounts("GUIDE", guides.map((g) => g.id)).then(setGuideSaveCounts);
+      if (courses.length) fetchSaveCounts("COURSE", courses.map((c) => c.id)).then(setCourseSaveCounts);
+    };
+    window.addEventListener(SAVED_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(SAVED_CHANGED_EVENT, refresh);
+  }, [guides, courses]);
 
   function onTabChange(k: string) {
     setTab(k as "guides" | "posts" | "courses");
