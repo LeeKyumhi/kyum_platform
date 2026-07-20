@@ -41,32 +41,6 @@ class SavedItemServiceTest {
     // ── 저장: idempotent + 원본 존재 검증 ──
 
     @Test
-    void 가이드_저장_성공() {
-        when(profileRepository.existsById(10L)).thenReturn(true);
-        when(savedItemRepository.existsByUserIdAndItemTypeAndRefId(1L, SavedItemType.GUIDE, 10L)).thenReturn(false);
-
-        service.saveGuide(1L, 10L);
-
-        verify(savedItemRepository).save(any(SavedItem.class));
-    }
-
-    @Test
-    void 가이드_중복_저장은_무시() {
-        when(profileRepository.existsById(10L)).thenReturn(true);
-        when(savedItemRepository.existsByUserIdAndItemTypeAndRefId(1L, SavedItemType.GUIDE, 10L)).thenReturn(true);
-
-        service.saveGuide(1L, 10L);
-
-        verify(savedItemRepository, never()).save(any());
-    }
-
-    @Test
-    void 없는_가이드_저장은_예외() {
-        when(profileRepository.existsById(99L)).thenReturn(false);
-        assertThrows(IllegalArgumentException.class, () -> service.saveGuide(1L, 99L));
-    }
-
-    @Test
     void 없는_코스_저장은_예외() {
         when(courseRepository.existsById(99L)).thenReturn(false);
         assertThrows(IllegalArgumentException.class, () -> service.saveCourse(1L, 99L));
@@ -136,15 +110,14 @@ class SavedItemServiceTest {
     // ── ids: 타입별로 올바르게 분류 ──
 
     @Test
-    void myIds_타입별_분류() {
-        SavedItem g = new SavedItem(1L, SavedItemType.GUIDE, 10L);
+    void myIds_가이드는_제외하고_코스_장소만() {
+        SavedItem g = new SavedItem(1L, SavedItemType.GUIDE, 10L);   // 레거시 행 — 제외돼야 함
         SavedItem c = new SavedItem(1L, SavedItemType.COURSE, 20L);
         SavedItem p = new SavedItem(1L, "kakao:123", "장소", null, null, null, null, null);
         when(savedItemRepository.findByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(g, c, p));
 
         SavedIdsResponse ids = service.myIds(1L);
 
-        assertEquals(List.of(10L), ids.guideIds());
         assertEquals(List.of(20L), ids.courseIds());
         assertEquals(List.of("kakao:123"), ids.placeRefs());
     }
@@ -152,24 +125,18 @@ class SavedItemServiceTest {
     // ── 목록 조립: 사라진 원본은 조용히 제외 ──
 
     @Test
-    void myList_사라진_가이드와_비활성_코스는_제외() {
-        SavedItem g = new SavedItem(1L, SavedItemType.GUIDE, 10L);   // 원본 없음
+    void myList_비활성_코스는_제외하고_장소는_포함() {
         SavedItem c = new SavedItem(1L, SavedItemType.COURSE, 20L);  // 비활성
         SavedItem p = new SavedItem(1L, "gyeongbokgung", "경복궁", "명소", null, 37.5, 126.9, null);
-        when(savedItemRepository.findByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(g, c, p));
-        when(profileRepository.findAllById(List.of(10L))).thenReturn(List.of()); // 가이드 사라짐
+        when(savedItemRepository.findByUserIdOrderByCreatedAtDesc(1L)).thenReturn(List.of(c, p));
 
         TourCourse inactive = new TourCourse(5L, "코스", null, "서울", 3, 50000, "KRW", 4, null, null);
-        // id는 @GeneratedValue라 생성자로 못 채운다 — courseMap.get(20L)이 실제로 이 인스턴스를 맞혀야
-        // isActive() 필터가 진짜로 걸리는지 검증되므로 반드시 세팅한다 (안 하면 null-필터에 먼저 걸려
-        // isActive() 분기가 전혀 실행되지 않는 무의미한 테스트가 된다).
         ReflectionTestUtils.setField(inactive, "id", 20L);
         inactive.setActive(false);
         when(courseRepository.findAllById(List.of(20L))).thenReturn(List.of(inactive));
 
         SavedListResponse list = service.myList(1L);
 
-        assertTrue(list.guides().isEmpty());
         assertTrue(list.courses().isEmpty());
         assertEquals(1, list.places().size());
         assertEquals("경복궁", list.places().get(0).name());

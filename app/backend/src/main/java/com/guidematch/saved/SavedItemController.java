@@ -34,7 +34,7 @@ public class SavedItemController {
     public ResponseEntity<Void> save(@AuthenticationPrincipal Long userId, @RequestBody SaveRequest req) {
         SavedItemType type = parseType(req.itemType());
         switch (type) {
-            case GUIDE -> savedItemService.saveGuide(userId, requireRefId(req.refId()));
+            case GUIDE -> throw new IllegalArgumentException("가이드는 더 이상 저장할 수 없습니다.");
             case COURSE -> savedItemService.saveCourse(userId, requireRefId(req.refId()));
             case PLACE -> {
                 if (req.place() == null) throw new IllegalArgumentException("장소 정보가 없습니다.");
@@ -72,7 +72,7 @@ public class SavedItemController {
     @GetMapping("/counts")
     public Map<Long, Long> counts(@RequestParam String type, @RequestParam List<Long> ids) {
         SavedItemType t = parseType(type);
-        if (t == SavedItemType.PLACE) throw new IllegalArgumentException("장소 저장수는 지원하지 않습니다.");
+        if (t != SavedItemType.COURSE) throw new IllegalArgumentException("저장수는 코스만 지원합니다.");
         if (ids != null && ids.size() > MAX_COUNT_IDS) {
             throw new IllegalArgumentException("ids는 최대 " + MAX_COUNT_IDS + "개까지 조회할 수 있습니다.");
         }
