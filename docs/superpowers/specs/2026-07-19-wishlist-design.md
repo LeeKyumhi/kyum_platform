@@ -96,8 +96,7 @@ created_at     TIMESTAMP NOT NULL
 
 > JPA `ddl-auto: update` 환경 — 부분 유니크 인덱스는 이식성이 낮으므로, 단순화를 위해
 > **애플리케이션 레벨에서 존재 검사 후 저장**(Follow의 `existsBy...` idempotent 패턴)하고,
-> 물리 유니크 제약은 `(user_id, item_type, ref_id, place_ref)` 복합 하나로 건다
-> (null 조합이 대상별로 다르므로 실질 중복을 막는다). 컬럼 드롭 없음.
+> 물리 유니크 제약은 `(user_id, item_type, ref_id, place_ref)` 복합 하나로 건다 (장식적 — 중복 방지는 전적으로 서비스 레벨 단독이며, Postgres NULLS DISTINCT라 모든 행이 NULL 포함 튜플이어서 어떤 타입에도 실효가 없다). 컬럼 드롭 없음.
 
 ---
 

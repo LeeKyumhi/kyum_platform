@@ -17,8 +17,7 @@ import java.time.Instant;
  * 위시리스트 항목 (다형성).
  * - GUIDE/COURSE: refId = guide_profile_id / tour_course_id. 목록 조회 시 원본을 배치 재조회.
  * - PLACE: placeRef = SPOTS slug 또는 "kakao:{placeId}". 원본 행이 없으므로 저장 시점 스냅샷을 함께 저장.
- * 중복 방지는 서비스 레벨 존재검사(Follow의 idempotent 패턴)가 1차 —
- * 물리 유니크 제약은 null 컬럼 조합상 보조 수단이다(Postgres는 null끼리 distinct).
+ * 중복 방지는 전적으로 서비스 레벨 존재검사(Follow의 idempotent 패턴)이며, 물리 유니크 제약은 모든 행이 NULL 포함 튜플이라(Postgres NULLS DISTINCT) 어떤 타입에도 실효가 없다(장식적).
  */
 @Entity
 @Table(name = "saved_items",
