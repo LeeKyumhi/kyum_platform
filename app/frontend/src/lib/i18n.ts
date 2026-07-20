@@ -40,6 +40,7 @@ const t = {
       travelerHome: "여행자 홈",
       bookings: "내 예약",
       following: "팔로잉",
+      saved: "저장됨",
       requests: "예약 요청",
       posts: "내 게시글",
       availability: "가능 일정",
@@ -59,6 +60,20 @@ const t = {
       signup: "회원가입",
       logout: "로그아웃",
       menu: "메뉴",
+    },
+
+    saved: {
+      title: "저장됨",
+      tabGuides: "가이드",
+      tabCourses: "코스",
+      tabPlaces: "장소",
+      empty: "아직 저장한 항목이 없어요. 마음에 드는 가이드·코스·장소에 ♡를 눌러보세요.",
+      browseCta: "둘러보기",
+      saveBtn: "저장",
+      savedBtn: "저장됨",
+      savedCount: "{n}명이 찜함",
+      followCourse: "이 코스 따라하기",
+      followCourseFail: "일정을 만들지 못했어요. 잠시 후 다시 시도해주세요.",
     },
 
     /* Language picker */
@@ -1226,6 +1241,7 @@ const t = {
       travelerHome: "Traveler Home",
       bookings: "My Bookings",
       following: "Following",
+      saved: "Saved",
       requests: "Requests",
       posts: "My Posts",
       availability: "Availability",
@@ -1245,6 +1261,20 @@ const t = {
       signup: "Sign up",
       logout: "Log out",
       menu: "Menu",
+    },
+
+    saved: {
+      title: "Saved",
+      tabGuides: "Guides",
+      tabCourses: "Courses",
+      tabPlaces: "Places",
+      empty: "Nothing saved yet. Tap ♡ on guides, courses and places you like.",
+      browseCta: "Start browsing",
+      saveBtn: "Save",
+      savedBtn: "Saved",
+      savedCount: "Saved by {n}",
+      followCourse: "Follow this course",
+      followCourseFail: "Couldn't create the trip. Please try again.",
     },
 
     langPicker: {
@@ -2388,6 +2418,7 @@ const t = {
       travelerHome: "旅行者主页",
       bookings: "我的预订",
       following: "关注",
+      saved: "收藏",
       requests: "预约请求",
       posts: "我的帖子",
       availability: "空闲时间",
@@ -2407,6 +2438,20 @@ const t = {
       signup: "注册",
       logout: "退出",
       menu: "菜单",
+    },
+
+    saved: {
+      title: "收藏",
+      tabGuides: "向导",
+      tabCourses: "路线",
+      tabPlaces: "地点",
+      empty: "还没有收藏。点击喜欢的向导、路线和地点上的 ♡ 吧。",
+      browseCta: "去逛逛",
+      saveBtn: "收藏",
+      savedBtn: "已收藏",
+      savedCount: "{n}人收藏",
+      followCourse: "跟着这条路线走",
+      followCourseFail: "创建行程失败，请稍后再试。",
     },
 
     langPicker: {

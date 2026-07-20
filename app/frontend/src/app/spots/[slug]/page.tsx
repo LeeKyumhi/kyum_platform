@@ -12,6 +12,7 @@ import { getSpot } from "@/lib/spots";
 import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
 import { PinIcon, CompassIcon, SearchIcon } from "@/components/icons";
+import SaveButton from "@/components/SaveButton";
 
 type Place = {
   id: string;
@@ -137,6 +138,13 @@ export default function SpotDetailPage() {
             className="h-72 w-full object-cover transition-transform duration-700 group-hover:scale-105 md:h-96"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+          <SaveButton
+            target={{ itemType: "PLACE", place: {
+              ref: spot.slug, name: spot.name.ko, category: null,
+              address: null, lat: spot.latitude, lng: spot.longitude, image: spot.img,
+            } }}
+            className="absolute right-4 top-4 z-10"
+          />
           <div className="absolute bottom-0 left-0 right-0 p-6 text-white md:p-8">
             <p className="flex items-center gap-1.5 text-sm font-medium text-white/85">
               <PinIcon className="h-4 w-4" /> {cityName}

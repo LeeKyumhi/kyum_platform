@@ -11,6 +11,7 @@ import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
 import PageHeader from "@/components/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import { fetchSaveCounts } from "@/lib/saved";
 import {
   SearchIcon, ChatIcon,
   StarIcon, GlobeIcon,
@@ -73,6 +74,7 @@ export default function GuidesPage() {
   const [sortKey, setSortKey]     = useState<SortKey>("default");
   const [langFilter, setLangFilter] = useState("");
   const [badgeOpen, setBadgeOpen] = useState(false);   // 인증 배지 설명 시트
+  const [guideSaveCounts, setGuideSaveCounts] = useState<Record<string, number>>({}); // 가이드별 찜수 (공개 배치 조회)
 
   // Posts tab state
   const [posts, setPosts]         = useState<FeedPost[]>([]);
@@ -85,6 +87,7 @@ export default function GuidesPage() {
   const [courses, setCourses]           = useState<TourCourse[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [coursesLoaded, setCoursesLoaded]   = useState(false);
+  const [courseSaveCounts, setCourseSaveCounts] = useState<Record<string, number>>({}); // 코스별 찜수 (공개 배치 조회)
 
   async function loadGuides(cityFilter = "", range: { from: string; to: string } | null = null) {
     setGuidesLoading(true); setGuidesError("");
@@ -95,7 +98,10 @@ export default function GuidesPage() {
       q.set("category", "TOUR_GUIDE");
       q.set("lang", lang);
       // auth를 붙여야 내 관심사·MBTI 기준 궁합 점수(matchScore)가 내려온다
-      setGuides(await api<Guide[]>(`/api/guides?${q.toString()}`, { auth: true }));
+      const loaded = await api<Guide[]>(`/api/guides?${q.toString()}`, { auth: true });
+      setGuides(loaded);
+      // 찜수 뱃지 — 공개 배치 조회라 실패해도 목록 렌더링에는 영향 없음
+      fetchSaveCounts("GUIDE", loaded.map((g) => g.id)).then(setGuideSaveCounts);
     } catch (err) {
       setGuidesError(err instanceof Error ? err.message : t.common.error);
     } finally { setGuidesLoading(false); }
@@ -116,8 +122,11 @@ export default function GuidesPage() {
     if (coursesLoaded) return;
     setCoursesLoading(true);
     try {
-      setCourses(await api<TourCourse[]>("/api/courses"));
+      const loaded = await api<TourCourse[]>("/api/courses");
+      setCourses(loaded);
       setCoursesLoaded(true);
+      // 찜수 뱃지 — 공개 배치 조회라 실패해도 목록 렌더링에는 영향 없음
+      fetchSaveCounts("COURSE", loaded.map((c) => c.id)).then(setCourseSaveCounts);
     } catch { /* silent */ }
     finally { setCoursesLoading(false); }
   }
@@ -340,7 +349,7 @@ export default function GuidesPage() {
             {!guidesLoading && (
               <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
                 {visibleGuides.map((g) => (
-                  <GuideCard key={g.id} guide={g} />
+                  <GuideCard key={g.id} guide={g} saveCount={guideSaveCounts[String(g.id)] ?? 0} />
                 ))}
               </div>
             )}
@@ -448,7 +457,7 @@ export default function GuidesPage() {
             {!coursesLoading && courses.length > 0 && (
               <div className="animate-fade-up grid gap-4 sm:grid-cols-2">
                 {courses.map((c) => (
-                  <CourseCard key={c.id} course={c} />
+                  <CourseCard key={c.id} course={c} saveCount={courseSaveCounts[String(c.id)] ?? 0} />
                 ))}
               </div>
             )}
