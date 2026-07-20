@@ -521,7 +521,7 @@ export default function ProfileDetailView({ track }: { track: "tour" | "companio
                     <FollowButton
                       userId={guide.guideUserId}
                       initialFollowing={guide.isFollowing}
-                      onChange={(f) => setGuide({ ...guide, isFollowing: f, followerCount: guide.followerCount + (f ? 1 : -1) })}
+                      onChange={(f) => setGuide((g) => g ? { ...g, isFollowing: f, followerCount: g.followerCount + (f ? 1 : -1) } : g)}
                     />
                     {loggedIn && (
                       <ReportBlockMenu
