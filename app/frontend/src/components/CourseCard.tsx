@@ -20,7 +20,7 @@ export type CourseCardData = {
  * 투어 코스 카드 — guides/page.tsx "투어 코스" 탭 원본 마크업 그대로 추출.
  * 명소 상세(spots/[slug])의 지역 코스 추천에서도 재사용한다.
  */
-export default function CourseCard({ course: c }: { course: CourseCardData }) {
+export default function CourseCard({ course: c, saveCount }: { course: CourseCardData; saveCount?: number }) {
   const { t } = useLanguage();
   const router = useRouter();
   const [following, setFollowing] = useState(false);
@@ -60,6 +60,11 @@ export default function CourseCard({ course: c }: { course: CourseCardData }) {
           {c.city && <span className="flex items-center gap-1"><PinIcon className="h-3.5 w-3.5 text-sky-400" /> {c.city}</span>}
           <span>⏱ {c.durationHours}{t.courses.hoursUnit}</span>
           <span>👥 {t.courses.upTo} {c.maxPeople}{t.courses.peopleUnit}</span>
+          {saveCount != null && saveCount > 0 && (
+            <span className="font-semibold text-rose-400">
+              ♥ {t.saved.savedCount.replace("{n}", String(saveCount))}
+            </span>
+          )}
         </div>
         <div className="mt-3 flex items-center justify-between border-t border-stone-100 pt-3">
           <span className="flex items-center gap-2 text-xs text-stone-500">

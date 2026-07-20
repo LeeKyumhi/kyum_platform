@@ -34,8 +34,8 @@ function GuideAvatar({ src, name }: { src: string | null; name: string }) {
  * 가이드 목록/유사가이드 추천에서 공용으로 쓰는 카드.
  * guides/page.tsx 원본 마크업 그대로 추출 — 궁합 배지·⚡즉시예약 배지 포함.
  */
-export default function GuideCard({ guide: g, href, track = "tour" }:
-  { guide: GuideCardData; href?: string; track?: "tour" | "companion" }) {
+export default function GuideCard({ guide: g, href, track = "tour", saveCount }:
+  { guide: GuideCardData; href?: string; track?: "tour" | "companion"; saveCount?: number }) {
   const { t } = useLanguage();
   const l = t.guides;
   const link = href ?? (track === "companion" ? `/companions/${g.id}` : `/guides/${g.id}`);
@@ -84,6 +84,11 @@ export default function GuideCard({ guide: g, href, track = "tour" }:
             )}
             {g.followerCount > 0 && (
               <span className="flex items-center gap-1"><UsersIcon className="h-3.5 w-3.5" /> {g.followerCount}</span>
+            )}
+            {saveCount != null && saveCount > 0 && (
+              <span className="flex items-center gap-1 text-rose-400">
+                <HeartIcon className="h-3.5 w-3.5" filled /> {saveCount}
+              </span>
             )}
           </div>
         </div>
