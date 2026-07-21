@@ -86,9 +86,10 @@ export default function PostCard({ post, onLikeChange, hideAuthorFollow }: {
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
   const [viewerCtx, setViewerCtx] = useState<{ meId: number | null; followingIds: Set<number> }>({ meId: null, followingIds: new Set() });
+  const [viewerCtxReady, setViewerCtxReady] = useState(false);
   useEffect(() => {
     let alive = true;
-    loadViewerCtx().then((c) => { if (alive) setViewerCtx(c); });
+    loadViewerCtx().then((c) => { if (alive) { setViewerCtx(c); setViewerCtxReady(true); } });
     return () => { alive = false; };
   }, []);
   const [comments, setComments] = useState<PostComment[]>([]);
@@ -243,7 +244,7 @@ export default function PostCard({ post, onLikeChange, hideAuthorFollow }: {
               {t.guides.profileLink}
             </Link>
           )}
-          {!hideAuthorFollow && post.authorUserId != null && post.authorUserId !== viewerCtx.meId && (
+          {viewerCtxReady && !hideAuthorFollow && post.authorUserId != null && post.authorUserId !== viewerCtx.meId && (
             <FollowButton
               userId={post.authorUserId}
               initialFollowing={viewerCtx.followingIds.has(post.authorUserId)}
