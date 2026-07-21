@@ -3,6 +3,17 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  constructor(message: string, status: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 const TOKEN_KEY    = "accessToken";
 const USER_NAME_KEY = "userName";
 const ROLE_KEY = "userRole";
@@ -71,15 +82,17 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   });
 
   if (!res.ok) {
-    // 백엔드가 보내는 {"error": "..."} 메시지를 꺼내 예외로 던진다.
+    // 백엔드가 보내는 {"error": "...", "code"?: "..."} 를 꺼내 예외로 던진다.
     let message = "요청에 실패했습니다.";
+    let code: string | undefined;
     try {
       const data = await res.json();
       if (data?.error) message = data.error;
+      if (data?.code) code = data.code;
     } catch {
       // 본문이 비어있거나 JSON이 아니면 기본 메시지 사용
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status, code);
   }
 
   const text = await res.text();

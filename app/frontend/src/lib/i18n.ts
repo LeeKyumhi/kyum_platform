@@ -153,6 +153,9 @@ const t = {
       noAccount: "계정이 없으신가요?",
       signupLink: "회원가입",
       forgotLink: "비밀번호를 잊으셨나요?",
+      emailNotVerified: "이메일 인증이 필요합니다. 받은 편지함을 확인해 주세요.",
+      resendVerification: "인증 메일 재발송",
+      resendVerificationSent: "인증 메일을 다시 보냈습니다. 받은 편지함을 확인해 주세요.",
     },
     signup: {
       title: "PeerUp 가입하기",
@@ -1369,6 +1372,9 @@ const t = {
       noAccount: "Don't have an account?",
       signupLink: "Sign up",
       forgotLink: "Forgot password?",
+      emailNotVerified: "Please verify your email first. Check your inbox.",
+      resendVerification: "Resend verification email",
+      resendVerificationSent: "Verification email sent. Please check your inbox.",
     },
     signup: {
       title: "Join PeerUp",
@@ -2564,6 +2570,9 @@ const t = {
       noAccount: "还没有账户？",
       signupLink: "注册",
       forgotLink: "忘记密码？",
+      emailNotVerified: "请先验证邮箱，查看收件箱。",
+      resendVerification: "重新发送验证邮件",
+      resendVerificationSent: "验证邮件已重新发送，请查看收件箱。",
     },
     signup: {
       title: "加入 PeerUp",
