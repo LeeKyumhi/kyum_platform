@@ -1,5 +1,6 @@
 package com.guidematch.common;
 
+import com.guidematch.auth.EmailNotVerifiedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -26,6 +27,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", e.getMessage()));
+    }
+
+    /**
+     * 이메일 인증 전 로그인 시도 → 403 + code=EMAIL_NOT_VERIFIED.
+     * 프론트가 자격증명 오류와 구분해 "인증 필요 + 재발송" UI를 띄우도록 code를 실어 보낸다.
+     */
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<Map<String, String>> handleEmailNotVerified(EmailNotVerifiedException e) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", e.getMessage(), "code", "EMAIL_NOT_VERIFIED"));
     }
 
     /**
