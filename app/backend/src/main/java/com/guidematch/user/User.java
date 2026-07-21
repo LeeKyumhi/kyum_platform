@@ -36,7 +36,7 @@ public class User {
     private String email;
 
     /** 비밀번호. 원문이 아니라 BCrypt로 암호화(해시)된 값을 저장한다. */
-    @Column(nullable = false)
+    @Column(nullable = true)
     private String password;
 
     /** 이름 */
@@ -62,6 +62,18 @@ public class User {
 
     @Column(name = "longitude")
     private Double longitude;
+
+    /**
+     * 인증 출처. nullable로 두어 기존 행은 null → getProvider()에서 LOCAL로 취급한다
+     * (role/status/email_verified와 동일한 이유: ddl-auto가 NOT NULL 컬럼을 추가하면 기존 행에서 실패).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider")
+    private AuthProvider provider;
+
+    /** 소셜 제공자 측 고유 ID (LOCAL 계정은 null). */
+    @Column(name = "provider_id")
+    private String providerId;
 
     /** 성별 (선택, "male" / "female" / "other") */
     @Column(length = 10)
@@ -198,6 +210,22 @@ public class User {
 
     public String getGender() { return gender; }
     public void setGender(String gender) { this.gender = gender; }
+
+    public AuthProvider getProvider() {
+        return provider == null ? AuthProvider.LOCAL : provider;
+    }
+
+    public void setProvider(AuthProvider provider) {
+        this.provider = provider;
+    }
+
+    public String getProviderId() {
+        return providerId;
+    }
+
+    public void setProviderId(String providerId) {
+        this.providerId = providerId;
+    }
 
     public String getMbti() { return mbti; }
     public void setMbti(String mbti) { this.mbti = mbti; }
