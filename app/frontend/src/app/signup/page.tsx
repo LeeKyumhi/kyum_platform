@@ -19,7 +19,6 @@ export default function SignupPage() {
   const GENDER_OPTIONS = [
     { value: "male",   label: l.genderMale },
     { value: "female", label: l.genderFemale },
-    { value: "other",  label: l.genderOther },
   ];
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -91,7 +90,7 @@ export default function SignupPage() {
               <label className="input-label">
                 {l.genderLabel} <span className="font-normal normal-case text-stone-400">{l.genderOptional}</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {GENDER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
