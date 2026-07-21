@@ -27,6 +27,9 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** 닉네임 중복 검사 (대소문자 무시) */
     boolean existsByNicknameIgnoreCase(String nickname);
 
+    /** 공개 프로필 핸들 해석 (대소문자 무시). 닉네임 미설정 사용자는 이 조회로 찾을 수 없음(알려진 한계). */
+    Optional<User> findByNicknameIgnoreCase(String nickname);
+
     /** 어드민 대시보드: 최근 N일 신규 가입자 수 (count 쿼리, N+1 없음) */
     long countByCreatedAtAfter(Instant since);
 

@@ -83,6 +83,27 @@ public class GuidePostService {
     @Transactional(readOnly = true)
     public List<GuidePostWithGuideResponse> listAll(Long currentUserId) {
         List<GuidePost> posts = postRepository.findVisibleOrderByCreatedAtDesc();
+        return assemble(posts, currentUserId);
+    }
+
+    /**
+     * 특정 사용자(핸들 해석 후 userId)의 게시글 전체 — 공개 프로필 페이지용.
+     * findAllByAuthor는 숨김 게시글도 포함하므로, listAll과 동일한 공개 가시성 규칙(hidden 제외)을 적용한다.
+     */
+    @Transactional(readOnly = true)
+    public List<GuidePostWithGuideResponse> listByAuthor(Long authorUserId, Long currentUserId) {
+        List<GuidePost> posts = postRepository.findAllByAuthor(authorUserId).stream()
+                .filter(p -> !p.isHidden())
+                .toList();
+        return assemble(posts, currentUserId);
+    }
+
+    /**
+     * 게시글 목록 → DTO 조립 공통 로직 (listAll/listByAuthor 공유).
+     * DB가 원격이라 왕복 지연이 크므로 게시글별 개별 조회 대신
+     * 프로필/사용자/상호작용 통계를 각각 한 번의 쿼리로 일괄 로딩한다.
+     */
+    private List<GuidePostWithGuideResponse> assemble(List<GuidePost> posts, Long currentUserId) {
         if (posts.isEmpty()) return List.of();
 
         var stats = interactionService.statsFor(currentUserId, posts.stream().map(GuidePost::getId).toList());
@@ -132,9 +153,9 @@ public class GuidePostService {
                 .toList();
     }
 
-    /** 인스타그램식 @아이디 — 닉네임 우선, 없으면 이메일 로컬파트 (User.getHandle) */
+    /** 인스타그램식 @아이디 — 공개 프로필(byHandle)이 닉네임으로만 해석하므로 닉네임이 있을 때만 반환 (User.getPublicHandle) */
     private static String handleOf(User user) {
-        return user == null ? null : user.getHandle();
+        return user == null ? null : user.getPublicHandle();
     }
 
     /** 내 게시글 전체 (가이드/여행자 공통 — 홈 프로필 그리드용) */

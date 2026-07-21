@@ -591,6 +591,8 @@ const t = {
       recommendedMore: "전체 보기",
       tagline: "한국을 여행 중인 여행자",
       logout: "로그아웃",
+      cloneToMyTrip: "이 코스로 내 일정 만들기",
+      cloneFail: "일정을 만들지 못했어요. 잠시 후 다시 시도해주세요.",
     },
     guideHome: {
       badge: "🗺️ 가이드 모드",
@@ -763,6 +765,7 @@ const t = {
       viewCourse: "코스 보기",
       sharedItinerary: "📅 여행 일정 공유",
       sharedCourse: "🎫 투어 코스 공유",
+      shareToCommunity: "커뮤니티에 공유",
     },
 
     /* 신고·차단 (안전) */
@@ -991,8 +994,24 @@ const t = {
       followers: "팔로워",
       following: "팔로잉",
       followingTitle: "팔로잉 목록",
-      followingEmpty: "팔로우 중인 가이드가 없습니다.",
+      followingEmpty: "아직 팔로우한 사람이 없습니다.",
       viewProfile: "프로필 보기 →",
+    },
+
+    follow: {
+      follow: "팔로우",
+      following: "팔로잉",
+      followers: "팔로워",
+    },
+
+    publicProfile: {
+      followers: "팔로워",
+      following: "팔로잉",
+      posts: "게시글",
+      viewGuideProfile: "가이드 프로필 보기",
+      editProfile: "프로필 편집",
+      noPosts: "아직 게시글이 없어요.",
+      notFound: "사용자를 찾을 수 없어요.",
     },
 
     interestCategoryLabels: {
@@ -1782,6 +1801,8 @@ const t = {
       recommendedMore: "See all",
       tagline: "Traveler exploring Korea",
       logout: "Log out",
+      cloneToMyTrip: "Make this my trip",
+      cloneFail: "Couldn't create the trip. Please try again.",
     },
     guideHome: {
       badge: "🗺️ Guide Mode",
@@ -1950,6 +1971,7 @@ const t = {
       viewCourse: "View course",
       sharedItinerary: "📅 Shared an itinerary",
       sharedCourse: "🎫 Shared a tour course",
+      shareToCommunity: "Share to community",
     },
 
     /* Report & block (safety) */
@@ -2173,8 +2195,24 @@ const t = {
       followers: "followers",
       following: "following",
       followingTitle: "Following",
-      followingEmpty: "You're not following any guides yet.",
+      followingEmpty: "You're not following anyone yet.",
       viewProfile: "View profile →",
+    },
+
+    follow: {
+      follow: "Follow",
+      following: "Following",
+      followers: "Followers",
+    },
+
+    publicProfile: {
+      followers: "Followers",
+      following: "Following",
+      posts: "Posts",
+      viewGuideProfile: "View guide profile",
+      editProfile: "Edit profile",
+      noPosts: "No posts yet.",
+      notFound: "User not found.",
     },
 
     interestCategoryLabels: {
@@ -2959,6 +2997,8 @@ const t = {
       recommendedMore: "查看全部",
       tagline: "正在探索韩国的旅行者",
       logout: "退出登录",
+      cloneToMyTrip: "复制为我的行程",
+      cloneFail: "创建行程失败，请稍后再试。",
     },
     guideHome: {
       badge: "🗺️ 导游模式",
@@ -3127,6 +3167,7 @@ const t = {
       viewCourse: "查看路线",
       sharedItinerary: "📅 分享了行程",
       sharedCourse: "🎫 分享了路线",
+      shareToCommunity: "分享到社区",
     },
 
     /* 举报·屏蔽（安全） */
@@ -3350,8 +3391,24 @@ const t = {
       followers: "粉丝",
       following: "关注中",
       followingTitle: "关注列表",
-      followingEmpty: "您还没有关注任何导游。",
+      followingEmpty: "您还没有关注任何人。",
       viewProfile: "查看主页 →",
+    },
+
+    follow: {
+      follow: "关注",
+      following: "已关注",
+      followers: "粉丝",
+    },
+
+    publicProfile: {
+      followers: "粉丝",
+      following: "关注中",
+      posts: "帖子",
+      viewGuideProfile: "查看导游主页",
+      editProfile: "编辑资料",
+      noPosts: "还没有帖子。",
+      notFound: "未找到该用户。",
     },
 
     interestCategoryLabels: {

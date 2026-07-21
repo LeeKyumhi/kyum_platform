@@ -11,6 +11,10 @@ import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { localeOf } from "@/lib/i18n";
 import { PinIcon, HeartIcon, ChatIcon, EyeIcon } from "@/components/icons";
+import { parseCard } from "@/lib/placeCard";
+import { PlanMessageCard, PlanPreviewModal } from "@/components/PlanCard";
+import { followPlan } from "@/lib/followCourse";
+import FollowButton from "@/components/FollowButton";
 
 export type FeedPost = {
   id: number;
@@ -37,6 +41,28 @@ type PostComment = { id: number; postId: number; userId: number; userName: strin
 // 세션 동안 조회수를 중복 카운트하지 않도록 이미 본 게시글 ID를 기억 (모듈 레벨)
 const viewedPostIds = new Set<number>();
 
+// 뷰어 컨텍스트(내 id + 팔로잉 중인 userId set) — 모듈 캐시로 카드마다 재요청하지 않는다.
+// 토큰 없으면(비로그인) fetch 자체를 스킵하고, 실패해도 절대 throw하지 않고 안전한 기본값으로 degrade한다
+// (비로그인 방문자도 공개 프로필(/users/[handle])에서 PostCard가 마운트되므로).
+let viewerCtxPromise: Promise<{ meId: number | null; followingIds: Set<number> }> | null = null;
+function loadViewerCtx() {
+  if (!viewerCtxPromise) {
+    viewerCtxPromise = (async () => {
+      if (!getToken()) return { meId: null, followingIds: new Set<number>() };
+      try {
+        const [me, following] = await Promise.all([
+          api<{ id: number }>("/api/users/me", { auth: true }),
+          api<{ userId: number }[]>("/api/users/me/following", { auth: true }),
+        ]);
+        return { meId: me.id, followingIds: new Set(following.map((f) => f.userId)) };
+      } catch {
+        return { meId: null, followingIds: new Set<number>() };
+      }
+    })();
+  }
+  return viewerCtxPromise;
+}
+
 function AuthorAvatar({ src, name }: { src: string | null; name: string }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -49,21 +75,47 @@ function AuthorAvatar({ src, name }: { src: string | null; name: string }) {
   );
 }
 
-export default function PostCard({ post, onLikeChange }: {
+export default function PostCard({ post, onLikeChange, hideAuthorFollow }: {
   post: FeedPost;
   onLikeChange: (id: number, liked: boolean, count: number) => void;
+  hideAuthorFollow?: boolean;
 }) {
   const { t, lang } = useLanguage();
   const lp = t.guidePosts;
   const lc = t.chat;
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
+  const [viewerCtx, setViewerCtx] = useState<{ meId: number | null; followingIds: Set<number> }>({ meId: null, followingIds: new Set() });
+  const [viewerCtxReady, setViewerCtxReady] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadViewerCtx().then((c) => { if (alive) { setViewerCtx(c); setViewerCtxReady(true); } });
+    return () => { alive = false; };
+  }, []);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const articleRef = useRef<HTMLElement | null>(null);
   const locale = localeOf(lang);
+
+  // 공유된 여행 일정/투어 코스(PEERUP::PLAN:: 규약)면 PlanCard로 렌더한다.
+  const parsed = parseCard(post.content);
+  const plan = parsed?.kind === "plan" ? parsed.plan : null;
+  const [planOpen, setPlanOpen] = useState(false);
+  const [cloning, setCloning] = useState(false);
+
+  async function onClone() {
+    if (!getToken()) { router.push("/login"); return; }
+    setCloning(true);
+    try {
+      const newId = await followPlan(plan!);
+      router.push(`/trips/${newId}`);
+    } catch {
+      alert(t.travelerHome.cloneFail);
+      setCloning(false);
+    }
+  }
 
   // 게시글 번역: post.id → 번역문 캐시. 재토글 시 재요청하지 않는다.
   const [translation, setTranslation] = useState<string | null>(null);
@@ -146,18 +198,32 @@ export default function PostCard({ post, onLikeChange }: {
     finally { setSubmitting(false); }
   }
 
+  // 작성자 링크 대상 — 가이드면 가이드 상세, 아니면(여행자) 공개 프로필. 둘 다 없으면 링크 없음.
+  const authorHref = post.isGuide && post.guideProfileId != null
+    ? `/guides/${post.guideProfileId}`
+    : post.authorHandle
+      ? `/users/${post.authorHandle}`
+      : null;
+
+  const authorAvatar = <AuthorAvatar src={post.guideAvatarUrl} name={post.guideName} />;
+  const authorNameBlock = (
+    <p className="flex items-baseline gap-1.5 text-sm font-bold leading-tight text-stone-900">
+      <span className="truncate">{post.guideName}</span>
+      {post.authorHandle && (
+        <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{post.authorHandle}</span>
+      )}
+    </p>
+  );
+
   return (
     <article ref={articleRef} className="card overflow-hidden">
       {/* Author header */}
       <div className="flex items-center gap-3 p-4">
-        <AuthorAvatar src={post.guideAvatarUrl} name={post.guideName} />
+        {authorHref ? (
+          <Link href={authorHref} className="flex-shrink-0">{authorAvatar}</Link>
+        ) : authorAvatar}
         <div className="min-w-0 flex-1">
-          <p className="flex items-baseline gap-1.5 text-sm font-bold leading-tight text-stone-900">
-            <span className="truncate">{post.guideName}</span>
-            {post.authorHandle && (
-              <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{post.authorHandle}</span>
-            )}
-          </p>
+          {authorHref ? <Link href={authorHref}>{authorNameBlock}</Link> : authorNameBlock}
           {post.isGuide && post.guideRegion ? (
             <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-stone-400">
               <PinIcon className="h-3 w-3 flex-shrink-0" /> {post.guideRegion}
@@ -169,18 +235,26 @@ export default function PostCard({ post, onLikeChange }: {
             <p className="mt-0.5 text-xs text-stone-400">🧳 {t.profilePage.travelerBadge}</p>
           ) : null}
         </div>
-        {post.isGuide && post.guideProfileId != null && (
-          <Link
-            href={`/guides/${post.guideProfileId}`}
-            className="flex-shrink-0 rounded-full border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 transition-colors hover:border-sky-300 hover:text-sky-500"
-          >
-            {t.guides.profileLink}
-          </Link>
-        )}
+        <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+          {post.isGuide && post.guideProfileId != null && (
+            <Link
+              href={`/guides/${post.guideProfileId}`}
+              className="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 transition-colors hover:border-sky-300 hover:text-sky-500"
+            >
+              {t.guides.profileLink}
+            </Link>
+          )}
+          {viewerCtxReady && !hideAuthorFollow && post.authorUserId != null && post.authorUserId !== viewerCtx.meId && (
+            <FollowButton
+              userId={post.authorUserId}
+              initialFollowing={viewerCtx.followingIds.has(post.authorUserId)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Image — square aspect ratio like Instagram */}
-      {post.imageUrl && (
+      {!plan && post.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={post.imageUrl} alt="" className="aspect-square w-full object-cover" />
       )}
@@ -214,29 +288,46 @@ export default function PostCard({ post, onLikeChange }: {
 
       {/* Content */}
       <div className="px-4 pb-3">
-        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-800">
-          <span className="mr-1 font-bold">{post.guideName}</span>
-          {post.content}
-        </p>
+        {!plan && (
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-800">
+            <span className="mr-1 font-bold">{post.guideName}</span>
+            {post.content}
+          </p>
+        )}
+        {plan && (
+          <div className="pt-1">
+            <PlanMessageCard plan={plan} mine={false} onOpen={() => setPlanOpen(true)} labels={t.share} />
+            <button onClick={onClone} disabled={cloning}
+              className="btn-ghost mt-2 text-xs font-semibold text-sky-600 disabled:opacity-50">
+              🗺️ {cloning ? t.common.loading : t.travelerHome.cloneToMyTrip}
+            </button>
+          </div>
+        )}
         {showTranslation && translation && (
           <p className="mt-1.5 border-t border-stone-100 pt-1.5 text-[13px] leading-relaxed text-sky-600">
             🌐 {translation}
           </p>
         )}
-        <button
-          onClick={toggleTranslate}
-          className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
-        >
-          {translating
-            ? lc.translating
-            : showTranslation && translation
-              ? lc.hideTranslation
-              : lc.translateBtn}
-        </button>
+        {!plan && (
+          <button
+            onClick={toggleTranslate}
+            className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
+          >
+            {translating
+              ? lc.translating
+              : showTranslation && translation
+                ? lc.hideTranslation
+                : lc.translateBtn}
+          </button>
+        )}
         <p className="mt-2 text-xs text-stone-400">
           {new Date(post.createdAt).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
         </p>
       </div>
+
+      {plan && planOpen && (
+        <PlanPreviewModal plan={plan} onClose={() => setPlanOpen(false)} labels={t.share} locale={localeOf(lang)} />
+      )}
 
       {/* Comments section */}
       {showComments && (

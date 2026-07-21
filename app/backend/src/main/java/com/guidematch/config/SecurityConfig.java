@@ -51,6 +51,13 @@ public class SecurityConfig {
                         // 가이드 검색/조회(GET)는 비로그인 여행자도 둘러볼 수 있게 공개
                         .requestMatchers(HttpMethod.GET, "/api/guides", "/api/guides/**", "/api/posts", "/api/courses").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/followers/count").permitAll()
+                        // 사용자 팔로워 수 조회(공개) — 팔로우 POST/DELETE·/api/users/me/following은 인증 필요(기본 anyRequest)
+                        .requestMatchers(HttpMethod.GET, "/api/users/*/followers/count").permitAll()
+                        // 공개 프로필(GET /api/users/{handle}, /api/users/{handle}/posts) — 비로그인도 조회 가능.
+                        // 반드시 /me·/me/** authenticated 규칙보다 뒤에 두면 안 됨: /api/users/*가 /api/users/me와도 매칭되므로,
+                        // authenticated 규칙을 먼저 선언해 우선 매칭시킨다(스프링 시큐리티는 선언 순서대로 첫 매칭을 적용).
+                        .requestMatchers(HttpMethod.GET, "/api/users/me", "/api/users/me/**").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/users/*", "/api/users/*/posts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/saved/counts").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/guides/*/slots").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/comments").permitAll()

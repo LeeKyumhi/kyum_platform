@@ -5,11 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
-import { PinIcon, SearchIcon } from "@/components/icons";
+import { SearchIcon } from "@/components/icons";
 
-type FollowingGuide = {
-  guideProfileId: number; guideName: string; guideAvatarUrl: string | null;
-  headline: string; region: string; mbti: string | null; interests: string[];
+type Following = {
+  userId: number;
+  handle: string | null;
+  name: string;
+  avatarUrl: string | null;
+  isGuide: boolean;
+  guideProfileId: number | null;
+  headline: string;
 };
 
 function Avatar({ src, name }: { src: string | null; name: string }) {
@@ -29,24 +34,24 @@ export default function FollowingPage() {
   const { t }     = useLanguage();
   const lper      = t.personality;
 
-  const [guides, setGuides] = useState<FollowingGuide[]>([]);
+  const [list, setList] = useState<Following[]>([]);
   const [loading, setLoading] = useState(true);
   const [unfollowingId, setUnfollowingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
-    api<FollowingGuide[]>("/api/users/me/following", { auth: true })
-      .then(setGuides)
+    api<Following[]>("/api/users/me/following", { auth: true })
+      .then(setList)
       .finally(() => setLoading(false));
   }, [router]);
 
-  async function onUnfollow(e: React.MouseEvent, guideProfileId: number) {
+  async function onUnfollow(e: React.MouseEvent, userId: number) {
     e.preventDefault();
     e.stopPropagation();
-    setUnfollowingId(guideProfileId);
+    setUnfollowingId(userId);
     try {
-      await api(`/api/guides/${guideProfileId}/follow`, { method: "DELETE", auth: true });
-      setGuides((prev) => prev.filter((g) => g.guideProfileId !== guideProfileId));
+      await api(`/api/users/${userId}/follow`, { method: "DELETE", auth: true });
+      setList((prev) => prev.filter((f) => f.userId !== userId));
     } catch { /* keep list on failure */ }
     finally { setUnfollowingId(null); }
   }
@@ -73,7 +78,7 @@ export default function FollowingPage() {
           </div>
         )}
 
-        {!loading && guides.length === 0 && (
+        {!loading && list.length === 0 && (
           <div className="py-20 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 to-cyan-400 text-white shadow-md">
               <SearchIcon className="h-6 w-6" />
@@ -85,44 +90,55 @@ export default function FollowingPage() {
           </div>
         )}
 
-        {!loading && guides.length > 0 && (
+        {!loading && list.length > 0 && (
           <div className="flex flex-col gap-3">
-            {guides.map((g) => (
-              <Link
-                key={g.guideProfileId}
-                href={`/guides/${g.guideProfileId}`}
-                className="card-hover flex items-center gap-4 p-4"
-              >
-                <Avatar src={g.guideAvatarUrl} name={g.guideName} />
-                <div className="min-w-0 flex-1">
-                  <div className="mb-0.5 flex items-center gap-2">
-                    <span className="font-semibold text-stone-900">{g.guideName}</span>
-                    {g.mbti && (
-                      <span className="rounded-md bg-violet-100 px-1.5 py-0.5 text-xs font-bold text-violet-700">{g.mbti}</span>
+            {list.map((f) => {
+              // 가이드는 항상 링크 가능; 여행자는 닉네임(핸들)이 있을 때만 공개 프로필로 해석 가능하다.
+              const href = f.isGuide && f.guideProfileId != null
+                ? `/guides/${f.guideProfileId}`
+                : f.handle
+                  ? `/users/${f.handle}`
+                  : null;
+
+              const rowContent = (
+                <>
+                  <Avatar src={f.avatarUrl} name={f.name} />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <span className="font-semibold text-stone-900">{f.name}</span>
+                      {f.handle && (
+                        <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{f.handle}</span>
+                      )}
+                      {f.isGuide && (
+                        <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-bold text-sky-700">
+                          {t.guides.tabGuides}
+                        </span>
+                      )}
+                    </div>
+                    {f.headline && (
+                      <p className="truncate text-xs text-stone-500">{f.headline}</p>
                     )}
                   </div>
-                  <p className="flex items-center gap-1 truncate text-xs text-stone-500">
-                    <PinIcon className="h-3.5 w-3.5 flex-shrink-0" /> {g.region} · {g.headline}
-                  </p>
-                  {g.interests.length > 0 && (
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {g.interests.slice(0, 4).map((k) => (
-                        <span key={k} className="badge-gray">
-                          {t.interests[k as keyof typeof t.interests] ?? k}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <button
+                    onClick={(e) => onUnfollow(e, f.userId)}
+                    disabled={unfollowingId === f.userId}
+                    className="flex-shrink-0 rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60"
+                  >
+                    {lper.unfollowBtn}
+                  </button>
+                </>
+              );
+
+              return href ? (
+                <Link key={f.userId} href={href} className="card-hover flex items-center gap-4 p-4">
+                  {rowContent}
+                </Link>
+              ) : (
+                <div key={f.userId} className="card-hover flex items-center gap-4 p-4">
+                  {rowContent}
                 </div>
-                <button
-                  onClick={(e) => onUnfollow(e, g.guideProfileId)}
-                  disabled={unfollowingId === g.guideProfileId}
-                  className="flex-shrink-0 rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60"
-                >
-                  {lper.unfollowBtn}
-                </button>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

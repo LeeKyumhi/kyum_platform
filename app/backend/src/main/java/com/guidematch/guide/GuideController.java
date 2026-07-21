@@ -31,7 +31,6 @@ public class GuideController {
     private final GuideCredentialRepository credentialRepository;
     private final ReviewRepository reviewRepository;
     private final FollowService followService;
-    private final FollowRepository followRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final AvailableSlotRepository slotRepository;
@@ -41,7 +40,6 @@ public class GuideController {
                            GuideCredentialRepository credentialRepository,
                            ReviewRepository reviewRepository,
                            FollowService followService,
-                           FollowRepository followRepository,
                            BookingRepository bookingRepository,
                            UserRepository userRepository,
                            AvailableSlotRepository slotRepository,
@@ -50,7 +48,6 @@ public class GuideController {
         this.credentialRepository = credentialRepository;
         this.reviewRepository = reviewRepository;
         this.followService = followService;
-        this.followRepository = followRepository;
         this.bookingRepository = bookingRepository;
         this.userRepository = userRepository;
         this.slotRepository = slotRepository;
@@ -127,9 +124,11 @@ public class GuideController {
         reviewRepository.ratingStatsByGuideProfileIds(profileIds).forEach(row ->
                 ratingStats.put((Long) row[0], new double[]{(Double) row[1], (Long) row[2]}));
 
+        // 팔로워 수는 이제 user_follows(user↔user) 기준으로 집계한다 — 가이드의 userId로 조회.
+        Map<Long, Long> followerCountsByUserId = followService.followerCountsByUserIds(userIds);
         Map<Long, Long> followerCounts = new HashMap<>();
-        followRepository.followerCountsByGuideProfileIds(profileIds).forEach(row ->
-                followerCounts.put((Long) row[0], (Long) row[1]));
+        profiles.forEach(p -> followerCounts.put(p.getId(),
+                followerCountsByUserId.getOrDefault(p.getUserId(), 0L)));
 
         Map<Long, Long> bookingCounts = new HashMap<>();
         bookingRepository.bookingCountsByGuideProfileIds(profileIds, CONFIRMED_STATUSES).forEach(row ->
@@ -215,8 +214,8 @@ public class GuideController {
             avgRating = (Double) row[1];
             reviewCount = (Long) row[2];
         }
-        long followerCount = followService.followerCount(profile.getId());
-        boolean isFollowing = userId != null && followService.isFollowing(userId, profile.getId());
+        long followerCount = followService.followerCountOfUser(profile.getUserId());
+        boolean isFollowing = followService.isFollowingUser(userId, profile.getUserId());
 
         return GuideDetailResponse.from(profile, guideName, avgRating, reviewCount,
                 followerCount, isFollowing, credentials, guideGender);

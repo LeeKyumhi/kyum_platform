@@ -7,14 +7,18 @@ import { useEffect, useState } from "react";
 import { apiUpload } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { CameraIcon } from "@/components/icons";
+import { parseCard } from "@/lib/placeCard";
+import { PlanMessageCard } from "@/components/PlanCard";
 
 type Props = {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  /** 미리 채워둘 본문(예: 일정 공유 스냅샷). 미전달 시 빈 문자열로 시작(기존 동작 불변). */
+  initialContent?: string;
 };
 
-export default function PostComposeModal({ open, onClose, onCreated }: Props) {
+export default function PostComposeModal({ open, onClose, onCreated, initialContent }: Props) {
   const { t } = useLanguage();
   const lp = t.guidePosts;
 
@@ -24,16 +28,21 @@ export default function PostComposeModal({ open, onClose, onCreated }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // 일정/코스 공유 카드(PEERUP::PLAN:: 규약)면 원문을 편집 불가한 요약 카드로만 보여준다 —
+  // 자유 텍스트를 섞으면 JSON이 깨져서 모든 피드 열람자에게 원문 그대로 노출되기 때문.
+  const parsedCard = parseCard(content);
+  const planPreview = parsedCard?.kind === "plan" ? parsedCard.plan : null;
+
   // 모달이 열릴 때마다 입력 상태를 초기화한다.
   useEffect(() => {
     if (open) {
-      setContent("");
+      setContent(initialContent ?? "");
       setImage(null);
       setPreview(null);
       setSubmitting(false);
       setError("");
     }
-  }, [open]);
+  }, [open, initialContent]);
 
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
@@ -94,34 +103,43 @@ export default function PostComposeModal({ open, onClose, onCreated }: Props) {
             <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-2 text-sm text-red-600">{error}</div>
           )}
 
-          <textarea
-            placeholder={lp.postPlaceholder}
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            rows={5}
-            required
-            autoFocus
-            className="input resize-none text-base leading-relaxed"
-          />
-
-          {preview ? (
-            <div className="relative">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={preview} alt="preview" className="max-h-72 w-full rounded-xl object-cover" />
-              <label className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/70">
-                <CameraIcon className="h-3.5 w-3.5" /> {lp.imageBtnChange}
-                <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
-              </label>
+          {planPreview ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <p className="text-xs text-stone-400">{t.share.shareAction}</p>
+              <PlanMessageCard plan={planPreview} mine={false} onOpen={() => {}} labels={t.share} />
             </div>
           ) : (
-            <label className="group flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-4 transition-colors hover:border-sky-300">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-400 transition-colors group-hover:bg-sky-50 group-hover:text-sky-400">
-                <CameraIcon className="h-5 w-5" />
-              </span>
-              <span className="text-sm text-stone-400 transition-colors group-hover:text-sky-500">{lp.imageBtnAdd}</span>
-              <span className="ml-auto text-xs text-stone-300">{lp.imageHint}</span>
-              <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
-            </label>
+            <>
+              <textarea
+                placeholder={lp.postPlaceholder}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                rows={5}
+                required
+                autoFocus
+                className="input resize-none text-base leading-relaxed"
+              />
+
+              {preview ? (
+                <div className="relative">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={preview} alt="preview" className="max-h-72 w-full rounded-xl object-cover" />
+                  <label className="absolute bottom-2 right-2 flex cursor-pointer items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-black/70">
+                    <CameraIcon className="h-3.5 w-3.5" /> {lp.imageBtnChange}
+                    <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
+                  </label>
+                </div>
+              ) : (
+                <label className="group flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-4 transition-colors hover:border-sky-300">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-400 transition-colors group-hover:bg-sky-50 group-hover:text-sky-400">
+                    <CameraIcon className="h-5 w-5" />
+                  </span>
+                  <span className="text-sm text-stone-400 transition-colors group-hover:text-sky-500">{lp.imageBtnAdd}</span>
+                  <span className="ml-auto text-xs text-stone-300">{lp.imageHint}</span>
+                  <input type="file" accept="image/*" onChange={onImageChange} className="hidden" />
+                </label>
+              )}
+            </>
           )}
         </form>
       </div>
