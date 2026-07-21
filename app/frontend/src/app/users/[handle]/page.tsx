@@ -147,7 +147,7 @@ export default function PublicProfilePage() {
         ) : (
           <div className="flex flex-col gap-4">
             {posts.map((p) => (
-              <PostCard key={p.id} post={p} onLikeChange={onLikeChange} />
+              <PostCard key={p.id} post={p} onLikeChange={onLikeChange} hideAuthorFollow />
             ))}
           </div>
         )}

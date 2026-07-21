@@ -14,6 +14,7 @@ import { PinIcon, HeartIcon, ChatIcon, EyeIcon } from "@/components/icons";
 import { parseCard } from "@/lib/placeCard";
 import { PlanMessageCard, PlanPreviewModal } from "@/components/PlanCard";
 import { followPlan } from "@/lib/followCourse";
+import FollowButton from "@/components/FollowButton";
 
 export type FeedPost = {
   id: number;
@@ -40,6 +41,28 @@ type PostComment = { id: number; postId: number; userId: number; userName: strin
 // 세션 동안 조회수를 중복 카운트하지 않도록 이미 본 게시글 ID를 기억 (모듈 레벨)
 const viewedPostIds = new Set<number>();
 
+// 뷰어 컨텍스트(내 id + 팔로잉 중인 userId set) — 모듈 캐시로 카드마다 재요청하지 않는다.
+// 토큰 없으면(비로그인) fetch 자체를 스킵하고, 실패해도 절대 throw하지 않고 안전한 기본값으로 degrade한다
+// (비로그인 방문자도 공개 프로필(/users/[handle])에서 PostCard가 마운트되므로).
+let viewerCtxPromise: Promise<{ meId: number | null; followingIds: Set<number> }> | null = null;
+function loadViewerCtx() {
+  if (!viewerCtxPromise) {
+    viewerCtxPromise = (async () => {
+      if (!getToken()) return { meId: null, followingIds: new Set<number>() };
+      try {
+        const [me, following] = await Promise.all([
+          api<{ id: number }>("/api/users/me", { auth: true }),
+          api<{ userId: number }[]>("/api/users/me/following", { auth: true }),
+        ]);
+        return { meId: me.id, followingIds: new Set(following.map((f) => f.userId)) };
+      } catch {
+        return { meId: null, followingIds: new Set<number>() };
+      }
+    })();
+  }
+  return viewerCtxPromise;
+}
+
 function AuthorAvatar({ src, name }: { src: string | null; name: string }) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
@@ -52,15 +75,22 @@ function AuthorAvatar({ src, name }: { src: string | null; name: string }) {
   );
 }
 
-export default function PostCard({ post, onLikeChange }: {
+export default function PostCard({ post, onLikeChange, hideAuthorFollow }: {
   post: FeedPost;
   onLikeChange: (id: number, liked: boolean, count: number) => void;
+  hideAuthorFollow?: boolean;
 }) {
   const { t, lang } = useLanguage();
   const lp = t.guidePosts;
   const lc = t.chat;
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
+  const [viewerCtx, setViewerCtx] = useState<{ meId: number | null; followingIds: Set<number> }>({ meId: null, followingIds: new Set() });
+  useEffect(() => {
+    let alive = true;
+    loadViewerCtx().then((c) => { if (alive) setViewerCtx(c); });
+    return () => { alive = false; };
+  }, []);
   const [comments, setComments] = useState<PostComment[]>([]);
   const [commentsLoaded, setCommentsLoaded] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -204,14 +234,22 @@ export default function PostCard({ post, onLikeChange }: {
             <p className="mt-0.5 text-xs text-stone-400">🧳 {t.profilePage.travelerBadge}</p>
           ) : null}
         </div>
-        {post.isGuide && post.guideProfileId != null && (
-          <Link
-            href={`/guides/${post.guideProfileId}`}
-            className="flex-shrink-0 rounded-full border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 transition-colors hover:border-sky-300 hover:text-sky-500"
-          >
-            {t.guides.profileLink}
-          </Link>
-        )}
+        <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+          {post.isGuide && post.guideProfileId != null && (
+            <Link
+              href={`/guides/${post.guideProfileId}`}
+              className="rounded-full border border-stone-200 px-3 py-1.5 text-xs font-semibold text-stone-600 transition-colors hover:border-sky-300 hover:text-sky-500"
+            >
+              {t.guides.profileLink}
+            </Link>
+          )}
+          {!hideAuthorFollow && post.authorUserId != null && post.authorUserId !== viewerCtx.meId && (
+            <FollowButton
+              userId={post.authorUserId}
+              initialFollowing={viewerCtx.followingIds.has(post.authorUserId)}
+            />
+          )}
+        </div>
       </div>
 
       {/* Image — square aspect ratio like Instagram */}

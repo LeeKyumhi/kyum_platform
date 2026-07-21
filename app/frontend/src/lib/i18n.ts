@@ -994,7 +994,7 @@ const t = {
       followers: "팔로워",
       following: "팔로잉",
       followingTitle: "팔로잉 목록",
-      followingEmpty: "팔로우 중인 가이드가 없습니다.",
+      followingEmpty: "아직 팔로우한 사람이 없습니다.",
       viewProfile: "프로필 보기 →",
     },
 
@@ -2195,7 +2195,7 @@ const t = {
       followers: "followers",
       following: "following",
       followingTitle: "Following",
-      followingEmpty: "You're not following any guides yet.",
+      followingEmpty: "You're not following anyone yet.",
       viewProfile: "View profile →",
     },
 
@@ -3391,7 +3391,7 @@ const t = {
       followers: "粉丝",
       following: "关注中",
       followingTitle: "关注列表",
-      followingEmpty: "您还没有关注任何导游。",
+      followingEmpty: "您还没有关注任何人。",
       viewProfile: "查看主页 →",
     },
 
