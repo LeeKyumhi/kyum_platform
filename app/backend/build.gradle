@@ -28,6 +28,9 @@ dependencies {
     // 보안 — 비밀번호 암호화(BCrypt), 인증/인가 기반
     implementation 'org.springframework.boot:spring-boot-starter-security'
 
+    // OAuth2 클라이언트 — 구글/카카오 소셜 로그인
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+
     // 입력값 검증 — @Email, @NotBlank 같은 어노테이션
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
