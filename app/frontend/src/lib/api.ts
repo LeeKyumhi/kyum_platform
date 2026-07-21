@@ -1,7 +1,7 @@
 // 백엔드(Spring) API와 통신하는 공통 도우미.
 // 매번 fetch를 직접 쓰면 중복이 많아지므로 한 곳에 모아둔다.
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 export class ApiError extends Error {
   status: number;
