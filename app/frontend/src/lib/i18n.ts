@@ -591,6 +591,8 @@ const t = {
       recommendedMore: "전체 보기",
       tagline: "한국을 여행 중인 여행자",
       logout: "로그아웃",
+      cloneToMyTrip: "이 코스로 내 일정 만들기",
+      cloneFail: "일정을 만들지 못했어요. 잠시 후 다시 시도해주세요.",
     },
     guideHome: {
       badge: "🗺️ 가이드 모드",
@@ -763,6 +765,7 @@ const t = {
       viewCourse: "코스 보기",
       sharedItinerary: "📅 여행 일정 공유",
       sharedCourse: "🎫 투어 코스 공유",
+      shareToCommunity: "커뮤니티에 공유",
     },
 
     /* 신고·차단 (안전) */
@@ -1798,6 +1801,8 @@ const t = {
       recommendedMore: "See all",
       tagline: "Traveler exploring Korea",
       logout: "Log out",
+      cloneToMyTrip: "Make this my trip",
+      cloneFail: "Couldn't create the trip. Please try again.",
     },
     guideHome: {
       badge: "🗺️ Guide Mode",
@@ -1966,6 +1971,7 @@ const t = {
       viewCourse: "View course",
       sharedItinerary: "📅 Shared an itinerary",
       sharedCourse: "🎫 Shared a tour course",
+      shareToCommunity: "Share to community",
     },
 
     /* Report & block (safety) */
@@ -2991,6 +2997,8 @@ const t = {
       recommendedMore: "查看全部",
       tagline: "正在探索韩国的旅行者",
       logout: "退出登录",
+      cloneToMyTrip: "复制为我的行程",
+      cloneFail: "创建行程失败，请稍后再试。",
     },
     guideHome: {
       badge: "🗺️ 导游模式",
@@ -3159,6 +3167,7 @@ const t = {
       viewCourse: "查看路线",
       sharedItinerary: "📅 分享了行程",
       sharedCourse: "🎫 分享了路线",
+      shareToCommunity: "分享到社区",
     },
 
     /* 举报·屏蔽（安全） */

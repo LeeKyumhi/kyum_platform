@@ -11,6 +11,9 @@ import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { localeOf } from "@/lib/i18n";
 import { PinIcon, HeartIcon, ChatIcon, EyeIcon } from "@/components/icons";
+import { parseCard } from "@/lib/placeCard";
+import { PlanMessageCard, PlanPreviewModal } from "@/components/PlanCard";
+import { followPlan } from "@/lib/followCourse";
 
 export type FeedPost = {
   id: number;
@@ -64,6 +67,24 @@ export default function PostCard({ post, onLikeChange }: {
   const [submitting, setSubmitting] = useState(false);
   const articleRef = useRef<HTMLElement | null>(null);
   const locale = localeOf(lang);
+
+  // 공유된 여행 일정/투어 코스(PEERUP::PLAN:: 규약)면 PlanCard로 렌더한다.
+  const parsed = parseCard(post.content);
+  const plan = parsed?.kind === "plan" ? parsed.plan : null;
+  const [planOpen, setPlanOpen] = useState(false);
+  const [cloning, setCloning] = useState(false);
+
+  async function onClone() {
+    if (!getToken()) { router.push("/login"); return; }
+    setCloning(true);
+    try {
+      const newId = await followPlan(plan!);
+      router.push(`/trips/${newId}`);
+    } catch {
+      alert(t.travelerHome.cloneFail);
+      setCloning(false);
+    }
+  }
 
   // 게시글 번역: post.id → 번역문 캐시. 재토글 시 재요청하지 않는다.
   const [translation, setTranslation] = useState<string | null>(null);
@@ -194,7 +215,7 @@ export default function PostCard({ post, onLikeChange }: {
       </div>
 
       {/* Image — square aspect ratio like Instagram */}
-      {post.imageUrl && (
+      {!plan && post.imageUrl && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={post.imageUrl} alt="" className="aspect-square w-full object-cover" />
       )}
@@ -228,10 +249,21 @@ export default function PostCard({ post, onLikeChange }: {
 
       {/* Content */}
       <div className="px-4 pb-3">
-        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-800">
-          <span className="mr-1 font-bold">{post.guideName}</span>
-          {post.content}
-        </p>
+        {!plan && (
+          <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-stone-800">
+            <span className="mr-1 font-bold">{post.guideName}</span>
+            {post.content}
+          </p>
+        )}
+        {plan && (
+          <div className="pt-1">
+            <PlanMessageCard plan={plan} mine={false} onOpen={() => setPlanOpen(true)} labels={t.share} />
+            <button onClick={onClone} disabled={cloning}
+              className="btn-ghost mt-2 text-xs font-semibold text-sky-600 disabled:opacity-50">
+              🗺️ {cloning ? t.common.loading : t.travelerHome.cloneToMyTrip}
+            </button>
+          </div>
+        )}
         {showTranslation && translation && (
           <p className="mt-1.5 border-t border-stone-100 pt-1.5 text-[13px] leading-relaxed text-sky-600">
             🌐 {translation}
@@ -251,6 +283,10 @@ export default function PostCard({ post, onLikeChange }: {
           {new Date(post.createdAt).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
         </p>
       </div>
+
+      {plan && planOpen && (
+        <PlanPreviewModal plan={plan} onClose={() => setPlanOpen(false)} labels={t.share} locale={localeOf(lang)} />
+      )}
 
       {/* Comments section */}
       {showComments && (

@@ -7,6 +7,14 @@ import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import CitySelect from "@/components/CitySelect";
 import TimetableBuilder, { type BuilderItem, newItemKey } from "@/components/TimetableBuilder";
+import PostComposeModal from "@/components/PostComposeModal";
+import { encodePlanCard, type PlanPayload } from "@/lib/placeCard";
+
+function addDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00");
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 type TripResponse = {
   id: number; title: string; city: string | null;
@@ -37,6 +45,8 @@ export default function TripBuilderPage() {
   const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
   const [error, setError]     = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareContent, setShareContent] = useState("");
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -89,6 +99,21 @@ export default function TripBuilderPage() {
     } finally { setSaving(false); }
   }
 
+  function openShare() {
+    const byDay = new Map<number, typeof items>();
+    items.forEach((i) => { const arr = byDay.get(i.dayIndex) ?? []; arr.push(i); byDay.set(i.dayIndex, arr); });
+    const days = [...byDay.entries()].sort((a, b) => a[0] - b[0]).map(([day, di]) => ({
+      day,
+      date: startDate ? addDays(startDate, day - 1) : null,
+      items: [...di]
+        .sort((a, b) => (a.startHour ?? 99) - (b.startHour ?? 99))
+        .map((i) => ({ name: i.placeName, startHour: i.startHour, durationHours: i.durationHours, category: i.category })),
+    }));
+    const snapshot: PlanPayload = { kind: "itinerary", title: title.trim() || li.untitled, startDate: startDate || null, days };
+    setShareContent(encodePlanCard(snapshot));
+    setShareOpen(true);
+  }
+
   async function onDelete() {
     if (!confirm(li.deleteConfirm)) return;
     try {
@@ -113,6 +138,7 @@ export default function TripBuilderPage() {
           <Link href="/trips" className="btn-ghost text-sm">{li.back}</Link>
           <div className="flex items-center gap-3">
             {saved && <span className="badge-emerald py-1">✓ {li.saved}</span>}
+            <button onClick={openShare} className="btn-ghost text-sm">{t.share.shareToCommunity}</button>
             <button onClick={onSave} disabled={saving} className="btn-primary px-5 text-sm">
               {saving ? li.saving : li.save}
             </button>
@@ -160,6 +186,13 @@ export default function TripBuilderPage() {
           {li.deleteTrip}
         </button>
       </div>
+
+      <PostComposeModal
+        open={shareOpen}
+        initialContent={shareContent}
+        onClose={() => setShareOpen(false)}
+        onCreated={() => { setShareOpen(false); router.push("/community"); }}
+      />
     </main>
   );
 }

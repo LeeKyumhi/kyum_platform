@@ -12,9 +12,11 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onCreated: () => void;
+  /** 미리 채워둘 본문(예: 일정 공유 스냅샷). 미전달 시 빈 문자열로 시작(기존 동작 불변). */
+  initialContent?: string;
 };
 
-export default function PostComposeModal({ open, onClose, onCreated }: Props) {
+export default function PostComposeModal({ open, onClose, onCreated, initialContent }: Props) {
   const { t } = useLanguage();
   const lp = t.guidePosts;
 
@@ -27,13 +29,13 @@ export default function PostComposeModal({ open, onClose, onCreated }: Props) {
   // 모달이 열릴 때마다 입력 상태를 초기화한다.
   useEffect(() => {
     if (open) {
-      setContent("");
+      setContent(initialContent ?? "");
       setImage(null);
       setPreview(null);
       setSubmitting(false);
       setError("");
     }
-  }, [open]);
+  }, [open, initialContent]);
 
   function onImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
