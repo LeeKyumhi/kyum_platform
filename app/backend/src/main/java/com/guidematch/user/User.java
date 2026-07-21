@@ -166,6 +166,11 @@ public class User {
         return at > 0 ? email.substring(0, at) : email;
     }
 
+    /** 공개 프로필로 해석 가능한 핸들 — 닉네임이 있을 때만. byHandle이 닉네임으로만 해석하므로 이메일 로컬파트 폴백은 쓰지 않는다. */
+    public String getPublicHandle() {
+        return (nickname != null && !nickname.isBlank()) ? nickname : null;
+    }
+
     public String getNationality() {
         return nationality;
     }

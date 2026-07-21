@@ -153,9 +153,9 @@ public class GuidePostService {
                 .toList();
     }
 
-    /** 인스타그램식 @아이디 — 닉네임 우선, 없으면 이메일 로컬파트 (User.getHandle) */
+    /** 인스타그램식 @아이디 — 공개 프로필(byHandle)이 닉네임으로만 해석하므로 닉네임이 있을 때만 반환 (User.getPublicHandle) */
     private static String handleOf(User user) {
-        return user == null ? null : user.getHandle();
+        return user == null ? null : user.getPublicHandle();
     }
 
     /** 내 게시글 전체 (가이드/여행자 공통 — 홈 프로필 그리드용) */

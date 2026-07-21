@@ -9,7 +9,7 @@ import { SearchIcon } from "@/components/icons";
 
 type Following = {
   userId: number;
-  handle: string;
+  handle: string | null;
   name: string;
   avatarUrl: string | null;
   isGuide: boolean;
@@ -92,36 +92,53 @@ export default function FollowingPage() {
 
         {!loading && list.length > 0 && (
           <div className="flex flex-col gap-3">
-            {list.map((f) => (
-              <Link
-                key={f.userId}
-                href={f.isGuide && f.guideProfileId != null ? `/guides/${f.guideProfileId}` : `/users/${f.handle}`}
-                className="card-hover flex items-center gap-4 p-4"
-              >
-                <Avatar src={f.avatarUrl} name={f.name} />
-                <div className="min-w-0 flex-1">
-                  <div className="mb-0.5 flex items-center gap-2">
-                    <span className="font-semibold text-stone-900">{f.name}</span>
-                    <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{f.handle}</span>
-                    {f.isGuide && (
-                      <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-bold text-sky-700">
-                        {t.guides.tabGuides}
-                      </span>
+            {list.map((f) => {
+              // 가이드는 항상 링크 가능; 여행자는 닉네임(핸들)이 있을 때만 공개 프로필로 해석 가능하다.
+              const href = f.isGuide && f.guideProfileId != null
+                ? `/guides/${f.guideProfileId}`
+                : f.handle
+                  ? `/users/${f.handle}`
+                  : null;
+
+              const rowContent = (
+                <>
+                  <Avatar src={f.avatarUrl} name={f.name} />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-0.5 flex items-center gap-2">
+                      <span className="font-semibold text-stone-900">{f.name}</span>
+                      {f.handle && (
+                        <span className="flex-shrink-0 text-xs font-medium text-stone-400">@{f.handle}</span>
+                      )}
+                      {f.isGuide && (
+                        <span className="rounded-md bg-sky-100 px-1.5 py-0.5 text-xs font-bold text-sky-700">
+                          {t.guides.tabGuides}
+                        </span>
+                      )}
+                    </div>
+                    {f.headline && (
+                      <p className="truncate text-xs text-stone-500">{f.headline}</p>
                     )}
                   </div>
-                  {f.headline && (
-                    <p className="truncate text-xs text-stone-500">{f.headline}</p>
-                  )}
+                  <button
+                    onClick={(e) => onUnfollow(e, f.userId)}
+                    disabled={unfollowingId === f.userId}
+                    className="flex-shrink-0 rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60"
+                  >
+                    {lper.unfollowBtn}
+                  </button>
+                </>
+              );
+
+              return href ? (
+                <Link key={f.userId} href={href} className="card-hover flex items-center gap-4 p-4">
+                  {rowContent}
+                </Link>
+              ) : (
+                <div key={f.userId} className="card-hover flex items-center gap-4 p-4">
+                  {rowContent}
                 </div>
-                <button
-                  onClick={(e) => onUnfollow(e, f.userId)}
-                  disabled={unfollowingId === f.userId}
-                  className="flex-shrink-0 rounded-full bg-stone-900 px-4 py-1.5 text-xs font-bold text-white transition-all hover:bg-stone-700 disabled:opacity-60"
-                >
-                  {lper.unfollowBtn}
-                </button>
-              </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

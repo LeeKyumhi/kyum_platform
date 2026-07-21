@@ -93,7 +93,7 @@ public class FollowService {
                     boolean isGuide = profile != null;
                     return new FollowingUserResponse(
                             userId,
-                            user.getHandle(),
+                            user.getPublicHandle(),
                             user.getFullName(),
                             isGuide ? profile.getAvatarUrl() : null,
                             isGuide,
