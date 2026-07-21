@@ -3,6 +3,7 @@ package com.guidematch.auth;
 import com.guidematch.auth.dto.ForgotPasswordRequest;
 import com.guidematch.auth.dto.LoginRequest;
 import com.guidematch.auth.dto.MessageResponse;
+import com.guidematch.auth.dto.ResendVerificationRequest;
 import com.guidematch.auth.dto.ResetPasswordRequest;
 import com.guidematch.auth.dto.SignupRequest;
 import com.guidematch.auth.dto.TokenResponse;
@@ -76,5 +77,14 @@ public class AuthController {
     public ResponseEntity<MessageResponse> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request.token(), request.newPassword());
         return ResponseEntity.ok(new MessageResponse("비밀번호가 재설정되었습니다."));
+    }
+
+    /**
+     * 비로그인 인증 메일 재발송. 계정 존재 여부를 노출하지 않도록 항상 같은 성공 메시지를 반환.
+     */
+    @PostMapping("/resend-verification")
+    public ResponseEntity<MessageResponse> resendVerification(@Valid @RequestBody ResendVerificationRequest request) {
+        authService.resendVerificationByEmail(request.email());
+        return ResponseEntity.ok(new MessageResponse("인증이 필요한 계정이라면 인증 메일을 다시 보냈습니다."));
     }
 }

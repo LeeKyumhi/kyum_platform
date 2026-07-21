@@ -29,6 +29,19 @@ spring:
       hibernate:
         format_sql: true
 
+  # OAuth2 소셜 로그인 (구글/카카오). 키가 없으면 소셜 버튼은 비활성/에러, 앱 기동은 정상.
+  #
+  # 등록 정보(client-id/secret/scope/엔드포인트)는 여기(yml)가 아니라
+  # com.guidematch.config.OAuth2ClientRegistrationConfig 에서 코드로 직접 만든다.
+  # 이유: Spring Boot의 OAuth2ClientProperties는 @ConfigurationProperties 빈이라
+  #   spring.security.oauth2.client.registration.* 아래에 google/kakao 블록이 "존재"하기만 하면
+  #   (client-id가 빈 문자열이어도) 컨텍스트 초기화 중 즉시 검증(validate())되어
+  #   "Client id ... must not be empty" 로 애플리케이션 기동 자체가 실패한다.
+  #   이 검증은 어떤 빈이 실제로 그 값을 쓰는지와 무관하게 항상 실행되므로,
+  #   커스텀 ClientRegistrationRepository 빈을 따로 둬도 우회되지 않는다.
+  #   그래서 이 블록 자체를 비워, 키가 없는 provider는 등록을 건너뛰고
+  #   (OAuth2ClientRegistrationConfig에서 조건부로 생성) 앱은 항상 정상 기동하게 한다.
+
 # JWT(로그인 토큰) 설정
 jwt:
   secret: ${JWT_SECRET}        # 토큰 서명에 쓰는 비밀키 (.env에서 읽음)

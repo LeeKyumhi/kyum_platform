@@ -1,21 +1,39 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { api, saveToken, saveUserName, saveRole } from "@/lib/api";
+import { api, saveToken, saveUserName, saveRole, ApiError, API_BASE } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 
 type TokenResponse = { accessToken: string; tokenType: string; role: string };
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useLanguage();
   const l = t.login;
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [needsVerify, setNeedsVerify] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  useEffect(() => {
+    const e = searchParams.get("error");
+    if (e === "kakao_no_email") setError(l.kakaoNoEmailError);
+    else if (e) setError(l.oauthFailedError);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -32,9 +50,24 @@ export default function LoginPage() {
       saveUserName(me.fullName);
       router.push("/select-mode");
     } catch (err) {
-      setError(err instanceof Error ? err.message : t.common.error);
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        setNeedsVerify(true);
+        setError(l.emailNotVerified);
+      } else {
+        setNeedsVerify(false);
+        setError(err instanceof Error ? err.message : t.common.error);
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function onResend() {
+    try {
+      await api("/api/auth/resend-verification", { method: "POST", body: { email: form.email } });
+      setResent(true);
+    } catch {
+      setResent(true); // 계정 존재 미노출 — 항상 성공 처리
     }
   }
 
@@ -71,9 +104,34 @@ export default function LoginPage() {
             {error && (
               <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>
             )}
+            {needsVerify && (
+              resent ? (
+                <p className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-600">
+                  {l.resendVerificationSent}
+                </p>
+              ) : (
+                <button type="button" onClick={onResend}
+                  className="text-sm font-semibold text-sky-500 hover:text-sky-600 hover:underline">
+                  {l.resendVerification}
+                </button>
+              )
+            )}
             <button type="submit" disabled={loading} className="btn-primary mt-2 w-full py-3">
               {loading ? l.loading : l.btn}
             </button>
+            <div className="flex items-center gap-3 py-1">
+              <span className="h-px flex-1 bg-stone-200" />
+              <span className="text-xs text-stone-400">{l.orDivider}</span>
+              <span className="h-px flex-1 bg-stone-200" />
+            </div>
+            <a href={`${API_BASE}/oauth2/authorization/google`}
+              className="btn-secondary flex w-full items-center justify-center gap-2 py-3">
+              {l.continueWithGoogle}
+            </a>
+            <a href={`${API_BASE}/oauth2/authorization/kakao`}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] py-3 font-semibold text-[#191600] transition hover:brightness-95">
+              {l.continueWithKakao}
+            </a>
           </form>
         </div>
 

@@ -4,6 +4,7 @@ import com.guidematch.auth.dto.LoginRequest;
 import com.guidematch.auth.dto.SignupRequest;
 import com.guidematch.config.JwtProvider;
 import com.guidematch.email.EmailService;
+import com.guidematch.user.AuthProvider;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -100,6 +101,19 @@ public class AuthService {
         return true;
     }
 
+    /**
+     * 비로그인 상태의 인증 메일 재발송 (로그인 게이트에 막힌 유저용).
+     * 계정 존재 여부를 노출하지 않기 위해, 미인증 로컬 계정이 있을 때만 조용히 발송하고
+     * 그 외(계정 없음/이미 인증/소셜 계정)에는 아무 것도 하지 않는다. 호출부는 항상 같은 성공 응답.
+     */
+    public void resendVerificationByEmail(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            if (user.getProvider() == AuthProvider.LOCAL && !user.isEmailVerified()) {
+                issueVerificationTokenAndSend(user);
+            }
+        });
+    }
+
     @Transactional
     public void verifyEmail(String token) {
         EmailVerificationToken verificationToken = verificationTokenRepository.findByToken(token)
@@ -154,8 +168,14 @@ public class AuthService {
         User user = userRepository.findByEmail(request.email())
                 .orElseThrow(() -> new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다."));
 
-        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+        // 소셜 전용 계정(비밀번호 없음)으로 로컬 로그인 시도 → 자격증명 오류로 통일 처리
+        if (user.getPassword() == null || !passwordEncoder.matches(request.password(), user.getPassword())) {
             throw new IllegalArgumentException("이메일 또는 비밀번호가 올바르지 않습니다.");
+        }
+
+        // 이메일 인증 게이트: 로컬 계정이 미인증이면 로그인 차단 (소셜 계정은 항상 verified)
+        if (user.getProvider() == AuthProvider.LOCAL && !user.isEmailVerified()) {
+            throw new EmailNotVerifiedException("이메일 인증이 필요합니다. 받은 편지함을 확인해 주세요.");
         }
 
         if (user.isSuspended()) {

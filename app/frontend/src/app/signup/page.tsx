@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, API_BASE } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function SignupPage() {
@@ -19,7 +19,6 @@ export default function SignupPage() {
   const GENDER_OPTIONS = [
     { value: "male",   label: l.genderMale },
     { value: "female", label: l.genderFemale },
-    { value: "other",  label: l.genderOther },
   ];
 
   function onChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -91,7 +90,7 @@ export default function SignupPage() {
               <label className="input-label">
                 {l.genderLabel} <span className="font-normal normal-case text-stone-400">{l.genderOptional}</span>
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {GENDER_OPTIONS.map((opt) => (
                   <button
                     key={opt.value}
@@ -110,6 +109,19 @@ export default function SignupPage() {
             <button type="submit" disabled={loading} className="btn-primary mt-2 w-full py-3">
               {loading ? l.loading : l.btn}
             </button>
+            <div className="flex items-center gap-3 py-1">
+              <span className="h-px flex-1 bg-stone-200" />
+              <span className="text-xs text-stone-400">{t.login.orDivider}</span>
+              <span className="h-px flex-1 bg-stone-200" />
+            </div>
+            <a href={`${API_BASE}/oauth2/authorization/google`}
+              className="btn-secondary flex w-full items-center justify-center gap-2 py-3">
+              {t.login.continueWithGoogle}
+            </a>
+            <a href={`${API_BASE}/oauth2/authorization/kakao`}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FEE500] py-3 font-semibold text-[#191600] transition hover:brightness-95">
+              {t.login.continueWithKakao}
+            </a>
           </form>
         </div>
 
