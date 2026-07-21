@@ -269,16 +269,18 @@ export default function PostCard({ post, onLikeChange }: {
             🌐 {translation}
           </p>
         )}
-        <button
-          onClick={toggleTranslate}
-          className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
-        >
-          {translating
-            ? lc.translating
-            : showTranslation && translation
-              ? lc.hideTranslation
-              : lc.translateBtn}
-        </button>
+        {!plan && (
+          <button
+            onClick={toggleTranslate}
+            className="mt-1 text-[10px] font-medium text-stone-400 transition-colors hover:text-sky-500"
+          >
+            {translating
+              ? lc.translating
+              : showTranslation && translation
+                ? lc.hideTranslation
+                : lc.translateBtn}
+          </button>
+        )}
         <p className="mt-2 text-xs text-stone-400">
           {new Date(post.createdAt).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" })}
         </p>
