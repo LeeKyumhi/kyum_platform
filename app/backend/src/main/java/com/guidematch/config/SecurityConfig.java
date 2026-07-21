@@ -1,5 +1,9 @@
 package com.guidematch.config;
 
+import com.guidematch.auth.oauth.CookieOAuth2AuthorizationRequestRepository;
+import com.guidematch.auth.oauth.CustomOAuth2UserService;
+import com.guidematch.auth.oauth.OAuth2FailureHandler;
+import com.guidematch.auth.oauth.OAuth2SuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,7 +39,11 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
-                                           JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                                           JwtAuthenticationFilter jwtAuthenticationFilter,
+                                           CustomOAuth2UserService customOAuth2UserService,
+                                           OAuth2SuccessHandler oAuth2SuccessHandler,
+                                           OAuth2FailureHandler oAuth2FailureHandler,
+                                           CookieOAuth2AuthorizationRequestRepository cookieAuthorizationRequestRepository) throws Exception {
         http
                 // CSRF: 폼 기반 공격 방어 기능. 토큰 기반 API에선 불필요하므로 끈다.
                 .csrf(csrf -> csrf.disable())
@@ -46,6 +54,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // 회원가입/로그인/헬스체크는 토큰 없이 누구나 접근 가능
                         .requestMatchers("/api/auth/**", "/api/health").permitAll()
+                        // 구글/카카오 OAuth2 진입·콜백 경로 — 핸드셰이크 자체는 토큰 없이 시작한다
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         // WebSocket 핸드셰이크 (실제 인증은 STOMP CONNECT 인터셉터에서 처리)
                         .requestMatchers("/ws/**").permitAll()
                         // 가이드 검색/조회(GET)는 비로그인 여행자도 둘러볼 수 있게 공개
@@ -72,6 +82,14 @@ public class SecurityConfig {
                         // 그 외 모든 요청은 유효한 토큰(로그인)이 있어야 접근 가능
                         .anyRequest().authenticated()
                 )
+                // 구글/카카오 OAuth2 로그인. authorization request는 세션이 아니라 쿠키에 저장해
+                // STATELESS 세션 정책과 공존시킨다. 성공 시 우리 JWT 발급, 실패 시 에러코드와 함께 리다이렉트.
+                .oauth2Login(oauth -> oauth
+                        .authorizationEndpoint(a -> a
+                                .authorizationRequestRepository(cookieAuthorizationRequestRepository))
+                        .userInfoEndpoint(u -> u.userService(customOAuth2UserService))
+                        .successHandler(oAuth2SuccessHandler)
+                        .failureHandler(oAuth2FailureHandler))
                 // 인증 안 된 요청이 보호된 자원에 접근하면 401(Unauthorized) 반환
                 .exceptionHandling(e -> e.authenticationEntryPoint(
                         (req, res, ex) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "인증이 필요합니다.")
