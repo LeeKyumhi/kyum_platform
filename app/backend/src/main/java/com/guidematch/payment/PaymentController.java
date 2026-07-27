@@ -4,6 +4,8 @@ import com.guidematch.payment.dto.ConfirmPaymentRequest;
 import com.guidematch.payment.dto.PaymentStatusResponse;
 import com.guidematch.payment.dto.PreparePaymentRequest;
 import com.guidematch.payment.dto.PreparePaymentResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,6 +13,8 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/payments")
 public class PaymentController {
+
+    private static final Logger log = LoggerFactory.getLogger(PaymentController.class);
 
     private final PaymentService paymentService;
 
@@ -49,7 +53,13 @@ public class PaymentController {
             merchantUid = mid != null ? mid.toString() : null;
         }
         if (paymentId == null || merchantUid == null) return; // 매칭 불가 → 무시(재발화 대비)
-        paymentService.confirm(paymentId, merchantUid);
+        try {
+            paymentService.confirm(paymentId, merchantUid);
+        } catch (Exception e) {
+            // 웹훅은 매칭/검증 실패에도 200으로 응답한다(PortOne 재발화 폭주 방지, 정보 노출 차단).
+            // 정상 결제는 브라우저 콜백(/complete)에서도 확정되므로 유실 위험 없음.
+            log.warn("webhook confirm 무시 merchantUid={} paymentId={}: {}", merchantUid, paymentId, e.toString());
+        }
     }
 
     /** 예약의 결제 상태 (예약 상세 전용, 단건). */
