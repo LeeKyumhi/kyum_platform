@@ -1,6 +1,7 @@
 package com.guidematch.payment;
 
 import com.guidematch.booking.Booking;
+import com.guidematch.payment.dto.SettlementRow;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,6 +45,16 @@ public class SettlementService {
     @Transactional(readOnly = true)
     public List<Settlement> listAll() {
         return settlementRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SettlementRow> listRows() {
+        return settlementRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(s -> new SettlementRow(
+                        s.getId(), s.getBookingId(), s.getGuideProfileId(),
+                        s.getGrossAmount(), s.getCommissionAmount(), s.getNetAmount(),
+                        s.getStatus().name(), s.getCreatedAt(), s.getPaidOutAt(), s.getAdminMemo()))
+                .toList();
     }
 
     /** 관리자 지급완료 처리. */
