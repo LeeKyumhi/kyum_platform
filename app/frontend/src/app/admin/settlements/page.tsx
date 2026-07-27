@@ -35,7 +35,8 @@ export default function AdminSettlementsPage() {
   }, [load]);
 
   async function onPayout(row: SettlementRow) {
-    const memo = prompt("이체 참조 메모(선택)") ?? "";
+    const memo = prompt("이체 참조 메모(선택)");
+    if (memo === null) return; // 취소 시 지급 처리 중단
     setBusy(row.id);
     try {
       await api(`/api/admin/settlements/${row.id}/payout`, {
