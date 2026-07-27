@@ -101,4 +101,56 @@ class PaymentServiceTest {
         assertNotNull(res.merchantUid());
         verify(paymentRepository).save(any(Payment.class));
     }
+
+    // ── confirm: 서버 금액 검증 + 멱등 ──
+
+    @Test
+    void 금액_불일치는_PAID_거부() {
+        Payment pending = new Payment(1L, "m-1", 50000, "KRW");
+        when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
+        // PortOne이 알려준 실제 결제금액이 1000원 (조작 시도)
+        when(portOneClient.getPayment("imp_x"))
+                .thenReturn(new PortOneClient.PortOnePayment("PAID", 1000, "KRW"));
+
+        assertThrows(IllegalArgumentException.class, () -> service.confirm("imp_x", "m-1"));
+        assertEquals(PaymentStatus.PENDING, pending.getStatus());
+    }
+
+    @Test
+    void PortOne상태가_PAID아니면_거부() {
+        Payment pending = new Payment(1L, "m-1", 50000, "KRW");
+        when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
+        when(portOneClient.getPayment("imp_x"))
+                .thenReturn(new PortOneClient.PortOnePayment("FAILED", 50000, "KRW"));
+
+        assertThrows(IllegalArgumentException.class, () -> service.confirm("imp_x", "m-1"));
+        assertEquals(PaymentStatus.PENDING, pending.getStatus());
+    }
+
+    @Test
+    void 검증통과하면_PAID_확정() {
+        Payment pending = new Payment(1L, "m-1", 50000, "KRW");
+        when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
+        when(portOneClient.getPayment("imp_x"))
+                .thenReturn(new PortOneClient.PortOnePayment("PAID", 50000, "KRW"));
+
+        service.confirm("imp_x", "m-1");
+
+        assertEquals(PaymentStatus.PAID, pending.getStatus());
+        assertEquals("imp_x", pending.getPortoneUid());
+    }
+
+    @Test
+    void 웹훅_중복발화는_한번만_PAID_멱등() {
+        Payment pending = new Payment(1L, "m-1", 50000, "KRW");
+        when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
+        when(portOneClient.getPayment("imp_x"))
+                .thenReturn(new PortOneClient.PortOnePayment("PAID", 50000, "KRW"));
+
+        service.confirm("imp_x", "m-1");   // 콜백
+        service.confirm("imp_x", "m-1");   // 웹훅 (중복)
+
+        assertEquals(PaymentStatus.PAID, pending.getStatus());
+        assertNotNull(pending.getPaidAt());
+    }
 }

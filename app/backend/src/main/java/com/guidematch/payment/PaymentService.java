@@ -74,4 +74,35 @@ public class PaymentService {
 
         return new PreparePaymentResponse(payment.getMerchantUid(), payment.getAmount(), payment.getCurrency());
     }
+
+    /**
+     * 결제 확정 — 콜백/웹훅 공통 진입점. 멱등.
+     * PortOne에서 실제 결제를 재조회해 금액·상태를 검증한 뒤에만 PAID로 만든다.
+     * 브라우저가 준 값은 매칭 키(merchantUid, portoneUid)로만 쓰고 금액은 절대 신뢰하지 않는다.
+     */
+    @Transactional
+    public void confirm(String portoneUid, String merchantUid) {
+        Payment payment = paymentRepository.findByMerchantUid(merchantUid)
+                .orElseThrow(() -> new IllegalArgumentException("결제 주문을 찾을 수 없습니다: " + merchantUid));
+
+        // 멱등: 이미 PAID면 재검증 없이 통과(콜백·웹훅 중복 발화 대비).
+        if (payment.getStatus() == PaymentStatus.PAID) {
+            return;
+        }
+
+        PortOneClient.PortOnePayment actual = portOneClient.getPayment(portoneUid);
+        if (actual == null) {
+            throw new IllegalArgumentException("PortOne 결제 조회 실패: " + portoneUid);
+        }
+        if (!"PAID".equalsIgnoreCase(actual.status())) {
+            throw new IllegalArgumentException("결제가 완료되지 않았습니다. status=" + actual.status());
+        }
+        if (actual.amount() != payment.getAmount().longValue()) {
+            log.error("결제 금액 불일치! 예상={} 실제={} merchantUid={}",
+                    payment.getAmount(), actual.amount(), merchantUid);
+            throw new IllegalArgumentException("결제 금액이 예약 금액과 일치하지 않습니다.");
+        }
+
+        payment.markPaid(portoneUid);
+    }
 }
