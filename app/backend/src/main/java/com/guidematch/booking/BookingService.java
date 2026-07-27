@@ -7,6 +7,7 @@ import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.GuideProfileService;
 import com.guidematch.itinerary.ItineraryService;
+import com.guidematch.payment.SettlementService;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.slf4j.Logger;
@@ -31,17 +32,20 @@ public class BookingService {
     private final GuideProfileRepository guideProfileRepository;
     private final UserRepository userRepository;
     private final ItineraryService itineraryService;
+    private final SettlementService settlementService;
 
     public BookingService(BookingRepository bookingRepository,
                           GuideProfileService guideProfileService,
                           GuideProfileRepository guideProfileRepository,
                           UserRepository userRepository,
-                          ItineraryService itineraryService) {
+                          ItineraryService itineraryService,
+                          SettlementService settlementService) {
         this.bookingRepository = bookingRepository;
         this.guideProfileService = guideProfileService;
         this.guideProfileRepository = guideProfileRepository;
         this.userRepository = userRepository;
         this.itineraryService = itineraryService;
+        this.settlementService = settlementService;
     }
 
     /**
@@ -228,6 +232,7 @@ public class BookingService {
         }
 
         booking.complete();
+        settlementService.createOnComplete(booking);   // PAID면 정산 원장 생성(멱등)
         return toResponse(booking);
     }
 
