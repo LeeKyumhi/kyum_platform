@@ -65,6 +65,16 @@ kakao:
 google:
   translate-api-key: ${GOOGLE_TRANSLATE_API_KEY:}
 
+# PortOne V2 결제(에스크로). 키가 없으면 결제 기능만 비활성(PortOneClient.isEnabled()=false), 앱 기동·예약 흐름은 정상.
+portone:
+  api-secret: ${PORTONE_API_SECRET:}
+  store-id: ${PORTONE_STORE_ID:}
+  channel-key: ${PORTONE_CHANNEL_KEY:}
+
+# 플랫폼 수수료율 (정산액 = 총액 − round(총액 × rate)). 정산 생성 시점에 Settlement에 스냅샷된다.
+payment:
+  commission-rate: ${PAYMENT_COMMISSION_RATE:0.15}
+
 # Resend(https://resend.com) 트랜잭션 이메일. 키가 없으면 인증/재설정 메일 발송만 스킵되고 앱은 정상 동작.
 resend:
   api-key: ${RESEND_API_KEY:}
