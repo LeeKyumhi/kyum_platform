@@ -105,4 +105,20 @@ public class PaymentService {
 
         payment.markPaid(portoneUid);
     }
+
+    /** 예약 상세용 결제 상태 조회. 참여자(여행자/가이드)만. 결제 없으면 NONE. */
+    @Transactional(readOnly = true)
+    public com.guidematch.payment.dto.PaymentStatusResponse statusForBooking(Long userId, Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("예약을 찾을 수 없습니다."));
+        boolean isTraveler = booking.getTravelerId().equals(userId);
+        boolean isGuide = guideProfileService.getById(booking.getGuideProfileId()).getUserId().equals(userId);
+        if (!isTraveler && !isGuide) {
+            throw new IllegalArgumentException("이 예약을 조회할 권한이 없습니다.");
+        }
+        return paymentRepository.findByBookingId(bookingId)
+                .map(p -> new com.guidematch.payment.dto.PaymentStatusResponse(
+                        p.getStatus().name(), p.getAmount(), p.getCurrency()))
+                .orElse(new com.guidematch.payment.dto.PaymentStatusResponse("NONE", null, null));
+    }
 }

@@ -77,6 +77,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/translate", "/api/reviews/*/translate").permitAll()
                         // 도시 목록·지역 장소 검색은 비로그인도 사용 (도시 선택/둘러보기 UI)
                         .requestMatchers(HttpMethod.GET, "/api/cities", "/api/places", "/api/places/nearby").permitAll()
+                        // PortOne 웹훅 — 페이로드를 신뢰하지 않고 PortOne 재조회로만 확정하므로 public 안전
+                        .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         // 운영자 전용 API — ROLE_ADMIN 권한(JWT role=ADMIN)이 있어야 접근 가능
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         // 그 외 모든 요청은 유효한 토큰(로그인)이 있어야 접근 가능
