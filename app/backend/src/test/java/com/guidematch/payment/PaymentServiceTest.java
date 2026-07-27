@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.Instant;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -73,6 +72,19 @@ class PaymentServiceTest {
         paid.markPaid("imp_x");
         when(paymentRepository.findByBookingId(1L)).thenReturn(Optional.of(paid));
         assertThrows(IllegalArgumentException.class, () -> service.prepare(1L, 1L));
+    }
+
+    @Test
+    void PENDING_잔재는_재사용하고_새로_저장하지_않는다() {
+        when(bookingRepository.findById(1L)).thenReturn(Optional.of(
+                booking(1L, 1L, BookingStatus.ACCEPTED, 50000)));
+        Payment pending = new Payment(1L, "m-existing", 50000, "KRW");
+        when(paymentRepository.findByBookingId(1L)).thenReturn(Optional.of(pending));
+
+        PreparePaymentResponse res = service.prepare(1L, 1L);
+
+        assertEquals("m-existing", res.merchantUid());
+        verify(paymentRepository, never()).save(any());
     }
 
     @Test

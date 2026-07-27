@@ -51,16 +51,26 @@ public class PaymentService {
             throw new IllegalArgumentException("수락된 예약만 결제할 수 있습니다.");
         }
         Optional<Payment> existing = paymentRepository.findByBookingId(bookingId);
-        if (existing.isPresent() && existing.get().getStatus() == PaymentStatus.PAID) {
-            throw new IllegalArgumentException("이미 결제된 예약입니다.");
-        }
 
-        // 재시도(PENDING 잔재)면 그대로 재사용, 없으면 새로 만든다.
-        Payment payment = existing.orElseGet(() -> {
+        Payment payment;
+        if (existing.isPresent()) {
+            Payment found = existing.get();
+            if (found.getStatus() == PaymentStatus.PAID) {
+                throw new IllegalArgumentException("이미 결제된 예약입니다.");
+            }
+            if (found.getStatus() == PaymentStatus.PENDING) {
+                // 재시도(PENDING 잔재)면 그대로 재사용 — 새 행을 만들지 않는다.
+                payment = found;
+            } else {
+                // booking_id가 unique라 새 행을 만들 수 없다 — FAILED/REFUNDED는 현재 플로우에서
+                // 도달 불가하지만, 조용히 재사용하지 않고 방어적으로 명확히 실패시킨다.
+                throw new IllegalArgumentException("이 예약은 다시 결제할 수 없는 상태입니다: " + found.getStatus());
+            }
+        } else {
             String merchantUid = "booking-" + bookingId + "-" + System.currentTimeMillis();
-            return paymentRepository.save(
+            payment = paymentRepository.save(
                     new Payment(bookingId, merchantUid, booking.getTotalPrice(), booking.getCurrency()));
-        });
+        }
 
         return new PreparePaymentResponse(payment.getMerchantUid(), payment.getAmount(), payment.getCurrency());
     }
