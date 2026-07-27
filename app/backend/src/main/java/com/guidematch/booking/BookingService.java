@@ -7,6 +7,8 @@ import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.GuideProfileService;
 import com.guidematch.itinerary.ItineraryService;
+import com.guidematch.payment.PaymentService;
+import com.guidematch.payment.SettlementService;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
 import org.slf4j.Logger;
@@ -31,17 +33,23 @@ public class BookingService {
     private final GuideProfileRepository guideProfileRepository;
     private final UserRepository userRepository;
     private final ItineraryService itineraryService;
+    private final SettlementService settlementService;
+    private final PaymentService paymentService;
 
     public BookingService(BookingRepository bookingRepository,
                           GuideProfileService guideProfileService,
                           GuideProfileRepository guideProfileRepository,
                           UserRepository userRepository,
-                          ItineraryService itineraryService) {
+                          ItineraryService itineraryService,
+                          SettlementService settlementService,
+                          PaymentService paymentService) {
         this.bookingRepository = bookingRepository;
         this.guideProfileService = guideProfileService;
         this.guideProfileRepository = guideProfileRepository;
         this.userRepository = userRepository;
         this.itineraryService = itineraryService;
+        this.settlementService = settlementService;
+        this.paymentService = paymentService;
     }
 
     /**
@@ -228,6 +236,7 @@ public class BookingService {
         }
 
         booking.complete();
+        settlementService.createOnComplete(booking);   // PAID면 정산 원장 생성(멱등)
         return toResponse(booking);
     }
 
@@ -239,7 +248,8 @@ public class BookingService {
         if (!booking.getTravelerId().equals(userId)) {
             throw new IllegalArgumentException("본인의 예약만 취소할 수 있습니다.");
         }
-        booking.cancel();
+        booking.cancel();                              // 상태 가드 먼저 — COMPLETED 등이면 여기서 예외
+        paymentService.refundForBooking(bookingId);    // 유효한 취소일 때만 PortOne 전액취소(실패 시 트랜잭션 롤백)
         return toResponse(booking);
     }
 

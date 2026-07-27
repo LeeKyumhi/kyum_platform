@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api, getToken } from "@/lib/api";
+import { payForBooking, getPaymentStatus } from "@/lib/payment";
 import { useLanguage } from "@/context/LanguageContext";
 import { translations as i18nDict, localeOf, QUICK_PHRASE_KEYS } from "@/lib/i18n";
 import { STATUS_CLS } from "@/lib/bookingStatus";
@@ -41,6 +42,8 @@ export default function BookingDetailPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const [reported, setReported] = useState(false);
+  const [payStatus, setPayStatus] = useState<string>("NONE");
+  const [paying, setPaying] = useState(false);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -50,6 +53,11 @@ export default function BookingDetailPage() {
     api<Me>("/api/users/me", { auth: true }).then(setMe).catch(() => {});
   }, [id, router, bd.notFound]);
 
+  useEffect(() => {
+    if (!booking?.id) return;
+    getPaymentStatus(booking.id).then((r) => setPayStatus(r.status)).catch(() => {});
+  }, [booking?.id]);
+
   async function act(path: string, confirmMsg?: string) {
     if (confirmMsg && !confirm(confirmMsg)) return;
     try {
@@ -57,6 +65,20 @@ export default function BookingDetailPage() {
       const fresh = await api<Booking>(`/api/bookings/${id}/${path}`, { method: "PATCH", auth: true });
       setBooking(fresh);
     } catch (err) { alert(err instanceof Error ? err.message : t.common.error); }
+  }
+
+  async function handlePay() {
+    if (!booking) return;
+    setPaying(true);
+    try {
+      const result = await payForBooking(booking.id);
+      if (result === "PAID") setPayStatus("PAID");
+      else alert(t.payment.failed);
+    } catch {
+      alert(t.payment.error);
+    } finally {
+      setPaying(false);
+    }
   }
 
   async function copyAddress(addr: string) {
@@ -215,6 +237,15 @@ export default function BookingDetailPage() {
         {/* 액션 */}
         <div className="mb-4 flex flex-wrap gap-2">
           <Link href={`/chat/${booking.id}`} className="btn-primary px-5 text-sm">💬 {bd.openChat}</Link>
+          {viewerIsTraveler && booking.status === "ACCEPTED" && payStatus !== "PAID" && (
+            <button onClick={handlePay} disabled={paying}
+              className="btn-primary px-5 text-sm disabled:opacity-60">
+              {paying ? t.payment.processing : t.payment.pay}
+            </button>
+          )}
+          {payStatus === "PAID" && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">✓ {t.payment.paid}</span>
+          )}
           {booking.status === "ACCEPTED" && (
             <button onClick={() => act("complete", t.travelerBookings.confirmComplete)}
               className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-5 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100">{bd.complete}</button>

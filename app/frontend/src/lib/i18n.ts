@@ -62,6 +62,14 @@ const t = {
       menu: "메뉴",
     },
 
+    payment: {
+      pay: "결제하기",
+      processing: "결제 진행 중…",
+      paid: "결제 완료",
+      failed: "결제가 취소되었거나 실패했습니다.",
+      error: "결제 중 오류가 발생했습니다. 다시 시도해주세요.",
+    },
+
     saved: {
       tabCourses: "코스",
       tabPlaces: "장소",
@@ -1289,6 +1297,14 @@ const t = {
       menu: "Menu",
     },
 
+    payment: {
+      pay: "Pay now",
+      processing: "Processing…",
+      paid: "Paid",
+      failed: "Payment was cancelled or failed.",
+      error: "Something went wrong during payment. Please try again.",
+    },
+
     saved: {
       tabCourses: "Courses",
       tabPlaces: "Places",
@@ -2490,6 +2506,14 @@ const t = {
       signup: "注册",
       logout: "退出",
       menu: "菜单",
+    },
+
+    payment: {
+      pay: "立即支付",
+      processing: "支付处理中…",
+      paid: "已支付",
+      failed: "支付已取消或失败。",
+      error: "支付过程中出现错误，请重试。",
     },
 
     saved: {
