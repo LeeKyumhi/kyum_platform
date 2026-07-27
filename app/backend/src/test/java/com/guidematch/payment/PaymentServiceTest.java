@@ -153,4 +153,40 @@ class PaymentServiceTest {
         assertEquals(PaymentStatus.PAID, pending.getStatus());
         assertNotNull(pending.getPaidAt());
     }
+
+    // ── refund: 취소 시 환불 + 가드 ──
+
+    @Test
+    void 미결제_예약_환불은_noop() {
+        when(paymentRepository.findByBookingId(1L)).thenReturn(Optional.empty());
+        service.refundForBooking(1L);
+        verify(portOneClient, never()).cancelPayment(any(), any());
+    }
+
+    @Test
+    void 지급완료된_정산은_환불_거부() {
+        Payment paid = new Payment(1L, "m-1", 50000, "KRW");
+        paid.markPaid("imp_x");
+        when(paymentRepository.findByBookingId(1L)).thenReturn(Optional.of(paid));
+        Settlement s = new Settlement(1L, 7L, 50000, 0.15);
+        s.markPaidOut("이체완료");
+        when(settlementRepository.findByBookingId(1L)).thenReturn(Optional.of(s));
+
+        assertThrows(IllegalStateException.class, () -> service.refundForBooking(1L));
+        verify(portOneClient, never()).cancelPayment(any(), any());
+        assertEquals(PaymentStatus.PAID, paid.getStatus());
+    }
+
+    @Test
+    void PAID예약_환불은_PortOne취소_후_REFUNDED() {
+        Payment paid = new Payment(1L, "m-1", 50000, "KRW");
+        paid.markPaid("imp_x");
+        when(paymentRepository.findByBookingId(1L)).thenReturn(Optional.of(paid));
+        when(settlementRepository.findByBookingId(1L)).thenReturn(Optional.empty());
+
+        service.refundForBooking(1L);
+
+        verify(portOneClient).cancelPayment("imp_x", "예약 취소");
+        assertEquals(PaymentStatus.REFUNDED, paid.getStatus());
+    }
 }

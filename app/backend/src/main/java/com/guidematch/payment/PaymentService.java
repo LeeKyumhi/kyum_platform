@@ -121,4 +121,24 @@ public class PaymentService {
                         p.getStatus().name(), p.getAmount(), p.getCurrency()))
                 .orElse(new com.guidematch.payment.dto.PaymentStatusResponse("NONE", null, null));
     }
+
+    /**
+     * 예약 취소에 수반되는 환불. PAID 결제가 있고 아직 지급되지 않은 경우에만 PortOne 전액 취소.
+     * BookingService.cancel 트랜잭션 안에서 호출된다. cancelPayment 실패 시 예외로 롤백.
+     */
+    @Transactional
+    public void refundForBooking(Long bookingId) {
+        Payment payment = paymentRepository.findByBookingId(bookingId).orElse(null);
+        if (payment == null || payment.getStatus() != PaymentStatus.PAID) {
+            return; // 미결제/이미환불 — 환불할 것 없음
+        }
+        boolean paidOut = settlementRepository.findByBookingId(bookingId)
+                .map(s -> s.getStatus() == SettlementStatus.PAID_OUT)
+                .orElse(false);
+        if (paidOut) {
+            throw new IllegalStateException("이미 가이드에게 정산 지급된 예약은 환불할 수 없습니다.");
+        }
+        portOneClient.cancelPayment(payment.getPortoneUid(), "예약 취소");
+        payment.markRefunded();
+    }
 }

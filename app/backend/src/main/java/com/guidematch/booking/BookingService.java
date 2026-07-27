@@ -7,6 +7,7 @@ import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
 import com.guidematch.guide.GuideProfileService;
 import com.guidematch.itinerary.ItineraryService;
+import com.guidematch.payment.PaymentService;
 import com.guidematch.payment.SettlementService;
 import com.guidematch.user.User;
 import com.guidematch.user.UserRepository;
@@ -33,19 +34,22 @@ public class BookingService {
     private final UserRepository userRepository;
     private final ItineraryService itineraryService;
     private final SettlementService settlementService;
+    private final PaymentService paymentService;
 
     public BookingService(BookingRepository bookingRepository,
                           GuideProfileService guideProfileService,
                           GuideProfileRepository guideProfileRepository,
                           UserRepository userRepository,
                           ItineraryService itineraryService,
-                          SettlementService settlementService) {
+                          SettlementService settlementService,
+                          PaymentService paymentService) {
         this.bookingRepository = bookingRepository;
         this.guideProfileService = guideProfileService;
         this.guideProfileRepository = guideProfileRepository;
         this.userRepository = userRepository;
         this.itineraryService = itineraryService;
         this.settlementService = settlementService;
+        this.paymentService = paymentService;
     }
 
     /**
@@ -244,6 +248,7 @@ public class BookingService {
         if (!booking.getTravelerId().equals(userId)) {
             throw new IllegalArgumentException("본인의 예약만 취소할 수 있습니다.");
         }
+        paymentService.refundForBooking(bookingId);   // PAID면 PortOne 전액취소(가드 포함)
         booking.cancel();
         return toResponse(booking);
     }
