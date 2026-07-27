@@ -102,6 +102,10 @@ public class PaymentService {
                     payment.getAmount(), actual.amount(), merchantUid);
             throw new IllegalArgumentException("결제 금액이 예약 금액과 일치하지 않습니다.");
         }
+        if (!"KRW".equalsIgnoreCase(actual.currency())) {
+            log.error("결제 통화 불일치! 실제={} merchantUid={}", actual.currency(), merchantUid);
+            throw new IllegalArgumentException("결제 통화가 올바르지 않습니다.");
+        }
 
         payment.markPaid(portoneUid);
     }

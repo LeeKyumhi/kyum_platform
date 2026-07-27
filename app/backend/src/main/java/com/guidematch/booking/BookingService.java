@@ -248,8 +248,8 @@ public class BookingService {
         if (!booking.getTravelerId().equals(userId)) {
             throw new IllegalArgumentException("본인의 예약만 취소할 수 있습니다.");
         }
-        paymentService.refundForBooking(bookingId);   // PAID면 PortOne 전액취소(가드 포함)
-        booking.cancel();
+        booking.cancel();                              // 상태 가드 먼저 — COMPLETED 등이면 여기서 예외
+        paymentService.refundForBooking(bookingId);    // 유효한 취소일 때만 PortOne 전액취소(실패 시 트랜잭션 롤백)
         return toResponse(booking);
     }
 

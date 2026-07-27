@@ -117,6 +117,18 @@ class PaymentServiceTest {
     }
 
     @Test
+    void 통화_불일치는_PAID_거부() {
+        Payment pending = new Payment(1L, "m-1", 50000, "KRW");
+        when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
+        // PortOne이 알려준 실제 결제 통화가 USD (예약은 KRW)
+        when(portOneClient.getPayment("imp_x"))
+                .thenReturn(new PortOneClient.PortOnePayment("PAID", 50000, "USD"));
+
+        assertThrows(IllegalArgumentException.class, () -> service.confirm("imp_x", "m-1"));
+        assertEquals(PaymentStatus.PENDING, pending.getStatus());
+    }
+
+    @Test
     void PortOne상태가_PAID아니면_거부() {
         Payment pending = new Payment(1L, "m-1", 50000, "KRW");
         when(paymentRepository.findByMerchantUid("m-1")).thenReturn(Optional.of(pending));
