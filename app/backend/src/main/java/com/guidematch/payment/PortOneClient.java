@@ -38,7 +38,12 @@ public class PortOneClient {
 
     /** 결제 단건 재조회. 서버 금액 검증의 유일한 신뢰 소스. 실패/미설정이면 null. */
     public PortOnePayment getPayment(String paymentId) {
-        if (!isEnabled()) return null;
+        if (!isEnabled()) {
+            // 조용히 null을 돌려주면 confirm()이 "PortOne 결제 조회 실패"라는 뭉뚱그린 메시지만 남기고
+            // 로그엔 아무 흔적이 없다 — 원인이 '키 미설정'인지 'API 호출 실패'인지 구분되게 남긴다.
+            log.warn("PortOne 미설정(PORTONE_API_SECRET 없음) — 결제 조회 불가 paymentId={}", paymentId);
+            return null;
+        }
         try {
             PaymentBody body = restClient.get()
                     .uri(BASE + "/payments/{paymentId}", paymentId)

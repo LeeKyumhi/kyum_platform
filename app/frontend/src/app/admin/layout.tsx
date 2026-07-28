@@ -15,6 +15,7 @@ const TABS = [
   { href: "/admin/bookings",     key: "tabBookings" as const },
   { href: "/admin/verifications",key: "tabVerifications" as const },
   { href: "/admin/reports",      key: "tabReports" as const },
+  { href: "/admin/settlements",  key: "tabSettlements" as const },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

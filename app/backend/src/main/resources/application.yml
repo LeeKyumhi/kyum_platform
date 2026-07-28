@@ -70,6 +70,9 @@ portone:
   api-secret: ${PORTONE_API_SECRET:}
   store-id: ${PORTONE_STORE_ID:}
   channel-key: ${PORTONE_CHANNEL_KEY:}
+  # PortOne 콘솔에서 발급하는 웹훅 시크릿(whsec_...). 설정되면 웹훅 서명(Standard Webhooks)을 강제 검증한다.
+  # 비어 있으면 서명 검증을 건너뛰되 매 요청 WARN 로그(confirm 재조회가 여전히 위조를 차단하므로 정합성은 안전).
+  webhook-secret: ${PORTONE_WEBHOOK_SECRET:}
 
 # 플랫폼 수수료율 (정산액 = 총액 − round(총액 × rate)). 정산 생성 시점에 Settlement에 스냅샷된다.
 payment:
