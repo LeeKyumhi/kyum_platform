@@ -15,6 +15,7 @@ import { kakaoMapUrl } from "@/components/TimetableBuilder";
 import TripMap from "@/components/TripMap";
 import { PinIcon, CalendarIcon } from "@/components/icons";
 import RequestDetailsBlock from "@/components/RequestDetailsBlock";
+import PhoneCollectModal from "@/components/PhoneCollectModal";
 
 type MeetingPlace = { name: string; address: string | null; lat: number; lng: number; url: string | null };
 type Booking = {
@@ -44,6 +45,7 @@ export default function BookingDetailPage() {
   const [reported, setReported] = useState(false);
   const [payStatus, setPayStatus] = useState<string>("NONE");
   const [paying, setPaying] = useState(false);
+  const [phoneModal, setPhoneModal] = useState(false);
 
   useEffect(() => {
     if (!getToken()) { router.replace("/login"); return; }
@@ -73,9 +75,11 @@ export default function BookingDetailPage() {
     try {
       const result = await payForBooking(booking.id);
       if (result === "PAID") setPayStatus("PAID");
+      // PG가 구매자 연락처를 필수로 요구한다 → 받아서 저장한 뒤 이어서 결제한다.
+      else if (result === "NEED_PHONE") setPhoneModal(true);
       else alert(t.payment.failed);
-    } catch {
-      alert(t.payment.error);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : t.common.error);
     } finally {
       setPaying(false);
     }
@@ -272,6 +276,13 @@ export default function BookingDetailPage() {
           </div>
         </div>
       </div>
+
+      {phoneModal && (
+        <PhoneCollectModal
+          onClose={() => setPhoneModal(false)}
+          onSaved={() => { setPhoneModal(false); handlePay(); }}
+        />
+      )}
     </main>
   );
 }

@@ -68,6 +68,13 @@ const t = {
       paid: "결제 완료",
       failed: "결제가 취소되었거나 실패했습니다.",
       error: "결제 중 오류가 발생했습니다. 다시 시도해주세요.",
+      phoneTitle: "결제용 연락처",
+      phoneDesc: "결제사가 구매자 연락처를 요구합니다. 가이드에게는 공개되지 않습니다.",
+      phoneCountry: "국가",
+      phoneLabel: "전화번호",
+      phoneInvalid: "전화번호를 다시 확인해 주세요.",
+      phoneSubmit: "저장하고 결제",
+      phoneCancel: "취소",
     },
 
     saved: {
@@ -1303,6 +1310,13 @@ const t = {
       paid: "Paid",
       failed: "Payment was cancelled or failed.",
       error: "Something went wrong during payment. Please try again.",
+      phoneTitle: "Contact number for payment",
+      phoneDesc: "Our payment provider requires a contact number. It is never shown to your guide.",
+      phoneCountry: "Country",
+      phoneLabel: "Phone number",
+      phoneInvalid: "Please check the phone number.",
+      phoneSubmit: "Save and pay",
+      phoneCancel: "Cancel",
     },
 
     saved: {
@@ -2514,6 +2528,13 @@ const t = {
       paid: "已支付",
       failed: "支付已取消或失败。",
       error: "支付过程中出现错误，请重试。",
+      phoneTitle: "支付用联系电话",
+      phoneDesc: "支付服务商要求提供购买者联系电话。不会向向导公开。",
+      phoneCountry: "国家/地区",
+      phoneLabel: "电话号码",
+      phoneInvalid: "请检查电话号码。",
+      phoneSubmit: "保存并支付",
+      phoneCancel: "取消",
     },
 
     saved: {
