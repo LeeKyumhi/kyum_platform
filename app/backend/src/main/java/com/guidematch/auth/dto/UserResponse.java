@@ -20,7 +20,12 @@ public record UserResponse(
         String gender,
         String mbti,
         java.util.List<String> interests,
-        boolean emailVerified
+        boolean emailVerified,
+        /**
+         * 결제용 연락처(E.164). 이 DTO는 본인 조회 전용(signup 응답 · GET /me · 본인 수정 응답)이라
+         * 여기 담아도 상대방에게 가지 않는다 — 타인에게 나가는 정보는 전부 별도 DTO를 쓴다.
+         */
+        String phone
 ) {
     public static UserResponse from(User user) {
         return new UserResponse(
@@ -36,7 +41,8 @@ public record UserResponse(
                 user.getGender(),
                 user.getMbti(),
                 user.getInterestList(),
-                user.isEmailVerified()
+                user.isEmailVerified(),
+                user.getPhone()
         );
     }
 }

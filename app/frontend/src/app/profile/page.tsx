@@ -10,6 +10,7 @@ import { PinIcon } from "@/components/icons";
 import EmailVerifiedBanner from "@/components/EmailVerifiedBanner";
 import BlockedUsersSection from "@/components/BlockedUsersSection";
 import SavedGrid from "@/components/SavedGrid";
+import HourlyRateEditor from "@/components/HourlyRateEditor";
 
 type Me = {
   id: number;
@@ -330,10 +331,13 @@ function ProfileContent() {
               </div>
               <div className="flex-1">
                 <p className="input-label !mb-0.5">{l.rateLabel}</p>
-                <p className="text-sm font-medium text-stone-800">
-                  <span className="font-bold text-stone-900">{guide.hourlyRate.toLocaleString()}</span>
-                  <span className="text-xs text-stone-400"> {guide.currency}/hr</span>
-                </p>
+                <div className="text-sm font-medium text-stone-800">
+                  <HourlyRateEditor
+                    hourlyRate={guide.hourlyRate}
+                    currency={guide.currency}
+                    onSaved={(rate) => setGuide((prev) => (prev ? { ...prev, hourlyRate: rate } : prev))}
+                  />
+                </div>
               </div>
             </div>
 

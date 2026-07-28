@@ -68,6 +68,21 @@ const t = {
       paid: "결제 완료",
       failed: "결제가 취소되었거나 실패했습니다.",
       error: "결제 중 오류가 발생했습니다. 다시 시도해주세요.",
+      phoneTitle: "결제용 연락처",
+      phoneDesc: "결제사가 구매자 연락처를 요구합니다. 가이드에게는 공개되지 않습니다.",
+      phoneCountry: "국가",
+      phoneLabel: "전화번호",
+      phoneInvalid: "전화번호를 다시 확인해 주세요.",
+      phoneSubmit: "저장하고 결제",
+      phoneCancel: "취소",
+    },
+
+    hourlyRate: {
+      save: "저장",
+      cancel: "취소",
+      rangeError: "시급은 {min}원부터 {max}원 사이로 입력해 주세요.",
+      bigChangeConfirm: "시급을 {old}원에서 {new}원으로 바꿉니다. 계속할까요?",
+      appliesToNewBookings: "바꾼 시급은 앞으로 들어올 예약부터 적용됩니다.",
     },
 
     saved: {
@@ -523,6 +538,7 @@ const t = {
       tabBookings: "예약",
       tabVerifications: "자격인증",
       tabReports: "신고",
+      tabSettlements: "정산",
       statTotalUsers: "총 회원",
       statGuides: "가이드",
       statNew7d: "신규(7일)",
@@ -1303,6 +1319,21 @@ const t = {
       paid: "Paid",
       failed: "Payment was cancelled or failed.",
       error: "Something went wrong during payment. Please try again.",
+      phoneTitle: "Contact number for payment",
+      phoneDesc: "Our payment provider requires a contact number. It is never shown to your guide.",
+      phoneCountry: "Country",
+      phoneLabel: "Phone number",
+      phoneInvalid: "Please check the phone number.",
+      phoneSubmit: "Save and pay",
+      phoneCancel: "Cancel",
+    },
+
+    hourlyRate: {
+      save: "Save",
+      cancel: "Cancel",
+      rangeError: "Enter an hourly rate between {min} and {max} KRW.",
+      bigChangeConfirm: "Change your rate from {old} to {new} KRW. Continue?",
+      appliesToNewBookings: "The new rate applies to future bookings only.",
     },
 
     saved: {
@@ -1750,6 +1781,7 @@ const t = {
       tabBookings: "Bookings",
       tabVerifications: "Verifications",
       tabReports: "Reports",
+      tabSettlements: "Settlements",
       statTotalUsers: "Total users",
       statGuides: "Guides",
       statNew7d: "New (7d)",
@@ -2514,6 +2546,21 @@ const t = {
       paid: "已支付",
       failed: "支付已取消或失败。",
       error: "支付过程中出现错误，请重试。",
+      phoneTitle: "支付用联系电话",
+      phoneDesc: "支付服务商要求提供购买者联系电话。不会向向导公开。",
+      phoneCountry: "国家/地区",
+      phoneLabel: "电话号码",
+      phoneInvalid: "请检查电话号码。",
+      phoneSubmit: "保存并支付",
+      phoneCancel: "取消",
+    },
+
+    hourlyRate: {
+      save: "保存",
+      cancel: "取消",
+      rangeError: "请输入 {min} 至 {max} 韩元之间的时薪。",
+      bigChangeConfirm: "将时薪从 {old} 韩元改为 {new} 韩元，继续吗？",
+      appliesToNewBookings: "修改后的时薪仅适用于之后的预约。",
     },
 
     saved: {
@@ -2961,6 +3008,7 @@ const t = {
       tabBookings: "预约",
       tabVerifications: "资格认证",
       tabReports: "举报",
+      tabSettlements: "结算",
       statTotalUsers: "总会员",
       statGuides: "向导",
       statNew7d: "新增(7天)",

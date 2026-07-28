@@ -96,4 +96,33 @@ public class UserController {
     }
 
     record LocationRequest(String city, Double latitude, Double longitude) {}
+
+    /**
+     * 결제용 연락처 저장/해제. 국가번호를 포함한 E.164로만 받는다.
+     *
+     * 한국 번호가 없는 외국인 여행자가 이 서비스의 주 사용자이므로 국내 형식(010-)을 강제하지 않는다.
+     * 저장된 값은 본인과 PG에만 가고, 상대방에게 나가는 응답에는 넣지 않는다(PhonePrivacyTest).
+     */
+    @PatchMapping("/me/phone")
+    public UserResponse updatePhone(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody PhoneRequest req
+    ) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        String raw = req.phone() == null ? "" : req.phone().replaceAll("[\\s\\-()]", "");
+        if (raw.isEmpty()) {
+            user.setPhone(null); // 해제
+            return UserResponse.from(userRepository.save(user));
+        }
+        // E.164: +(1~9로 시작하는 국가번호) + 총 7~15자리
+        if (!raw.matches("^\\+[1-9]\\d{6,14}$")) {
+            throw new IllegalArgumentException("국가번호를 포함한 전화번호를 입력해 주세요. (예: +82 10-1234-5678)");
+        }
+        user.setPhone(raw);
+        return UserResponse.from(userRepository.save(user));
+    }
+
+    record PhoneRequest(String phone) {}
 }

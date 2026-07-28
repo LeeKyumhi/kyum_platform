@@ -75,4 +75,38 @@ class SettlementServiceTest {
         assertEquals(85000, s.getNetAmount());
         assertEquals(0.15, s.getCommissionRate());
     }
+
+    // --- 수수료 반올림 ---
+    // 위 테스트의 100,000원은 15,000원으로 딱 떨어져서 반올림 방향을 전혀 검증하지 못한다.
+    // 총액이 20의 배수가 아니면 총액×0.15에 소수가 생긴다 — 그 경로를 고정한다.
+    // Settlement는 같은 패키지라 서비스/목 없이 생성자로 직접 계산을 검증한다.
+
+    @Test
+    void 수수료_소수점_절반은_올림() {
+        Settlement s = new Settlement(1L, 7L, 1010, 0.15); // 151.5 → 152
+        assertEquals(152, s.getCommissionAmount());
+        assertEquals(858, s.getNetAmount());
+    }
+
+    @Test
+    void 수수료_소수점_절반미만은_내림() {
+        Settlement s = new Settlement(1L, 7L, 1002, 0.15); // 150.3 → 150
+        assertEquals(150, s.getCommissionAmount());
+        assertEquals(852, s.getNetAmount());
+    }
+
+    /**
+     * 반올림이 어느 방향으로 가든 수수료+정산액은 총액과 정확히 같아야 한다.
+     * 이게 깨지면 플랫폼이 받은 돈과 장부가 1원씩 어긋난다 — 건수가 쌓이면 대사가 불가능해진다.
+     */
+    @Test
+    void 수수료와_정산액의_합은_항상_총액() {
+        for (int gross = 1000; gross <= 2000; gross++) {
+            Settlement s = new Settlement(1L, 7L, gross, 0.15);
+            assertEquals(gross, s.getCommissionAmount() + s.getNetAmount(),
+                    "총액 " + gross + "원에서 장부가 어긋남");
+            assertTrue(s.getCommissionAmount() >= 0 && s.getNetAmount() >= 0,
+                    "총액 " + gross + "원에서 음수 발생");
+        }
+    }
 }

@@ -53,6 +53,16 @@ public class User {
     /** 국적 (선택 입력) */
     private String nationality;
 
+    /**
+     * 결제용 구매자 연락처. 국가번호를 포함한 E.164 표기로 저장한다(예 "+821012345678").
+     * 한국 번호가 없는 외국인 여행자도 자기 나라 번호를 쓸 수 있어야 하므로 국내 형식을 강제하지 않는다.
+     *
+     * 개인정보 — 결제 시 PG에는 전달되지만, 상대방(가이드/여행자)에게 나가는 응답에는 절대 넣지 않는다.
+     * 이 규칙은 PhonePrivacyTest가 고정한다.
+     */
+    @Column(length = 20)
+    private String phone;
+
     /** 여행자 위치: 정형화된 도시 + 좌표 (선택). */
     @Column(name = "city")
     private String city;
@@ -185,6 +195,14 @@ public class User {
 
     public String getNationality() {
         return nationality;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
     }
 
     public Instant getCreatedAt() {

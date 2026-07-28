@@ -5,6 +5,8 @@ import com.guidematch.booking.BookingRepository;
 import com.guidematch.booking.BookingStatus;
 import com.guidematch.guide.GuideProfileService;
 import com.guidematch.payment.dto.PreparePaymentResponse;
+import com.guidematch.user.User;
+import com.guidematch.user.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,6 +25,7 @@ public class PaymentService {
     private final SettlementRepository settlementRepository;
     private final PortOneClient portOneClient;
     private final GuideProfileService guideProfileService;
+    private final UserRepository userRepository;
     private final double commissionRate;
 
     public PaymentService(BookingRepository bookingRepository,
@@ -30,12 +33,14 @@ public class PaymentService {
                           SettlementRepository settlementRepository,
                           PortOneClient portOneClient,
                           GuideProfileService guideProfileService,
+                          UserRepository userRepository,
                           @Value("${payment.commission-rate:0.15}") double commissionRate) {
         this.bookingRepository = bookingRepository;
         this.paymentRepository = paymentRepository;
         this.settlementRepository = settlementRepository;
         this.portOneClient = portOneClient;
         this.guideProfileService = guideProfileService;
+        this.userRepository = userRepository;
         this.commissionRate = commissionRate;
     }
 
@@ -67,12 +72,22 @@ public class PaymentService {
                 throw new IllegalArgumentException("이 예약은 다시 결제할 수 없는 상태입니다: " + found.getStatus());
             }
         } else {
-            String merchantUid = "booking-" + bookingId + "-" + System.currentTimeMillis();
+            // 주문번호는 영숫자만 — 일부 PG(스마트로 등)가 특수문자(하이픈 포함)를 거부한다.
+            // merchantUid는 불투명 매칭 키일 뿐 bookingId를 파싱하지 않으므로 형식은 자유.
+            String merchantUid = "booking" + bookingId + "t" + System.currentTimeMillis();
             payment = paymentRepository.save(
                     new Payment(bookingId, merchantUid, booking.getTotalPrice(), booking.getCurrency()));
         }
 
-        return new PreparePaymentResponse(payment.getMerchantUid(), payment.getAmount(), payment.getCurrency());
+        // 구매자 정보 — PG(스마트로)가 결제창 호출 시 연락처를 필수로 요구한다.
+        // 본인(travelerId) 것만 담는다. 연락처 미등록이면 null → 프론트가 입력을 받는다.
+        User buyer = userRepository.findById(travelerId).orElse(null);
+        return new PreparePaymentResponse(
+                payment.getMerchantUid(), payment.getAmount(), payment.getCurrency(),
+                buyer == null ? null : buyer.getFullName(),
+                buyer == null ? null : buyer.getEmail(),
+                buyer == null ? null : PhoneFormat.toPgFormat(buyer.getPhone()),
+                buyer == null ? null : String.valueOf(buyer.getId()));
     }
 
     /**
