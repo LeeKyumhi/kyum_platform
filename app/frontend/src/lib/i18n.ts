@@ -77,6 +77,14 @@ const t = {
       phoneCancel: "취소",
     },
 
+    hourlyRate: {
+      save: "저장",
+      cancel: "취소",
+      rangeError: "시급은 {min}원부터 {max}원 사이로 입력해 주세요.",
+      bigChangeConfirm: "시급을 {old}원에서 {new}원으로 바꿉니다. 계속할까요?",
+      appliesToNewBookings: "바꾼 시급은 앞으로 들어올 예약부터 적용됩니다.",
+    },
+
     saved: {
       tabCourses: "코스",
       tabPlaces: "장소",
@@ -1319,6 +1327,14 @@ const t = {
       phoneCancel: "Cancel",
     },
 
+    hourlyRate: {
+      save: "Save",
+      cancel: "Cancel",
+      rangeError: "Enter an hourly rate between {min} and {max} KRW.",
+      bigChangeConfirm: "Change your rate from {old} to {new} KRW. Continue?",
+      appliesToNewBookings: "The new rate applies to future bookings only.",
+    },
+
     saved: {
       tabCourses: "Courses",
       tabPlaces: "Places",
@@ -2535,6 +2551,14 @@ const t = {
       phoneInvalid: "请检查电话号码。",
       phoneSubmit: "保存并支付",
       phoneCancel: "取消",
+    },
+
+    hourlyRate: {
+      save: "保存",
+      cancel: "取消",
+      rangeError: "请输入 {min} 至 {max} 韩元之间的时薪。",
+      bigChangeConfirm: "将时薪从 {old} 韩元改为 {new} 韩元，继续吗？",
+      appliesToNewBookings: "修改后的时薪仅适用于之后的预约。",
     },
 
     saved: {

@@ -9,6 +9,7 @@ import InterestPicker from "@/components/InterestPicker";
 import ServiceCategoryPicker from "@/components/ServiceCategoryPicker";
 import CitySelect from "@/components/CitySelect";
 import { PinIcon, CheckBadgeIcon, CameraIcon } from "@/components/icons";
+import HourlyRateEditor from "@/components/HourlyRateEditor";
 
 const CRED_KEYS = ["EDUCATION", "CERTIFICATE", "LICENSE"] as const;
 const MBTI_TYPES = [
@@ -282,10 +283,13 @@ export default function GuideManagePage() {
               <p className="mt-1 flex items-center gap-1 text-sm text-stone-500">
                 <PinIcon className="h-3.5 w-3.5 flex-shrink-0" /> {profile.city ?? profile.region}
               </p>
-              <p className="mt-0.5 text-sm">
-                <span className="font-bold text-stone-900">{profile.hourlyRate.toLocaleString()}</span>
-                <span className="text-xs font-medium text-stone-400"> {profile.currency}/{t.guides.perHour}</span>
-              </p>
+              <div className="mt-0.5 text-sm">
+                <HourlyRateEditor
+                  hourlyRate={profile.hourlyRate}
+                  currency={profile.currency}
+                  onSaved={(rate) => setProfile((prev) => (prev ? { ...prev, hourlyRate: rate } : prev))}
+                />
+              </div>
             </div>
           </div>
 

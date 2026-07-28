@@ -162,6 +162,9 @@ public class GuideProfile {
     public String getAvatarUrl() { return avatarUrl; }
     public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
     public boolean isActive() { return active; }
+    /** 시급 변경. 범위 검증은 GuideProfileService.updateHourlyRate가 한다. */
+    public void setHourlyRate(Integer hourlyRate) { this.hourlyRate = hourlyRate; }
+
     public void setActive(boolean active) { this.active = active; }
     /** null은 false로 취급 (신규 컬럼이라 기존 행은 null일 수 있음). */
     public boolean isInstantBooking() { return Boolean.TRUE.equals(instantBooking); }

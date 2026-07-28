@@ -76,6 +76,18 @@ public class GuideProfileController {
 
     record InstantBookingRequest(boolean instantBooking) {}
 
+    /** 시급 변경. 범위(1,000~1,000,000원) 검증은 서비스가 하며 프론트 검증과 무관하게 권위를 갖는다. */
+    @PatchMapping("/me/hourly-rate")
+    public GuideProfileResponse updateHourlyRate(
+            @AuthenticationPrincipal Long userId,
+            @RequestBody HourlyRateRequest request
+    ) {
+        GuideProfile profile = guideProfileService.updateHourlyRate(userId, request.hourlyRate());
+        return GuideProfileResponse.from(profile);
+    }
+
+    record HourlyRateRequest(Integer hourlyRate) {}
+
     /** MBTI · 관심사 업데이트 */
     @PatchMapping("/me/personality")
     public GuideProfileResponse updatePersonality(

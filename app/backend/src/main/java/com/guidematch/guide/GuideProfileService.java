@@ -204,6 +204,29 @@ public class GuideProfileService {
         return guideProfileRepository.save(profile);
     }
 
+    /** 시급 허용 범위. 자릿수 실수(5,000을 500으로)가 곧바로 돈 사고가 되는 자리라 서버가 막는다. */
+    public static final int MIN_HOURLY_RATE = 1_000;
+    public static final int MAX_HOURLY_RATE = 1_000_000;
+
+    /**
+     * 가이드 본인 시급 변경.
+     *
+     * 이미 잡힌 예약은 영향받지 않는다 — 예약은 생성 시점 시급을 hourly_rate_snapshot으로
+     * 복사해 갖고 있고 실시간으로 파생하지 않는다(CLAUDE.md 제약). 변경은 이후 예약부터 적용된다.
+     * 통화(currency)는 건드리지 않는다.
+     */
+    @Transactional
+    public GuideProfile updateHourlyRate(Long userId, Integer hourlyRate) {
+        if (hourlyRate == null || hourlyRate < MIN_HOURLY_RATE || hourlyRate > MAX_HOURLY_RATE) {
+            throw new IllegalArgumentException(
+                    "시급은 " + String.format("%,d", MIN_HOURLY_RATE) + "원부터 "
+                            + String.format("%,d", MAX_HOURLY_RATE) + "원 사이로 입력해 주세요.");
+        }
+        GuideProfile profile = getByUserId(userId);
+        profile.setHourlyRate(hourlyRate);
+        return guideProfileRepository.save(profile);
+    }
+
     /**
      * 가이드 활동 상태 변경 (활동 중 ↔ 일시 중단).
      */
