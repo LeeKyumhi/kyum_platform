@@ -1,6 +1,9 @@
 package com.guidematch.geo;
 
 import com.guidematch.geo.KakaoLocalClient.Place;
+import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.SignalRecorder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -56,10 +59,17 @@ public class CourseRecommendController {
 
     private final KakaoLocalClient kakaoClient;
     private final TranslationService translationService;
+    private final PlaceInsightLookup insightLookup;
+    private final SignalRecorder signalRecorder;
 
-    public CourseRecommendController(KakaoLocalClient kakaoClient, TranslationService translationService) {
+    public CourseRecommendController(KakaoLocalClient kakaoClient,
+                                     TranslationService translationService,
+                                     PlaceInsightLookup insightLookup,
+                                     SignalRecorder signalRecorder) {
         this.kakaoClient = kakaoClient;
         this.translationService = translationService;
+        this.insightLookup = insightLookup;
+        this.signalRecorder = signalRecorder;
     }
 
     @GetMapping("/api/courses/recommend")
@@ -67,7 +77,9 @@ public class CourseRecommendController {
             @RequestParam String city,
             @RequestParam(required = false) String district,
             @RequestParam(defaultValue = "mixed") String theme,
-            @RequestParam(defaultValue = "ko") String lang
+            @RequestParam(defaultValue = "ko") String lang,
+            // 신호 기록용. public 엔드포인트가 되더라도 null로 들어올 뿐 401을 던지지 않는다.
+            @AuthenticationPrincipal Long userId
     ) {
         KoreanCity target = KoreanCity.LIST.stream()
                 .filter(c -> c.key().equalsIgnoreCase(city))
@@ -146,11 +158,22 @@ public class CourseRecommendController {
                 (picked.size() * MINUTES_PER_STOP + (totalMeters / 1000.0) / WALK_KMH * 60) / 60.0)));
 
         List<Stop> stops = toStops(picked, legMeters, lang);
+
+        // 무엇이 노출됐는지 지금 남겨두지 않으면 영원히 못 되찾는다.
+        // "추천에는 나왔는데 인사이트가 없는 장소"가 곧 다음 수집 우선순위이기도 하다.
+        signalRecorder.recordShown(
+                picked.stream().map(Place::id).toList(),
+                target.key() + "/" + (resolvedDistrict == null ? "" : resolvedDistrict) + "/" + theme,
+                userId);
+
         return new RecommendResponse(target.key(), resolvedDistrict, theme,
                 true, stops, totalMeters, suggestedHours);
     }
 
-    /** Kakao 카테고리 전체 경로("음식점 > 카페 > …")는 마지막 segment만 취하고, lang != ko면 번역. */
+    /**
+     * Kakao 카테고리 전체 경로("음식점 &gt; 카페 &gt; …")는 마지막 segment만 취하고, lang != ko면 번역.
+     * 여기서 축적된 인사이트도 함께 붙인다 — <b>정차지 수와 무관하게 쿼리 2회</b>({@link PlaceInsightLookup}).
+     */
     private List<Stop> toStops(List<Place> picked, List<Integer> legMeters, String lang) {
         List<String> names = picked.stream().map(Place::name).toList();
         List<String> shortCats = picked.stream().map(p -> {
@@ -165,6 +188,9 @@ public class CourseRecommendController {
         List<String> tCats = googleLang != null && !shortCats.isEmpty()
                 ? translationService.translate(shortCats, googleLang) : shortCats;
 
+        Map<String, List<PlaceInsightLookup.InsightView>> insights =
+                insightLookup.byKakaoPlaceIds(picked.stream().map(Place::id).toList(), lang);
+
         List<Stop> stops = new ArrayList<>();
         for (int i = 0; i < picked.size(); i++) {
             Place p = picked.get(i);
@@ -173,7 +199,8 @@ public class CourseRecommendController {
                     tCats.get(i).isBlank() ? shortCats.get(i) : tCats.get(i),
                     p.address(), // 주소는 한국어 유지 (택시/지도 편의)
                     p.latitude(), p.longitude(), p.placeUrl(),
-                    legMeters.get(i)
+                    legMeters.get(i),
+                    insights.getOrDefault(p.id(), List.of())
             ));
         }
         return stops;
@@ -182,7 +209,9 @@ public class CourseRecommendController {
     public record Stop(
             int order, String name, String category, String address,
             Double latitude, Double longitude, String placeUrl,
-            Integer distanceFromPrevMeters
+            Integer distanceFromPrevMeters,
+            /** 아직 수집 안 된 장소는 빈 배열 — 프론트는 있으면 보여주고 없으면 무시하면 된다. */
+            List<PlaceInsightLookup.InsightView> insights
     ) {}
 
     public record RecommendResponse(

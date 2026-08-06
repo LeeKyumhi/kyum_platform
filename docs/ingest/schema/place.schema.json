@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peerup.local/ingest/place.schema.json",
+  "title": "장소 후보 레코드 (places.jsonl 한 줄)",
+  "description": "canonical 장소가 아니라 관측된 단서다. 병합 판정은 적재기가 한다.",
+  "type": "object",
+  "required": ["record_id", "record_type", "name_raw"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "description": "sha256(\"place|\" + source.url + \"|\" + name_normalized). 재실행 시 같은 값이어야 UPSERT가 된다.",
+      "pattern": "^sha256:[0-9a-f]{8,64}$"
+    },
+    "record_type": { "const": "place" },
+    "schema_version": { "type": "string" },
+    "name_raw": {
+      "type": "string",
+      "minLength": 1,
+      "description": "원문 표기 그대로. 정규화는 서버가 다시 한다."
+    },
+    "name_normalized": {
+      "type": "string",
+      "description": "참고용. 적재기는 이 값을 매칭에 쓰지 않는다 — 매칭 키를 외부 에이전트가 정하면 프롬프트가 바뀔 때 자산이 쪼개진다."
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "별칭의 유일한 출처. 여기 실린 표기가 다음 실행부터 매칭에 쓰인다."
+    },
+    "address_raw": { "type": ["string", "null"] },
+    "city": { "type": ["string", "null"] },
+    "district": { "type": ["string", "null"] },
+    "lat": { "type": ["number", "null"], "minimum": 33, "maximum": 39 },
+    "lng": { "type": ["number", "null"], "minimum": 124, "maximum": 132 },
+    "external_ids": {
+      "type": "object",
+      "description": "하나라도 있어야 새 장소 노드를 만들 수 있다. 없으면 기존 장소에 붙거나 미해결로 간다.",
+      "properties": {
+        "kakao_place_id": { "type": ["string", "null"] },
+        "tour_api_content_id": { "type": ["string", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "category_raw": { "type": ["string", "null"] },
+    "source": {
+      "type": "object",
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "format": "uri" },
+        "publisher": { "type": ["string", "null"] },
+        "fetched_at": { "type": ["string", "null"], "format": "date-time" }
+      }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+  },
+  "additionalProperties": true
+}
