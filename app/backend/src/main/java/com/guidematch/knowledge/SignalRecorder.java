@@ -32,27 +32,40 @@ public class SignalRecorder {
     }
 
     /**
+     * 노출된 정차지 하나에 대한 참조.
+     * 레지스트리 유래는 {@code placeId}를 이미 알고, Kakao 폴백은 {@code kakaoPlaceId}만 안다.
+     */
+    public record StopRef(Long placeId, String kakaoPlaceId) {}
+
+    /**
      * 코스 추천이 정차지들을 사용자에게 보여줬다.
      *
-     * @param kakaoPlaceIds 노출된 정차지의 Kakao place id
-     * @param courseRef     어떤 추천이었는지 (예: "seoul/성동구/cafe")
+     * @param stops     노출된 정차지들
+     * @param courseRef 어떤 추천이었는지 (예: "Seoul/중구/cafe")
      */
-    public void recordShown(Collection<String> kakaoPlaceIds, String courseRef, Long userId) {
+    public void recordShown(List<StopRef> stops, String courseRef, Long userId) {
         try {
-            List<String> ids = kakaoPlaceIds.stream()
-                    .filter(s -> s != null && !s.isBlank()).distinct().toList();
-            if (ids.isEmpty()) return;
+            if (stops.isEmpty()) return;
 
-            // 쿼리 1회 — 정차지마다 조회하면 시드니 왕복 250ms가 그대로 응답 시간에 얹힌다
-            Map<String, Long> known = placeRepo.findAllByKakaoPlaceIdIn(ids).stream()
+            // 아직 place_id를 모르는 것만 한 번에 조회한다 (쿼리 최대 1회).
+            // 정차지마다 조회하면 시드니 왕복 250ms가 그대로 응답 시간에 얹힌다.
+            List<String> unknown = stops.stream()
+                    .filter(s -> s.placeId() == null)
+                    .map(StopRef::kakaoPlaceId)
+                    .filter(s -> s != null && !s.isBlank())
+                    .distinct().toList();
+            Map<String, Long> resolved = unknown.isEmpty() ? Map.of()
+                    : placeRepo.findAllByKakaoPlaceIdIn(unknown).stream()
                     .collect(java.util.stream.Collectors.toMap(
                             Place::getKakaoPlaceId, Place::getId, (a, b) -> a));
 
-            List<RecommendationSignal> rows = ids.stream()
+            List<RecommendationSignal> rows = stops.stream()
                     // 아직 우리 레지스트리에 없는 장소도 기록한다 — place_id만 null.
                     // "추천에는 나왔는데 지식이 없는 장소"가 곧 다음 수집 우선순위다.
-                    .map(id -> new RecommendationSignal(
-                            RecommendationSignal.EventType.SHOWN, known.get(id), courseRef, userId))
+                    .map(s -> new RecommendationSignal(
+                            RecommendationSignal.EventType.SHOWN,
+                            s.placeId() != null ? s.placeId() : resolved.get(s.kakaoPlaceId()),
+                            courseRef, userId))
                     .toList();
             repo.saveAll(rows);
         } catch (Exception e) {
