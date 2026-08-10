@@ -59,6 +59,28 @@ public class PlaceInsightLookup {
     }
 
     /**
+     * 우리 place id들로 인사이트를 한 번에 가져온다. <b>쿼리 1회 고정</b>.
+     *
+     * <p>레지스트리 정차지는 이미 place id를 들고 오므로 {@link #byKakaoPlaceIds}의 1회차
+     * (kakao id → place) 조회가 통째로 불필요하다. 그 메서드는 Kakao 폴백 정차지용으로 남는다.
+     *
+     * @return placeId → 인사이트 목록 (신뢰도 내림차순). 없는 키는 빈 목록이 아니라 아예 없음.
+     */
+    public Map<Long, List<InsightView>> byPlaceIds(Collection<Long> placeIds, String lang) {
+        List<Long> ids = placeIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return Map.of();
+
+        return insightRepo.findByPlaceIdIn(ids).stream()
+                .collect(Collectors.groupingBy(
+                        PlaceInsight::getPlaceId,
+                        LinkedHashMap::new,
+                        Collectors.collectingAndThen(Collectors.toList(), list -> list.stream()
+                                .sorted(Comparator.comparingDouble(PlaceInsight::getConfidence).reversed())
+                                .map(i -> toView(i, lang))
+                                .toList())));
+    }
+
+    /**
      * 요청 언어 → 한국어 → 아무 언어 순으로 떨어진다.
      * 번역이 아직 안 붙은 사실이라도 한국어로라도 보여주는 편이 아무것도 안 보이는 것보다 낫다.
      */

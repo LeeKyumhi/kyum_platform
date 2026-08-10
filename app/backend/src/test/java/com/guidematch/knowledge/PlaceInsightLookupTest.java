@@ -25,7 +25,8 @@ class PlaceInsightLookupTest {
     private final PlaceInsightLookup lookup = new PlaceInsightLookup(placeRepo, insightRepo);
 
     private Place place(long id, String kakaoPlaceId) {
-        Place p = new Place("어니언 성수", "Seoul", "성동구", 37.5445, 127.0557, kakaoPlaceId, null, "카페");
+        Place p = new Place("어니언 성수", "Seoul", "성동구", 37.5445, 127.0557, kakaoPlaceId, null,
+                "음식점 > 카페 > 커피전문점", "서울 성동구 아차산로9길 8");
         ReflectionTestUtils.setField(p, "id", id);
         return p;
     }
@@ -108,5 +109,48 @@ class PlaceInsightLookupTest {
 
         verify(placeRepo, times(1)).findAllByKakaoPlaceIdIn(any());
         verify(insightRepo, times(1)).findByPlaceIdIn(any());
+    }
+
+    // ── byPlaceIds — 레지스트리 정차지용 (Task 4) ─────────────────────
+
+    /** 레지스트리 정차지는 place_id를 이미 알고 있다 — kakao id를 거칠 이유가 없다. 쿼리 1회. */
+    @Test
+    void byPlaceIds는_쿼리_한_번으로_인사이트를_붙인다() {
+        when(insightRepo.findByPlaceIdIn(any())).thenReturn(List.of(
+                insight(10L, FactKind.VIBE, Map.of("ko", "조용하다"), 0.9),
+                insight(10L, FactKind.BEST_TIME, Map.of("ko", "아침"), 0.5),
+                insight(11L, FactKind.CAUTION, Map.of("ko", "월요일 휴관"), 0.7)));
+
+        Map<Long, List<PlaceInsightLookup.InsightView>> out =
+                lookup.byPlaceIds(List.of(10L, 11L), "ko");
+
+        assertThat(out.keySet()).containsExactlyInAnyOrder(10L, 11L);
+        assertThat(out.get(10L)).extracting(PlaceInsightLookup.InsightView::kind)
+                .containsExactly("vibe", "best_time");   // 신뢰도 내림차순
+        // 1회차(kakao id → place) 조회가 통째로 빠졌는지 — 이게 "쿼리 1회"의 실질이다
+        verify(placeRepo, never()).findAllByKakaoPlaceIdIn(any());
+    }
+
+    @Test
+    void byPlaceIds는_빈_입력에_쿼리를_날리지_않는다() {
+        assertThat(lookup.byPlaceIds(List.of(), "ko")).isEmpty();
+        verify(insightRepo, never()).findByPlaceIdIn(any());
+    }
+
+    /** 요청 언어 → ko → 아무거나. 번역이 아직 없는 사실도 한국어로는 보여준다. */
+    @Test
+    void byPlaceIds도_언어_폴백을_한다() {
+        when(insightRepo.findByPlaceIdIn(any())).thenReturn(List.of(
+                insight(10L, FactKind.VIBE, Map.of("ko", "조용하다"), 0.9)));
+
+        assertThat(lookup.byPlaceIds(List.of(10L), "en").get(10L).get(0).note())
+                .isEqualTo("조용하다");
+    }
+
+    /** null이 섞여도 죽지 않는다 — Kakao 폴백 정차지는 placeId가 null이다. */
+    @Test
+    void byPlaceIds는_null_id를_걸러낸다() {
+        assertThat(lookup.byPlaceIds(java.util.Arrays.asList(null, null), "ko")).isEmpty();
+        verify(insightRepo, never()).findByPlaceIdIn(any());
     }
 }
