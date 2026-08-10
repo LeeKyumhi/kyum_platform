@@ -27,10 +27,76 @@ public class IngestStateExporter {
     private static final Logger log = LoggerFactory.getLogger(IngestStateExporter.class);
 
     private final IngestSourceRepository sourceRepo;
+    private final IngestRunRepository runRepo;
+    private final PlaceRepository placeRepo;
     private final ObjectMapper mapper = new ObjectMapper();
 
-    public IngestStateExporter(IngestSourceRepository sourceRepo) {
+    public IngestStateExporter(IngestSourceRepository sourceRepo, IngestRunRepository runRepo,
+                               PlaceRepository placeRepo) {
         this.sourceRepo = sourceRepo;
+        this.runRepo = runRepo;
+        this.placeRepo = placeRepo;
+    }
+
+    /**
+     * 레지스트리 장소 이름을 {@code state/registry-places.jsonl}로 내보낸다.
+     *
+     * <p><b>역방향 시딩의 질의어 목록이다.</b> 에이전트가 "이미 가진 Kakao 장소명으로
+     * TourAPI를 역조회"하려면 그 이름을 어디선가 읽어야 하는데, {@code ingested-sources.jsonl}에는
+     * URL만 있고 이름이 없다. 이 파일이 없으면 프롬프트의 역방향 시딩 지시가 <b>수행 불가능한
+     * 지시</b>가 되고, 그러면 에이전트는 결국 areaBasedList2 페이징으로 되돌아간다
+     * (= 제목순 표본 잘림이 재발한다).
+     *
+     * <p>어느 외부 ID를 이미 갖고 있는지도 함께 싣는다 — 둘 다 가진 장소는 역조회할 이유가 없다.
+     */
+    private void exportRegistryPlaces(Path file) throws IOException {
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+        int written = 0;
+        try (BufferedWriter w = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
+            for (Place p : placeRepo.findAll()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("name_ko", p.getNameKo());
+                row.put("city", p.getCity());
+                row.put("district", p.getDistrict());
+                row.put("place_kind", p.getPlaceKind() == null ? null : p.getPlaceKind().name());
+                row.put("has_kakao_id", p.getKakaoPlaceId() != null);
+                row.put("has_tour_api_id", p.getTourApiContentId() != null);
+                w.write(mapper.writeValueAsString(row));
+                w.newLine();
+                written++;
+            }
+        }
+        Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        log.info("레지스트리 장소 {}건 → {}", written, file);
+    }
+
+    /**
+     * 완료되지 않은 적재를 {@code state/stalled-runs.jsonl}로 내보낸다.
+     *
+     * <p>로그 경고는 사람이 볼 때만 쓸모가 있다. <b>다음 Codex 세션이 스스로 재적재를 고르려면
+     * 파일로 있어야 한다</b> — 커서를 DB에 두고 매번 파일로 내보내는 이 파이프라인의 규약 그대로다.
+     *
+     * <p><b>정상 상태에서 이 파일은 0바이트다.</b> 항상 쓰기 때문에 "비어 있다"가
+     * "중단된 적재가 없다"는 적극적 신호가 된다 — 파일이 아예 없는 것과는 다르다.
+     */
+    private void exportStalledRuns(Path file) throws IOException {
+        // 원자적 교체 — 쓰는 도중에 읽히면 반쪽 파일이 커서가 된다
+        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
+        int stalled = 0;
+        try (BufferedWriter w = Files.newBufferedWriter(tmp, StandardCharsets.UTF_8)) {
+            for (IngestRun r : runRepo.findByStatus(IngestRun.Status.STARTED)) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("run_id", r.getRunId());
+                row.put("source_kind", r.getSourceKind());
+                row.put("scope", r.getScope());
+                row.put("prompt_version", r.getPromptVersion());
+                w.write(mapper.writeValueAsString(row));
+                w.newLine();
+                stalled++;
+            }
+        }
+        Files.move(tmp, file, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        if (stalled > 0) log.warn("미완료 적재 {}건을 {}에 기록했다", stalled, file);
     }
 
     public int export(Path stateFile) throws IOException {
@@ -61,6 +127,8 @@ public class IngestStateExporter {
         log.info("state 내보내기 완료 {}건 → {}", written, stateFile);
 
         exportScopeProgress(stateFile.resolveSibling("scope-progress.jsonl"), byScope);
+        exportStalledRuns(stateFile.resolveSibling("stalled-runs.jsonl"));
+        exportRegistryPlaces(stateFile.resolveSibling("registry-places.jsonl"));
         return written;
     }
 

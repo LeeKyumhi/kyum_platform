@@ -28,13 +28,19 @@ import static org.mockito.Mockito.when;
 class IngestStateExporterTest {
 
     private IngestSourceRepository sourceRepo;
+    private IngestRunRepository runRepo;
+    private PlaceRepository placeRepo;
     private IngestStateExporter exporter;
     private final ObjectMapper mapper = new ObjectMapper();
 
     @BeforeEach
     void setUp() {
         sourceRepo = mock(IngestSourceRepository.class);
-        exporter = new IngestStateExporter(sourceRepo);
+        runRepo = mock(IngestRunRepository.class);
+        when(runRepo.findByStatus(IngestRun.Status.STARTED)).thenReturn(List.of());
+        placeRepo = mock(PlaceRepository.class);
+        when(placeRepo.findAll()).thenReturn(List.of());
+        exporter = new IngestStateExporter(sourceRepo, runRepo, placeRepo);
     }
 
     private IngestSource source(String url, String kind, String scope, String run, String seenAt) {
@@ -163,5 +169,46 @@ class IngestStateExporterTest {
         List<JsonNode> progress = readLines(stateFile.resolveSibling("scope-progress.jsonl"));
         assertThat(progress).hasSize(1);
         assertThat(progress.get(0).get("scope_key").asText()).isEqualTo("Jeju");
+    }
+
+    // ── 중단된 적재 노출 (Task 8) ───────────────────────────────────
+
+    /**
+     * codex가 적재 JVM을 중간에 죽이면 exit code도 마커 파일도 안 남는다.
+     * DB의 {@code STARTED}가 유일한 흔적이고, 다음 세션이 그걸 보려면 파일이어야 한다.
+     */
+    @Test
+    @DisplayName("완료되지 않은 적재를 stalled-runs.jsonl로 내보낸다")
+    void export_writesStalledRuns(@TempDir Path dir) throws Exception {
+        Path stateFile = dir.resolve("state").resolve("ingested-sources.jsonl");
+        when(sourceRepo.findAll()).thenReturn(List.of());
+        IngestRun dead = new IngestRun("2026-08-05T04-37Z-tour_api-seoul-junggu",
+                "tour_api", java.util.Map.of("city", "Seoul", "district", "중구"), "insight-v2");
+        when(runRepo.findByStatus(IngestRun.Status.STARTED)).thenReturn(List.of(dead));
+
+        exporter.export(stateFile);
+
+        List<JsonNode> rows = readLines(stateFile.resolveSibling("stalled-runs.jsonl"));
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).get("run_id").asText())
+                .isEqualTo("2026-08-05T04-37Z-tour_api-seoul-junggu");
+        assertThat(rows.get(0).get("scope").get("district").asText()).isEqualTo("중구");
+    }
+
+    /**
+     * 정상이면 <b>빈 파일</b>이어야 한다 — 파일이 아예 없는 것과 다르다.
+     * 항상 쓰기 때문에 "비어 있다"가 "중단된 적재가 없다"는 적극적 신호가 된다.
+     */
+    @Test
+    @DisplayName("중단된 적재가 없으면 stalled-runs.jsonl은 빈 파일로 남는다")
+    void export_writesEmptyStalledFile_whenNothingStalled(@TempDir Path dir) throws Exception {
+        Path stateFile = dir.resolve("state").resolve("ingested-sources.jsonl");
+        when(sourceRepo.findAll()).thenReturn(List.of());
+
+        exporter.export(stateFile);
+
+        Path stalled = stateFile.resolveSibling("stalled-runs.jsonl");
+        assertThat(Files.exists(stalled)).as("파일은 있어야 한다").isTrue();
+        assertThat(readLines(stalled)).isEmpty();
     }
 }
