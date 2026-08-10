@@ -1,0 +1,91 @@
+# 수집 적재 배치 전용 프로파일.
+#
+#   java -jar ingest.jar --spring.profiles.active=ingest --ingest.run=<dir> --ingest.state=<file>
+#
+# gradle bootRun으로는 돌리지 않는다 — Codex 샌드박스에서 Gradle이 ~/.gradle에 쓰지 못해
+# 기동 자체가 실패한다. 자세한 경위는 scripts/ingest/ingest.sh.template 주석 참고.
+#
+# 별도 파일로 둔 이유: application.yml에 넣으면 다른 작업 중인 변경과 한 파일에서 엉킨다.
+# application-prod.yml과 같은 패턴이다.
+
+server:
+  # 0 = 임의의 빈 포트. 개발 서버가 8080에 떠 있어도 충돌하지 않는다.
+  #
+  # web-application-type: none으로 웹 컨텍스트를 아예 끄는 게 배치답지만, 그러면
+  # SecurityConfig가 요구하는 HttpSecurity 빈이 없어서 기동이 실패한다. SecurityConfig를
+  # 고치는 대신(다른 작업 중인 파일이라 건드리지 않는다) 서블릿 컨텍스트를 유지하고
+  # 포트만 비켜준다. 적재가 끝나면 IngestRunner가 앱을 종료하므로 잠깐 떴다 사라진다.
+  port: 0
+
+spring:
+  main:
+    banner-mode: off
+
+  # 적재 전용 DB 계정 — knowledge 테이블 7개에만 권한이 있다 (docs/ingest/db-role.sql).
+  #
+  # 왜 앱 계정을 그대로 안 쓰는가: 이 배치는 Codex(자동 실행 에이전트)가 띄운다.
+  # 앱 계정으로 붙으면 그 자격증명이 새는 순간 users·bookings·payments까지 전부 열린다.
+  # 적재가 실제로 필요한 건 knowledge 7개뿐이므로, 사고가 나도 피해가 거기서 멈추게 한다.
+  #
+  # ⚠ 기본값(폴백)을 일부러 두지 않았다. `${INGEST_DB_USER:${SUPABASE_DB_USER}}` 같은 폴백을
+  #   두면 롤 설정을 빠뜨렸을 때 조용히 앱 계정으로 되돌아가 격리한 줄 알면서 안 된 상태가 된다.
+  #   그건 밖에서 알아챌 방법이 없다. 값이 없으면 기동이 실패하는 쪽이 낫다.
+  #
+  # ⚠ 풀러 경유라 INGEST_DB_USER는 `peerup_ingest`가 아니라 `peerup_ingest.<project-ref>`다.
+  #   틀리면 비밀번호가 틀린 것처럼 보이는 인증 실패가 난다.
+  datasource:
+    username: ${INGEST_DB_USER}
+    password: ${INGEST_DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # ⚠ none이다. update가 아니다.
+      #
+      # 적재 롤에는 CREATE/ALTER 권한이 없다. update로 두면 Hibernate가 매핑된 전체 엔티티
+      # (knowledge 7개 + 앱 28개)를 훑으며 없는 테이블을 만들려 들고 permission denied로 죽는다.
+      # validate도 같은 이유로 못 쓴다 — 적재 롤이 못 보는 28개를 검사하려 들기 때문이다.
+      #
+      # ⚠ 그래서 **knowledge 엔티티에 테이블·컬럼을 추가하면 개발 앱을 한 번 띄워야 한다.**
+      #   스키마를 만드는 건 이제 개발 앱(postgres 롤, ddl-auto: update)이고 적재는 쓰기만 한다.
+      #   빠뜨리면 기동은 멀쩡히 되고 적재 도중 SQL 오류로 터진다 — 기동 실패가 아니라서 헷갈린다.
+      #   새 테이블이면 docs/ingest/db-role.sql의 GRANT도 다시 실행해야 한다.
+      ddl-auto: none
+    # 적재는 대량 INSERT라 SQL 로그를 켜면 로그가 폭발한다
+    show-sql: false
+
+    properties:
+      hibernate:
+        # ⚠ IngestService의 청크 트랜잭션이 있어야 이 값이 의미를 갖는다.
+        #   트랜잭션이 줄마다 끊기면 묶을 대상이 없어 아무 효과가 없다.
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
+
+logging:
+  level:
+    org.hibernate.SQL: WARN
+    com.guidematch.knowledge: INFO
+
+ingest:
+  # 이름이 같을 때 "같은 장소"로 볼 최대 거리(m).
+  #
+  # 상수로 두면 안 되는 값이다 — 홍대·성수는 같은 건물 다른 층에 별개 카페가 20m 안에 있어
+  # 넓으면 과병합되고, 서울숲·경복궁은 한 장소가 400m 넘게 퍼져 있어 좁으면 미병합된다.
+  # 하나의 값으로 둘 다 만족시킬 수 없다. 200m는 출발점이지 정답이 아니며,
+  # place_candidates_unresolved에 쌓이는 사유를 보고 조정할 것.
+  resolver:
+    radius-meters: 200
+
+    # 이름이 같지만 반경 밖일 때, 새 노드를 만들어도 안전하다고 보는 거리의 하한(m).
+    # 200m~2km 사이는 병합도 신규 생성도 하지 않고 미해결 보관함으로 보낸다.
+    #
+    # 왜 중간 구간을 두는가: 역방향 시딩(Kakao 장소명으로 TourAPI를 조회)은 정확 이름 일치를
+    # 최대화하는 기법이라 "이름은 같은데 좌표가 벌어진" 경우를 상시로 만든다. 경복궁처럼 한
+    # 부지가 400m 넘게 퍼진 곳이 딱 그렇다. 여기서 새 노드를 만들면 name_normalized가 같은 행이
+    # 둘이 되어 이후 모든 단서가 ambiguous 거절이거나 오병합이 된다 — 조용하고 되돌릴 수 없다.
+    # 2km를 넘으면 다른 도시의 동명 장소·체인점이라 새 노드가 맞다.
+    suspect-radius-meters: 2000
+
+  # 이 미만의 사실은 적재하지 않는다.
+  # 추측성 사실이 자산을 오염시키면 이후 모든 추천이 같이 틀어진다 — 비어 있는 게 낫다.
+  min-confidence: 0.5

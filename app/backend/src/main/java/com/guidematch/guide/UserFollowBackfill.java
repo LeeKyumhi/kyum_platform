@@ -2,8 +2,22 @@ package com.guidematch.guide;
 
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+/**
+ * ⚠ {@code ingest} 프로파일에서는 돌지 않는다.
+ *
+ * <p>이건 앱의 일회성 데이터 마이그레이션이지 적재 배치가 할 일이 아니다. 제외 이유가 둘이다.
+ * <ul>
+ *   <li><b>정확성</b> — 적재 배치는 자동 실행돼 하루에도 여러 번 뜬다. 그때마다 이 백필이
+ *       돌면서 {@code user_follows}를 쓰는 건 배치의 책임 범위를 벗어난다.</li>
+ *   <li><b>권한</b> — 적재는 knowledge 테이블 7개에만 권한이 있는 전용 롤로 붙는다
+ *       (docs/ingest/db-role.sql). 이 백필이 돌면 {@code user_follows} 조회에서
+ *       permission denied가 나 <b>기동 자체가 실패한다.</b></li>
+ * </ul>
+ */
+@Profile("!ingest")
 @Component
 public class UserFollowBackfill implements ApplicationRunner {
     private final FollowRepository follows;                 // 기존 guide-profile 팔로우

@@ -1,0 +1,50 @@
+# 커버리지 지도 — Codex가 "다음에 뭘 할지" 정하는 근거.
+#
+# 매 실행마다 이 목록을 우선순위 순으로 보고, state/ingested-sources.jsonl에
+# 아직 없는 범위를 하나 고른다. 전부 했으면 last_seen이 가장 오래된 범위를 갱신한다.
+# 그래서 이 파이프라인은 끝나지 않고 계속 돈다.
+#
+# 우선순위 기준: 방한 외국인이 실제로 가는 곳 순.
+# 제주·부산이 서울 외곽 구보다 먼저인 이유가 그것이다.
+
+schema_version: "1.0"
+
+# 한 실행에서 처리할 범위 수. 늘리지 말 것 — 예산을 넘기면 다음 실행이 이어받는 게
+# 한 번에 몰아 하다가 중간에 죽는 것보다 낫다.
+scopes_per_run: 1
+
+# city는 KoreanCity.LIST의 key와 정확히 같아야 한다 (대소문자 포함).
+# district는 KoreanCity.DISTRICTS에 있는 한국어 표기여야 한다 — Kakao 지오코딩이 그 기준이다.
+# 구 목록이 있는 도시는 10곳뿐: Seoul Busan Incheon Daegu Daejeon Gwangju Ulsan Suwon Jeonju Pohang
+# 나머지 도시(Jeju·Gyeongju·Gangneung 등)는 district를 비운다.
+
+targets:
+  # ── 1순위: 방한 외국인 밀집 지역 ──
+  - { city: Seoul,     district: 중구,     priority: 1 }   # 명동·동대문
+  - { city: Seoul,     district: 종로구,   priority: 1 }   # 경복궁·북촌·인사동
+  - { city: Seoul,     district: 마포구,   priority: 1 }   # 홍대·연남
+  - { city: Seoul,     district: 성동구,   priority: 1 }   # 성수
+  - { city: Seoul,     district: 강남구,   priority: 1 }
+  - { city: Seoul,     district: 용산구,   priority: 1 }   # 이태원·한남
+
+  # ── 2순위: 주요 관광 도시 ──
+  - { city: Busan,     district: 해운대구, priority: 2 }
+  - { city: Busan,     district: 중구,     priority: 2 }
+  - { city: Jeju,      district: ~,        priority: 2 }
+  - { city: Gyeongju,  district: ~,        priority: 2 }
+
+  # ── 3순위: 서울 나머지 · 광역시 ──
+  - { city: Seoul,     district: 서대문구, priority: 3 }
+  - { city: Seoul,     district: 송파구,   priority: 3 }
+  - { city: Seoul,     district: 영등포구, priority: 3 }
+  - { city: Incheon,   district: 중구,     priority: 3 }   # 차이나타운·공항 인근
+  - { city: Gangneung, district: ~,        priority: 3 }
+  - { city: Jeonju,    district: ~,        priority: 3 }
+  - { city: Daegu,     district: ~,        priority: 3 }
+  - { city: Daejeon,   district: ~,        priority: 3 }
+  - { city: Gwangju,   district: ~,        priority: 3 }
+  - { city: Sokcho,    district: ~,        priority: 3 }
+
+# 갱신 주기 — 이 일수보다 오래된 범위는 다시 수집 대상이 된다.
+# 장소 정보는 빠르게 낡지 않으므로 90일이면 충분하다.
+refresh_after_days: 90

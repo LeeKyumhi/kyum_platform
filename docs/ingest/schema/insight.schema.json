@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peerup.local/ingest/insight.schema.json",
+  "title": "사실 카드 레코드 (insights.jsonl 한 줄)",
+  "type": "object",
+  "required": ["record_id", "record_type", "place_ref", "fact_kind", "confidence"],
+  "properties": {
+    "record_id": {
+      "type": "string",
+      "description": "sha256(\"insight|\" + evidence.url + \"|\" + place_ref_key + \"|\" + fact_kind). 같은 URL 재추출 시 같은 값 → 최신 값이 덮어쓴다.",
+      "pattern": "^sha256:[0-9a-f]{8,64}$"
+    },
+    "record_type": { "const": "insight" },
+    "schema_version": { "type": "string" },
+    "place_ref": {
+      "type": "object",
+      "required": ["name_raw"],
+      "description": "어느 장소인지 판정하지 말고 단서만 낸다.",
+      "properties": {
+        "name_raw": { "type": "string", "minLength": 1 },
+        "city": { "type": ["string", "null"] },
+        "district": { "type": ["string", "null"] },
+        "lat": { "type": ["number", "null"], "minimum": 33, "maximum": 39 },
+        "lng": { "type": ["number", "null"], "minimum": 124, "maximum": 132 },
+        "external_ids": {
+          "type": "object",
+          "properties": {
+            "kakao_place_id": { "type": ["string", "null"] },
+            "tour_api_content_id": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "fact_kind": {
+      "description": "열거형. 새 값을 발명하면 그 사실은 버려진다 — 자유 텍스트가 되면 어떤 조회도 불가능해진다.",
+      "enum": [
+        "best_season", "best_time", "typical_duration_min", "wait_time", "price",
+        "photo_spot", "reservation_required", "access", "caution", "crowd_level",
+        "vibe", "pairs_with", "english_menu", "foreigner_friendly"
+      ]
+    },
+    "value": {
+      "type": ["object", "null"],
+      "description": "구조화된 사실. JSONB로 저장되므로 fact_kind마다 모양이 달라도 된다."
+    },
+    "note_i18n": {
+      "type": ["object", "null"],
+      "description": "언어코드 → 요약. 각 120자 이하. 원문 인용이 아니라 요약이어야 한다.",
+      "patternProperties": {
+        "^[a-z]{2}(-[A-Za-z]{2,4})?$": { "type": "string", "maxLength": 120 }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "properties": {
+        "url": { "type": ["string", "null"], "format": "uri" },
+        "publisher": { "type": ["string", "null"] },
+        "published_at": { "type": ["string", "null"] }
+      }
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "0.5 미만은 적재되지 않는다. 정직하게 매길 것 — 틀린 사실이 들어가는 것보다 버려지는 게 낫다."
+    },
+    "source_kind": { "type": ["string", "null"] },
+    "extracted_by": {
+      "type": "object",
+      "properties": {
+        "agent": { "type": ["string", "null"] },
+        "prompt_version": { "type": ["string", "null"] },
+        "run_id": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "additionalProperties": true
+}

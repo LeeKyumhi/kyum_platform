@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peerup.local/ingest/manifest.schema.json",
+  "title": "실행 1건의 신원 (manifest.json)",
+  "type": "object",
+  "required": ["schema_version", "run_id", "source", "extractor", "scope"],
+  "properties": {
+    "schema_version": { "type": "string" },
+    "run_id": {
+      "type": "string",
+      "description": "YYYY-MM-DDTHH-mmZ-<source_kind>-<city>-<district>",
+      "minLength": 1
+    },
+    "started_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" },
+    "source": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string" },
+        "publisher": { "type": ["string", "null"] },
+        "terms_status": {
+          "enum": ["approved", "pending", "blocked"],
+          "description": "approved가 아닌 소스는 애초에 수집하면 안 된다."
+        }
+      }
+    },
+    "extractor": {
+      "type": "object",
+      "properties": {
+        "agent": { "type": ["string", "null"] },
+        "model": { "type": ["string", "null"] },
+        "prompt_version": {
+          "type": ["string", "null"],
+          "description": "이게 있어야 '이 버전으로 뽑은 것만 재추출'이 가능하다."
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "properties": {
+        "city": { "type": ["string", "null"] },
+        "district": { "type": ["string", "null"] }
+      }
+    },
+    "counts": {
+      "type": ["object", "null"],
+      "properties": {
+        "places": { "type": "integer", "minimum": 0 },
+        "insights": { "type": "integer", "minimum": 0 },
+        "rejects": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,159 @@
+#!/usr/bin/env bash
+# Codex가 세션 마지막에 부르는 유일한 명령.
+#   ~/peerup-ingest/bin/ingest.sh <run_id>
+#
+# 이 파일은 setup-workspace.sh가 @@REPO_ROOT@@ · @@WORKSPACE@@ 자리표시자를 치환해 생성한다.
+# 직접 고치지 말고 scripts/ingest/ingest.sh.template을 고친 뒤 setup을 다시 돌릴 것.
+#
+# 수집용·적재용 스케줄을 따로 두지 않는 이유: 반드시 어긋난다.
+# (수집은 됐는데 적재가 안 된 상태가 조용히 쌓인다)
+#
+# ── 왜 gradle이 아니라 java -jar인가 (2026-07-31, 첫 실행 실패로 확정) ─────────
+# gradle bootRun은 첫 Codex 실행에서 "Failed to load native library
+# 'libnative-platform.dylib'"로 죽었다. Gradle은 기동 시 $GRADLE_USER_HOME(~/.gradle)에
+# 네이티브 라이브러리를 풀고 락을 잡는데, 그 경로는 Codex 샌드박스의 쓰기 허용 범위
+# (=이 작업 공간) 밖이다. 즉 "에이전트를 앱 리포에서 격리한다"는 설계와 Gradle의
+# $HOME 쓰기 요구가 정면으로 충돌한다 — 설정으로 무마할 성질이 아니다.
+#
+# 그래서 실행 경로에서 빌드 도구를 아예 뺀다. 부수 효과도 전부 이득이다:
+#   - Gradle 데몬 기동 시간이 사라진다
+#   - 새벽 3시에 Maven Central이 흔들려도 적재가 멈추지 않는다(의존성 해석 없음)
+#   - 빌드 실패가 적재 장애로 번지지 않는다
+# 대신 jar이 낡을 수 있으므로 아래 최신성 가드가 필수다.
+# ──────────────────────────────────────────────────────────────────────────
+
+set -euo pipefail
+
+REPO_ROOT="@@REPO_ROOT@@"
+WORKSPACE="@@WORKSPACE@@"
+
+RUN_ID="${1:-}"
+if [ -z "$RUN_ID" ]; then
+  echo "사용법: ingest.sh <run_id>" >&2
+  exit 2
+fi
+
+RUN_DIR="$WORKSPACE/runs/$RUN_ID"
+STATE_FILE="$WORKSPACE/state/ingested-sources.jsonl"
+LOG="$WORKSPACE/logs/$RUN_ID.log"
+JAR="$WORKSPACE/lib/ingest.jar"
+SRC_DIR="$REPO_ROOT/app/backend/src/main"
+
+if [ ! -d "$RUN_DIR" ]; then
+  echo "실행 디렉터리가 없습니다: $RUN_DIR" >&2
+  exit 2
+fi
+
+if [ ! -f "$JAR" ]; then
+  echo "❌ 적재 jar이 없습니다: $JAR" >&2
+  echo "   해결: $REPO_ROOT/scripts/ingest/build-jar.sh" >&2
+  exit 3
+fi
+
+# ── jar 최신성 가드 ────────────────────────────────────────────────────────
+# 백엔드 소스를 고치고 재빌드를 잊으면, 새벽 작업이 옛 해결 사다리로 조용히 적재한다.
+# 조용히 틀리느니 시끄럽게 멈춘다. 비교 대상은 src/main 뿐이다 —
+# 리포 전체와 비교하면 프론트·문서만 고쳐도 걸려서, 결국 이 경고를 무시하게 된다.
+if [ ! -r "$SRC_DIR" ]; then
+  # "확인해보니 최신"과 "확인 자체를 못 했다"를 구분한다. 후자는 통과시키지 않는다.
+  echo "❌ 소스 최신성을 확인할 수 없습니다 (읽기 불가: $SRC_DIR)" >&2
+  exit 3
+fi
+STALE="$(find "$SRC_DIR" -type f -newer "$JAR" -print -quit)"
+if [ -n "$STALE" ]; then
+  echo "❌ 적재 jar이 백엔드 소스보다 오래됐습니다." >&2
+  echo "   더 새로운 파일: $STALE" >&2
+  echo "   해결: $REPO_ROOT/scripts/ingest/build-jar.sh" >&2
+  exit 3
+fi
+
+# ── 적재 전용 DB 계정 사전 점검 ────────────────────────────────────────────
+# 없으면 JVM을 띄우기 전에 여기서 멈춘다. 그냥 두면 Spring이 빈 사용자명으로 붙으러 가서
+# Supabase 풀러가 "no tenant identifier provided"를 뱉고, 그게 500줄짜리 Hibernate
+# 스택트레이스 밑에 "Unable to determine Dialect"로 포장돼 나온다 —
+# 원인이 "환경변수 하나 없음"이라는 걸 그 로그에서 알아낼 방법이 없다. 실제로 밟았다.
+ENV_FILE="$REPO_ROOT/app/backend/.env"
+# `|| true`가 없으면 안 된다: grep은 못 찾으면 1을 반환하고, pipefail+set -e가
+# **아래 안내 메시지를 찍기도 전에** 스크립트를 exit 1로 죽인다. 그러면 사용자는
+# 출력 한 줄 없는 실패를 보게 되어 원래 고치려던 문제가 그대로 돌아온다.
+for key in INGEST_DB_USER INGEST_DB_PASSWORD; do
+  value="$(grep -E "^${key}=" "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- | tr -d ' ' || true)"
+  if [ -z "$value" ]; then
+    echo "❌ $ENV_FILE 에 $key 가 없습니다." >&2
+    echo "   적재는 knowledge 테이블에만 권한이 있는 전용 롤로 붙습니다." >&2
+    echo "   만드는 법: $REPO_ROOT/docs/ingest/db-role.sql" >&2
+    exit 4
+  fi
+  case "$value" in
+    *"<"*|*">"*)
+      echo "❌ $key 가 아직 .env.example의 자리표시자입니다: $value" >&2
+      echo "   실제 값으로 바꾸세요. 확인: $REPO_ROOT/scripts/ingest/verify-db-role.sh" >&2
+      exit 4 ;;
+  esac
+  # ⚠ spring-dotenv는 따옴표 없는 값에서 '#' 뒤를 주석으로 잘라낸다.
+  #   그러면 Spring은 잘린 비밀번호로 붙고 Postgres가 28P01(인증 실패)을 뱉는데,
+  #   그게 또 "Unable to determine Dialect"로 포장돼 나온다. verify-db-role.sh는
+  #   자체 파서라 '#'를 그대로 읽어 **통과한다** — 두 도구가 엇갈려서 원인 파악이 거의 불가능하다.
+  #   (2026-08-05에 실제로 밟았다. 비밀번호가 '…!!##'였다)
+  #   $ ' " 도 셸·YAML 자리표시자와 엮이므로 같이 막는다. db-role.sql의 생성 명령이
+  #   A-Za-z0-9만 뽑는 이유가 이것이다.
+  case "$value" in
+    *"#"*|*'$'*|*"'"*|*'"'*)
+      echo "❌ $key 값에 특수문자(#, \$, 따옴표)가 있습니다." >&2
+      echo "   spring-dotenv가 '#' 뒤를 주석으로 잘라내 인증이 실패합니다." >&2
+      echo "   영숫자만으로 다시 만드세요:" >&2
+      echo "     LC_ALL=C tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 40; echo" >&2
+      echo "     alter role peerup_ingest with password '<그 값>';" >&2
+      exit 4 ;;
+  esac
+done
+# 풀러는 사용자명에서 테넌트를 읽는다. 점이 없으면 접속 자체가 거부되는데,
+# 그 오류가 비밀번호 문제처럼 보여서 엉뚱한 데를 파게 된다.
+case "$(grep -E '^INGEST_DB_USER=' "$ENV_FILE" | head -1 || true)" in
+  *.*) ;;
+  *) echo "❌ INGEST_DB_USER에 프로젝트참조ID 접미사가 없습니다." >&2
+     echo "   'peerup_ingest'가 아니라 'peerup_ingest.<project-ref>' 형태여야 합니다" >&2
+     echo "   (SUPABASE_DB_USER와 같은 접미사)." >&2
+     exit 4 ;;
+esac
+
+mkdir -p "$WORKSPACE/logs" "$WORKSPACE/tmp"
+echo "▌적재 시작 run=$RUN_ID  로그=$LOG"
+
+JAVA_BIN="$(/usr/libexec/java_home -v 21)/bin/java"
+
+# cwd를 app/backend로 두는 이유: spring-dotenv가 현재 디렉터리의 .env를 읽는다.
+# 비밀값을 작업 공간에 복사하지 않으려는 것이다(사본이 늘면 동기화도 유출면도 늘어난다).
+# 리포는 읽기만 한다 — 쓰기는 여전히 작업 공간 안으로만 일어난다.
+#
+# -Djava.io.tmpdir / server.tomcat.basedir을 작업 공간으로 못박는 이유:
+# ingest 프로파일은 server.port=0으로 서블릿 컨텍스트를 띄우므로 Tomcat이 임시 디렉터리를
+# 만든다. macOS 기본 $TMPDIR(/var/folders/…)이 샌드박스 쓰기 허용 범위인지에 기대지 않는다.
+# 기대면 gradle과 똑같이 불투명한 실패로 되돌아온다.
+set +e
+(
+  cd "$REPO_ROOT/app/backend" && \
+  "$JAVA_BIN" \
+    -Djava.io.tmpdir="$WORKSPACE/tmp" \
+    -Dserver.tomcat.basedir="$WORKSPACE/tmp/tomcat" \
+    -jar "$JAR" \
+    --spring.profiles.active=ingest \
+    --ingest.run="$RUN_DIR" \
+    --ingest.state="$STATE_FILE"
+) >>"$LOG" 2>&1
+STATUS=$?
+set -e
+
+if [ $STATUS -ne 0 ]; then
+  echo "❌ 적재 실패 (exit $STATUS) — 로그: $LOG" >&2
+  tail -20 "$LOG" >&2
+  exit $STATUS
+fi
+
+# staging 원문 캐시는 14일까지만. 장기 보관은 사실만 남기고 원문은 지운다(저작권).
+if [ -d "$WORKSPACE/staging" ]; then
+  find "$WORKSPACE/staging" -type f -mtime +14 -delete 2>/dev/null || true
+fi
+
+SOURCES=$(wc -l < "$STATE_FILE" | tr -d ' ')
+echo "✅ 적재 완료 run=$RUN_ID  커서에 기록된 소스 ${SOURCES}건"

@@ -1,0 +1,67 @@
+# 수집 소스 — 켜고 끄는 것은 코드가 아니라 이 파일이다.
+#
+# Codex는 terms_status가 approved인 소스만 수집한다.
+# 블로그 소스는 약관 판단이 서는 순간 코드 변경 없이 켤 수 있다.
+#
+# terms_status:
+#   approved — 저장·재표시해도 된다고 확인됨
+#   pending  — 확인 중. 수집하지 않는다
+#   blocked  — 쓰지 않기로 결정됨
+
+schema_version: "1.0"
+
+sources:
+  - kind: kakao_local
+    publisher: Kakao
+    terms_status: approved
+    why: >
+      이미 앱이 통합해 쓰고 있는 API다. 새로운 법적 표면이 생기지 않는다.
+      설명 텍스트는 없고 이름·좌표·카테고리·주소만 나오므로 장소 레지스트리 시딩용이다.
+      인사이트는 여기서 안 나온다.
+    provides: [places]
+
+  - kind: tour_api
+    publisher: 한국관광공사
+    terms_status: approved
+    approved_by: 사용자 확인 (2026-07-31)
+    why: >
+      공식·무료이고 설명과 이미지가 이미 들어있어 인사이트 소스로 가장 깨끗하다.
+      v1에서 실제로 사실을 만들어내는 유일한 소스다 — Kakao는 이름·좌표·카테고리만 주고
+      설명 텍스트가 없어 장소 레지스트리 시딩까지만 담당한다.
+    # 출처표시 의무는 데이터에 붙여 나른다. evidence.publisher에 "한국관광공사"를 싣고
+    # 소비 화면에서 노출한다 — 나중에 출처를 되찾을 방법이 없으면 표시할 수도 없다.
+    attribution_required: true
+    provides: [places, insights]
+    # 서비스키 위치. 파일이 없거나 비어 있으면 이 소스를 건너뛰고 _rejects.jsonl에 남긴다.
+    # (2026-07-31 첫 실행이 정확히 이렇게 동작했다 — 키 없이 401, 추측 없이 정상 종료)
+    credential_file: secrets/tour-api.key
+    api:
+      base: https://apis.data.go.kr/B551011/KorService2
+      # 어느 엔드포인트가 무엇을 주는지 — 이걸 모르면 목록만 훑고 인사이트가 또 0이 된다.
+      endpoints:
+        areaBasedList2: 장소 목록 (title·addr·mapx·mapy·contentid). 인사이트는 안 나온다
+        detailCommon2: overview 설명문 — vibe·best_season·photo_spot의 원천
+        detailIntro2: usetime(운영시간)·restdate(휴무)·parking·이용요금 등 구조화된 사실
+        # ★ 역방향 시딩용. areaBasedList2 페이징은 제목순이라 표본이 "가~금"에서 잘리고
+        #   Kakao 집합과 겹칠 보장이 없다(실제로 13건만 수집되고 경복궁은 빠졌다).
+        #   대신 이미 레지스트리에 있는 Kakao 장소명을 질의어로 넣으면 겹침이 구조적으로 보장된다.
+        #   실측 적중: 남대문시장 1 · 숭례문 2 · 남산케이블카 1 / 덕수궁은 "대한문"·"돌담길"만,
+        #   한국은행 화폐박물관은 0건.
+        searchKeyword2: 키워드로 장소 역조회 — 기존 Kakao 장소명을 질의어로 쓴다
+
+  - kind: naver_blog
+    publisher: 네이버 블로그
+    terms_status: blocked
+    why: >
+      "진짜 사람이 가본 경험"이라는 가장 좋은 신호가 여기 있다. 다만 원문 복제는
+      저작권 문제고, 사실만 증류해도 크롤링 자체의 ToS 문제가 남는다.
+      하위 프로젝트 2에서 별도로 다룬다.
+    provides: [places, insights, course_observations]
+
+  - kind: google_places
+    publisher: Google
+    terms_status: blocked
+    why: >
+      리뷰 본문 저장은 Google Maps Platform 약관상 제한이 있다. 유료이기도 하다.
+      필요해지면 별도 검토.
+    provides: [insights]

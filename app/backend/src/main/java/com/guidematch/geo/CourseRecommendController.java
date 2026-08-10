@@ -1,43 +1,28 @@
 package com.guidematch.geo;
 
-import com.guidematch.geo.KakaoLocalClient.Place;
+import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.SignalRecorder;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.Objects;
 
 /**
  * 가이드용 투어 코스 추천 (인증 필요 — SecurityConfig public 목록에 없음).
- * 도시(+구) 중심으로 테마별 카테고리 장소를 Kakao에서 모아
- * 최근접 이웃(greedy nearest-neighbor)으로 걷기 좋은 동선 4~5곳을 구성한다.
+ *
+ * <p>정차지 선정은 {@link CoursePlanner}가 한다 — <b>우리 레지스트리가 먼저, Kakao는 폴백.</b>
+ * 여기서는 테마→슬롯 정의, 거리·소요시간 산식, 번역, 인사이트 부착, 신호 기록만 담당한다.
  * 후보 중 무작위 선택이 섞여 있어 재호출 시마다 조금씩 다른 코스가 나온다("다시 추천").
- * Kakao 키가 없으면 kakaoEnabled=false + 빈 목록 (앱은 정상 동작).
+ *
+ * <p>Kakao 키가 없어도 <b>더 이상 빈 목록이 아니다</b> — 레지스트리에 수집된 범위는 그대로 동작한다.
  */
 @RestController
 public class CourseRecommendController {
-
-    private static final int CITY_RADIUS_METERS = 10000;    // 도시 중심 — 코스용이라 20km보다 좁게
-    private static final int DISTRICT_RADIUS_METERS = 4000; // 구 단위 — 도보 동선 위주
-
-    /** facet 키 → Kakao 카테고리 그룹 코드 (PlaceController와 동일 규약) */
-    private static final Map<String, String> CATEGORY_CODES = Map.of(
-            "attraction", "AT4",
-            "food",       "FD6",
-            "cafe",       "CE7",
-            "culture",    "CT1"
-    );
-
-    /** facet 키 → keyword.json 검색어 (카테고리 코드가 없는 경우) */
-    private static final Map<String, String> KEYWORDS = Map.of(
-            "market", "전통시장"
-    );
 
     /** 테마 → 정차 슬롯 순서 (facet 키). 각 슬롯마다 이전 정차지에서 가까운 후보를 뽑는다. */
     private static final Map<String, List<String>> THEME_SLOTS = Map.of(
@@ -49,17 +34,22 @@ public class CourseRecommendController {
             "mixed",      List.of("attraction", "food", "culture", "cafe", "market")
     );
 
-    /** 슬롯당 무작위 선택 폭 — 가까운 후보 상위 N 중 랜덤 (동선 유지 + 재추천 다양성) */
-    private static final int PICK_POOL = 3;
     private static final int MINUTES_PER_STOP = 40;
     private static final double WALK_KMH = 4.0;
 
-    private final KakaoLocalClient kakaoClient;
+    private final CoursePlanner coursePlanner;
     private final TranslationService translationService;
+    private final PlaceInsightLookup insightLookup;
+    private final SignalRecorder signalRecorder;
 
-    public CourseRecommendController(KakaoLocalClient kakaoClient, TranslationService translationService) {
-        this.kakaoClient = kakaoClient;
+    public CourseRecommendController(CoursePlanner coursePlanner,
+                                     TranslationService translationService,
+                                     PlaceInsightLookup insightLookup,
+                                     SignalRecorder signalRecorder) {
+        this.coursePlanner = coursePlanner;
         this.translationService = translationService;
+        this.insightLookup = insightLookup;
+        this.signalRecorder = signalRecorder;
     }
 
     @GetMapping("/api/courses/recommend")
@@ -67,7 +57,9 @@ public class CourseRecommendController {
             @RequestParam String city,
             @RequestParam(required = false) String district,
             @RequestParam(defaultValue = "mixed") String theme,
-            @RequestParam(defaultValue = "ko") String lang
+            @RequestParam(defaultValue = "ko") String lang,
+            // 신호 기록용. public 엔드포인트가 되더라도 null로 들어올 뿐 401을 던지지 않는다.
+            @AuthenticationPrincipal Long userId
     ) {
         KoreanCity target = KoreanCity.LIST.stream()
                 .filter(c -> c.key().equalsIgnoreCase(city))
@@ -75,69 +67,22 @@ public class CourseRecommendController {
                 .orElse(null);
         List<String> slots = THEME_SLOTS.getOrDefault(theme, THEME_SLOTS.get("mixed"));
 
-        if (target == null || !kakaoClient.isEnabled()) {
-            return new RecommendResponse(city, null, theme, kakaoClient.isEnabled(), List.of(), 0, 0);
+        if (target == null) {
+            return new RecommendResponse(city, null, theme,
+                    coursePlanner.isKakaoEnabled(), List.of(), 0, 0);
         }
 
-        // 중심 좌표: 도시 기본, 유효한 구가 지정되면 구 중심으로 좁힘 (PlaceController와 동일 패턴)
-        double lat = target.lat(), lng = target.lng();
-        int radius = CITY_RADIUS_METERS;
-        String resolvedDistrict = null;
-        boolean validDistrict = district != null && !district.isBlank()
-                && KoreanCity.districtsOf(target.key()).stream().anyMatch(x -> x.ko().equals(district));
-        if (validDistrict) {
-            double[] coord = kakaoClient.geocodeRegion(target.nameKo() + " " + district);
-            if (coord != null) {
-                lat = coord[0];
-                lng = coord[1];
-                radius = DISTRICT_RADIUS_METERS;
-                resolvedDistrict = district;
-            }
-        }
-
-        // 테마에 등장하는 카테고리별로 1회씩만 Kakao 검색 (슬롯 수만큼 호출하지 않음)
-        Map<String, List<Place>> pool = new HashMap<>();
-        for (String facet : new HashSet<>(slots)) {
-            String code = CATEGORY_CODES.get(facet);
-            List<Place> places = code != null
-                    ? kakaoClient.searchByCategory(code, lat, lng, radius)
-                    : kakaoClient.searchByKeyword(KEYWORDS.getOrDefault(facet, facet), lat, lng, radius);
-            pool.put(facet, places.stream()
-                    .filter(p -> p.latitude() != null && p.longitude() != null)
-                    .toList());
-        }
-
-        // greedy nearest-neighbor: 이전 정차지에서 가까운 상위 PICK_POOL 중 랜덤 선택
-        List<Place> picked = new ArrayList<>();
-        Set<String> usedIds = new HashSet<>();
-        Set<String> usedNames = new HashSet<>();
-        double prevLat = lat, prevLng = lng;
-        for (String facet : slots) {
-            double fLat = prevLat, fLng = prevLng;
-            List<Place> candidates = pool.getOrDefault(facet, List.of()).stream()
-                    .filter(p -> !usedIds.contains(p.id()) && !usedNames.contains(p.name()))
-                    .sorted((a, b) -> Double.compare(
-                            GeoUtils.distanceKm(fLat, fLng, a.latitude(), a.longitude()),
-                            GeoUtils.distanceKm(fLat, fLng, b.latitude(), b.longitude())))
-                    .limit(PICK_POOL)
-                    .toList();
-            if (candidates.isEmpty()) continue; // 이 슬롯은 건너뜀 (예: 구 안에 전통시장 없음)
-            Place chosen = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
-            picked.add(chosen);
-            usedIds.add(chosen.id());
-            usedNames.add(chosen.name());
-            prevLat = chosen.latitude();
-            prevLng = chosen.longitude();
-        }
+        CoursePlanner.Plan plan = coursePlanner.plan(target, district, slots);
+        List<CoursePlanner.PlannedStop> picked = plan.stops();
 
         // 구간 거리 + 총 이동 거리
         List<Integer> legMeters = new ArrayList<>();
         int totalMeters = 0;
         for (int i = 0; i < picked.size(); i++) {
             if (i == 0) { legMeters.add(null); continue; }
-            Place prev = picked.get(i - 1), cur = picked.get(i);
+            CoursePlanner.PlannedStop prev = picked.get(i - 1), cur = picked.get(i);
             int m = (int) Math.round(GeoUtils.distanceKm(
-                    prev.latitude(), prev.longitude(), cur.latitude(), cur.longitude()) * 1000);
+                    prev.lat(), prev.lng(), cur.lat(), cur.lng()) * 1000);
             legMeters.add(m);
             totalMeters += m;
         }
@@ -146,13 +91,31 @@ public class CourseRecommendController {
                 (picked.size() * MINUTES_PER_STOP + (totalMeters / 1000.0) / WALK_KMH * 60) / 60.0)));
 
         List<Stop> stops = toStops(picked, legMeters, lang);
-        return new RecommendResponse(target.key(), resolvedDistrict, theme,
-                true, stops, totalMeters, suggestedHours);
+
+        // 무엇이 노출됐는지 지금 남겨두지 않으면 영원히 못 되찾는다.
+        // "추천에는 나왔는데 인사이트가 없는 장소"가 곧 다음 수집 우선순위이기도 하다.
+        signalRecorder.recordShown(
+                picked.stream()
+                        .map(p -> new SignalRecorder.StopRef(p.placeId(), p.kakaoPlaceId()))
+                        .toList(),
+                target.key() + "/" + (plan.resolvedDistrict() == null ? "" : plan.resolvedDistrict())
+                        + "/" + theme,
+                userId);
+
+        // kakaoEnabled는 실제 값을 싣는다 — 프론트가 지도·장소 링크 노출을 이 값으로 판단하므로
+        // true로 못 박으면 키가 없을 때 깨진 지도를 띄우게 된다.
+        return new RecommendResponse(target.key(), plan.resolvedDistrict(), theme,
+                coursePlanner.isKakaoEnabled(), stops, totalMeters, suggestedHours);
     }
 
-    /** Kakao 카테고리 전체 경로("음식점 > 카페 > …")는 마지막 segment만 취하고, lang != ko면 번역. */
-    private List<Stop> toStops(List<Place> picked, List<Integer> legMeters, String lang) {
-        List<String> names = picked.stream().map(Place::name).toList();
+    /**
+     * 카테고리 전체 경로("음식점 &gt; 카페 &gt; …")는 마지막 segment만 취하고, lang != ko면 번역.
+     * 여기서 축적된 인사이트도 함께 붙인다 — <b>정차지 수와 무관하게 최대 쿼리 3회</b>
+     * (레지스트리 1회 + Kakao 폴백 2회, {@link PlaceInsightLookup}).
+     */
+    private List<Stop> toStops(List<CoursePlanner.PlannedStop> picked,
+                               List<Integer> legMeters, String lang) {
+        List<String> names = picked.stream().map(CoursePlanner.PlannedStop::name).toList();
         List<String> shortCats = picked.stream().map(p -> {
             String c = p.category() != null ? p.category() : "";
             int idx = c.lastIndexOf(" > ");
@@ -165,16 +128,30 @@ public class CourseRecommendController {
         List<String> tCats = googleLang != null && !shortCats.isEmpty()
                 ? translationService.translate(shortCats, googleLang) : shortCats;
 
+        // 레지스트리 정차지는 place_id를 이미 안다 — kakao id를 거칠 이유가 없다
+        Map<Long, List<PlaceInsightLookup.InsightView>> byPlace = insightLookup.byPlaceIds(
+                picked.stream().map(CoursePlanner.PlannedStop::placeId)
+                        .filter(Objects::nonNull).toList(), lang);
+        // 폴백 정차지는 우리 레지스트리에 있을 수도, 없을 수도 있다
+        Map<String, List<PlaceInsightLookup.InsightView>> byKakao = insightLookup.byKakaoPlaceIds(
+                picked.stream().filter(p -> p.placeId() == null)
+                        .map(CoursePlanner.PlannedStop::kakaoPlaceId)
+                        .filter(Objects::nonNull).toList(), lang);
+
         List<Stop> stops = new ArrayList<>();
         for (int i = 0; i < picked.size(); i++) {
-            Place p = picked.get(i);
+            CoursePlanner.PlannedStop p = picked.get(i);
+            List<PlaceInsightLookup.InsightView> insights = p.placeId() != null
+                    ? byPlace.getOrDefault(p.placeId(), List.of())
+                    : byKakao.getOrDefault(p.kakaoPlaceId(), List.of());
             stops.add(new Stop(
                     i + 1, tNames.get(i),
                     tCats.get(i).isBlank() ? shortCats.get(i) : tCats.get(i),
                     p.address(), // 주소는 한국어 유지 (택시/지도 편의)
-                    p.latitude(), p.longitude(), p.placeUrl(),
-                    legMeters.get(i)
-            ));
+                    p.lat(), p.lng(), p.placeUrl(),
+                    legMeters.get(i),
+                    p.source(),
+                    insights));
         }
         return stops;
     }
@@ -182,7 +159,16 @@ public class CourseRecommendController {
     public record Stop(
             int order, String name, String category, String address,
             Double latitude, Double longitude, String placeUrl,
-            Integer distanceFromPrevMeters
+            Integer distanceFromPrevMeters,
+            /**
+             * "registry" | "kakao". 프론트는 무시해도 되지만 응답에는 반드시 실린다 —
+             * 백필 누락 같은 조용한 실패를 밖에서 잡아내는 유일한 관측 지점이다.
+             * 전부 "kakao"면 레지스트리가 아무 일도 안 하고 있다는 뜻이고, 그 상태에서도
+             * 응답은 완벽히 정상으로 보인다.
+             */
+            String source,
+            /** 아직 수집 안 된 장소는 빈 배열 — 프론트는 있으면 보여주고 없으면 무시하면 된다. */
+            List<PlaceInsightLookup.InsightView> insights
     ) {}
 
     public record RecommendResponse(

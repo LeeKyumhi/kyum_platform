@@ -1,4 +1,41 @@
-# PeerUp 인수인계서 (2026-07-06 기준, Wave 3 콘텐츠까지 반영)
+# PeerUp 인수인계서
+
+> ## ⚠ 이 파일은 이 브랜치 기준으로 낡았다
+> 2026-08-07에 HANDOFF를 46KB→13KB로 정리한 판본은 **`feat/payment-completion-deploy`
+> 브랜치에 있다.** 이 브랜치는 그 이전 `main`에서 분기해서 아래 `## 0. 최신` 섹션이
+> 여러 개 쌓인 옛 구조 그대로다. 머지하면 정리된 판본이 이긴다.
+> 이 브랜치에서 한 일은 **`app/PROGRESS.md` 최상단**에 있다.
+
+## 0. 지금 상태 (2026-08-09) — 레지스트리 기반 코스 추천
+
+| 항목 | 값 |
+|---|---|
+| 현재 브랜치 | `feat/travel-knowledge-registry` (main `9592c44`에서 분기, +3 커밋 + **미커밋 작업 다수**) |
+| 백엔드 | **178 tests / 0 failures** · 실기동 확인 |
+| 실기동 스모크 | `bash scripts/smoke/registry-course-smoke.sh <이메일인증계정> <비번>` — **5/5** (Kakao 켬/끔 양쪽) |
+| 레지스트리 | places 53 (`place_kind` NULL 0 · `address_ko` 53/53) · insights 9 · 전부 `Seoul/중구` |
+| 적재 시간 | **12.0초** (착수 58.1초) |
+
+**★ 이 기능의 존재 이유가 처음 실증됐다** — 인사이트가 코스 정차지에 실제로 붙는다.
+그전엔 `byKakaoPlaceIds`로만 조회해 tour_api 장소 13건이 구조적으로 도달 불가였다.
+
+### 🙋 남은 것 — 사용자 작업
+1. **커밋 여부 판단.** 12개 태스크 분량이 전부 미커밋이다(관례상 태스크별 커밋).
+2. **v4 재수집** — 완료조건의 후반부(`evidence.url`이 `detailCommon2`인 인사이트)는
+   현재 데이터로 **증명 불가**다. 인사이트 9건이 전부 v2 필드 템플릿 산물이다.
+   ```
+   codex exec --cd ~/peerup-ingest --skip-git-repo-check \
+     --sandbox workspace-write -c sandbox_workspace_write.network_access=true \
+     < <프롬프트 파일>
+   ```
+   ⚠ `--cd` 없으면 쓰기 루트가 앱 리포가 되어 격리가 무너진다. 프롬프트는 stdin으로.
+   ⚠ `app/backend/src/main`을 고쳤으면 `./scripts/ingest/build-jar.sh` 먼저(안 하면 exit 3).
+3. **Codex [예약된 작업] 등록은 재수집 1회가 완주하는 걸 눈으로 본 뒤에.**
+
+상세·계획과 다르게 한 것 8가지는 `app/PROGRESS.md` 최상단.
+
+---
+
 
 > 다음 세션이 바로 이어서 작업할 수 있게 정리한 문서.
 > 상세 히스토리는 `app/PROGRESS.md`, 아이디어 백로그는 `IDEAS.md`, 아키텍처·구조는 `CLAUDE.md` 참고.
