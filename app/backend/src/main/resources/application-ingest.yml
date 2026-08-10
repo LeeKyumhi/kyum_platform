@@ -53,6 +53,14 @@ spring:
     # 적재는 대량 INSERT라 SQL 로그를 켜면 로그가 폭발한다
     show-sql: false
 
+    properties:
+      hibernate:
+        # ⚠ IngestService의 청크 트랜잭션이 있어야 이 값이 의미를 갖는다.
+        #   트랜잭션이 줄마다 끊기면 묶을 대상이 없어 아무 효과가 없다.
+        jdbc.batch_size: 50
+        order_inserts: true
+        order_updates: true
+
 logging:
   level:
     org.hibernate.SQL: WARN
@@ -67,6 +75,16 @@ ingest:
   # place_candidates_unresolved에 쌓이는 사유를 보고 조정할 것.
   resolver:
     radius-meters: 200
+
+    # 이름이 같지만 반경 밖일 때, 새 노드를 만들어도 안전하다고 보는 거리의 하한(m).
+    # 200m~2km 사이는 병합도 신규 생성도 하지 않고 미해결 보관함으로 보낸다.
+    #
+    # 왜 중간 구간을 두는가: 역방향 시딩(Kakao 장소명으로 TourAPI를 조회)은 정확 이름 일치를
+    # 최대화하는 기법이라 "이름은 같은데 좌표가 벌어진" 경우를 상시로 만든다. 경복궁처럼 한
+    # 부지가 400m 넘게 퍼진 곳이 딱 그렇다. 여기서 새 노드를 만들면 name_normalized가 같은 행이
+    # 둘이 되어 이후 모든 단서가 ambiguous 거절이거나 오병합이 된다 — 조용하고 되돌릴 수 없다.
+    # 2km를 넘으면 다른 도시의 동명 장소·체인점이라 새 노드가 맞다.
+    suspect-radius-meters: 2000
 
   # 이 미만의 사실은 적재하지 않는다.
   # 추측성 사실이 자산을 오염시키면 이후 모든 추천이 같이 틀어진다 — 비어 있는 게 낫다.

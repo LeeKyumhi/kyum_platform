@@ -18,6 +18,12 @@ public record PlaceClue(
         String kakaoPlaceId,
         String tourApiContentId,
         String category,
+        /**
+         * 한국어 주소 원문. 계약(place.schema.json)에는 1일차부터 있었는데 이 필드가 없어
+         * 조용히 버려져 왔다 — 실제 run 디렉터리의 JSONL에는 53/53건 전부 들어 있다.
+         * 번역하지 않는다: 택시·지도 앱에 그대로 넣을 수 있어야 한다.
+         */
+        String addressRaw,
         String sourceKind
 ) {
     public PlaceClue {
