@@ -347,3 +347,110 @@ place   → sha256("place|"   + source.url   + "|" + name_normalized)
 
 `confidence`는 **정직하게** 매겨라. 낮게 매겨서 버려지는 편이, 틀린 사실이 자산에 들어가
 이후 모든 추천을 오염시키는 것보다 훨씬 낫다.
+
+---
+
+## 10. 스키마 변경 — prod DDL
+
+dev는 `ddl-auto: update`가 컬럼을 만들지만 **prod는 `ddl-auto: none`이라 손으로 실행해야 한다.**
+적재 프로파일(`application-ingest.yml`)도 `ddl-auto: none`이므로, **knowledge 엔티티에 컬럼을
+추가하면 개발 앱(postgres 롤)을 한 번 먼저 띄워야 한다.** 안 하면 기동은 멀쩡하고 적재 도중
+SQL 오류로 터진다.
+
+### 2026-08-09 — 레지스트리 기반 코스 추천
+
+```sql
+-- ⚠ 반드시 nullable. NOT NULL로 만들면 기존 행 때문에 Postgres가 거부하는데,
+--   Hibernate는 그 실패를 삼켜서 "컬럼이 없는 채로 앱이 정상 기동"하는 상태가 된다.
+ALTER TABLE places ADD COLUMN IF NOT EXISTS place_kind varchar(20);
+ALTER TABLE places ADD COLUMN IF NOT EXISTS address_ko text;
+-- place_kind는 SQL로 채우지 않는다. 앱 기동 시 PlaceKindBackfill이 적재와 같은 규칙
+-- (PlaceKinds.classify)으로 채운다. 규칙이 두 곳에 생기면 반드시 어긋난다.
+```
+
+> **머지 시 `docs/deploy/pre-deploy.sql`로 옮길 것.** 결제 브랜치가 STEP 7·8·9를 쓰고 있으므로
+> 번호가 겹치지 않게 붙인다. 새 *테이블*이 아니라 컬럼이므로 `db-role.sql`의 GRANT 재실행은
+> 불필요하다(GRANT는 테이블 단위라 컬럼을 자동으로 덮는다).
+
+---
+
+## 11. 장소 종류 (`place_kind`) — 판정은 우리 코드가 한다
+
+추출기는 `category_raw`를 **원문 그대로** 실어 보내기만 한다. TourAPI는 `cat1>cat2>cat3`
+분류코드를, Kakao는 카테고리 경로를 그대로 보낸다. **가공하지 마라.**
+
+판정은 `PlaceKinds.classify(category_raw, name_ko)` 한 곳에서만 한다. 분류 키를 외부
+에이전트가 정하게 두면 프롬프트가 바뀌는 순간 같은 장소가 다른 종류로 들어온다
+(`name_normalized`에서 이미 확립한 원칙이다).
+
+> ⚠ **TourAPI는 `contentTypeId`를 보내지 않는다.** 계약·스키마·실제 JSONL 어디에도 없고
+> `places`에도 저장되지 않는다. 분류를 그 필드에 걸면 기존 행 백필이 원리상 불가능해진다.
+> 실려 오는 것은 `A02>A0206>A02060500` 형태의 분류코드뿐이다.
+
+| 입력 (`category_raw`) | 판정 |
+|---|---|
+| Kakao `…카페…` / `…커피…` | `CAFE` |
+| Kakao `음식점 …` | `FOOD` |
+| Kakao `…시장…` | `MARKET` |
+| Kakao `문화,예술 …` | `CULTURE` |
+| Kakao `여행 …` | `ATTRACTION` |
+| Kakao `금융,보험 > 은행`·`교육,학문 > 학교` 등 | `OTHER` |
+| TourAPI `A01…` 자연 | `NATURE` |
+| TourAPI `A02>A0201/A0202/A0203/A0205` 역사·휴양·체험·건축 | `ATTRACTION` |
+| TourAPI `A02>A0206` 문화시설 | `CULTURE` |
+| TourAPI `A02>A0207/A0208` 축제·공연행사 | **`EVENT`** |
+| TourAPI `A04…` 쇼핑 (이름에 `시장` 포함 시 `MARKET`) | `SHOP` |
+| TourAPI `A05>A0502>A05020900` 카페/전통찻집 | `CAFE` |
+| TourAPI `A05…` 그 외 음식 | `FOOD` |
+| TourAPI `B02…` 숙박 | `LODGING` |
+| 그 외 · 판정 불가 · 비어 있음 | `OTHER` |
+
+**정차지가 될 수 있는 종류는 여섯뿐이다**: `ATTRACTION` `CULTURE` `NATURE` `FOOD` `CAFE` `MARKET`.
+`SHOP` `LODGING` `EVENT` `OTHER`는 레지스트리에 남지만 코스에는 나가지 않는다.
+
+> ⚠ **enum 값을 추가하려면 DB 제약을 먼저 고쳐야 한다.** Hibernate가
+> `places_place_kind_check`를 자동 생성하는데 `ddl-auto: update`가 그걸 고쳐주지 않는다.
+> `ALTER TABLE places DROP CONSTRAINT places_place_kind_check;` 후 앱을 다시 띄울 것.
+
+## 12. 행사(축제·공연)를 장소처럼 다루지 마라
+
+`cat2 = A0207`(축제) · `A0208`(공연/행사)는 **장소가 아니라 사건**이다. 내년엔 없어진다.
+
+- **적재를 막지는 않는다** — 막으면 매 실행이 같은 것을 다시 가져와 `_rejects.jsonl`만 부푼다.
+  대신 `place_kind = EVENT`로 분류되어 **정차지 후보에서 빠진다.**
+- ⚠ `best_season`·`best_time`에 **개최일을 넣지 마라.** "행사가 열리는 시기는 11월"은
+  장소의 속성이 아니다. v2가 실제로 이 실수를 했고, 그 결과가 아직 DB에 남아 있다.
+- 계획 단계에서는 행사가 아닌 콘텐츠를 우선한다. 오래 가는 사실은 그쪽에만 있다.
+
+## 13. 부분 수집을 완료로 기록하지 마라
+
+현행 규칙은 "0건이면 완료로 기록하지 마라"만 있었고 **부분 수집**을 막지 않았다.
+실제로 `Seoul/중구 · tour_api`가 `areaBasedList2` 제목순 1페이지 13건(가~금)만 훑고
+완료로 기록됐다. `refresh_after_days: 90`이라 **90일간 재방문하지 않는다** —
+overview 1264자가 확인된 경복궁은 수집되지도 않았다.
+
+- 페이지를 **소진하지 못했으면 완료로 기록하지 않는다.**
+- 커버리지는 `areaBasedList2` 페이징이 아니라 **역방향 시딩**(§14)으로 늘린다.
+
+## 14. 역방향 시딩 — 겹침을 구조적으로 보장한다
+
+`areaBasedList2` 페이징은 표본이 제목순으로 잘리고 Kakao 집합과 겹칠 보장이 없다.
+대신 **이미 레지스트리에 있는 Kakao 장소명을 질의어로 `searchKeyword2`를 역조회**한다.
+
+실측 적중: 남대문시장 1 · 숭례문 2 · 남산케이블카 1 (제목 정확 일치 → 200m 안이면 즉시 병합) /
+덕수궁은 `덕수궁 대한문`·`덕수궁 돌담길`만 / 한국은행 화폐박물관 0건.
+
+> ⚠ 역방향 시딩은 **정확 이름 일치를 최대화**하는 기법이라, "이름은 같은데 좌표가 벌어진"
+> 경우를 상시로 만든다. 그래서 해결 사다리에 **의심 구간**(200m~2km)이 먼저 들어갔다 —
+> 그 구간은 병합도 신규 생성도 하지 않고 미해결 보관함으로 간다.
+> 이게 없으면 경복궁급 장소가 조용히 두 노드로 쪼개지고 되돌릴 수 없다.
+
+## 15. 중단된 적재 — `state/stalled-runs.jsonl`
+
+codex 샌드박스는 세션이 끝나면 셸째로 프로세스를 없앤다. 그때 유실은 항상 파일의
+**뒷부분**이고 exit code는 0이라 밖에서는 성공과 구분되지 않는다.
+
+- 적재기가 완료되지 않은 런(`ingest_runs.status = STARTED`)을 `state/stalled-runs.jsonl`로
+  내보낸다. **정상이면 0바이트다** — 파일이 없는 것과 다르다.
+- **줄이 있으면 새 수집을 시작하기 전에** 그 run 디렉터리로 `bin/ingest.sh`를 먼저 다시
+  돌린다. 적재는 멱등이라 중복이 쌓이지 않는다.

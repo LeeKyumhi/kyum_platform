@@ -42,6 +42,12 @@ sources:
         areaBasedList2: 장소 목록 (title·addr·mapx·mapy·contentid). 인사이트는 안 나온다
         detailCommon2: overview 설명문 — vibe·best_season·photo_spot의 원천
         detailIntro2: usetime(운영시간)·restdate(휴무)·parking·이용요금 등 구조화된 사실
+        # ★ 역방향 시딩용. areaBasedList2 페이징은 제목순이라 표본이 "가~금"에서 잘리고
+        #   Kakao 집합과 겹칠 보장이 없다(실제로 13건만 수집되고 경복궁은 빠졌다).
+        #   대신 이미 레지스트리에 있는 Kakao 장소명을 질의어로 넣으면 겹침이 구조적으로 보장된다.
+        #   실측 적중: 남대문시장 1 · 숭례문 2 · 남산케이블카 1 / 덕수궁은 "대한문"·"돌담길"만,
+        #   한국은행 화폐박물관은 0건.
+        searchKeyword2: 키워드로 장소 역조회 — 기존 Kakao 장소명을 질의어로 쓴다
 
   - kind: naver_blog
     publisher: 네이버 블로그
