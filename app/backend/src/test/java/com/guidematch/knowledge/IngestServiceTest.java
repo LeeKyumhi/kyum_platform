@@ -39,9 +39,18 @@ class IngestServiceTest {
     private final IngestRunRepository runRepo = mock(IngestRunRepository.class);
     private final IngestSourceRepository sourceRepo = mock(IngestSourceRepository.class);
 
-    private final PlaceResolver resolver = new PlaceResolver(placeRepo, aliasRepo, 200);
+    private final PlaceResolver resolver = new PlaceResolver(placeRepo, aliasRepo, 200, 2000);
+
+    /**
+     * 청크 트랜잭션 경계. 콜백을 그 자리에서 실행하도록 스텁하지 않으면
+     * <b>적재 본문이 아예 안 돌아 모든 테스트가 "아무 일도 안 함"으로 통과</b>한다.
+     */
+    private final org.springframework.transaction.support.TransactionTemplate txTemplate =
+            mock(org.springframework.transaction.support.TransactionTemplate.class);
+
     private final IngestService service = new IngestService(
-            resolver, placeRepo, insightRepo, unresolvedRepo, runRepo, sourceRepo, 0.5);
+            resolver, placeRepo, aliasRepo, insightRepo, unresolvedRepo, runRepo, sourceRepo,
+            txTemplate, 0.5);
 
     /** record_id → 저장된 인사이트. 실제 DB의 unique 제약을 흉내 낸다. */
     private final Map<String, PlaceInsight> insightStore = new HashMap<>();
@@ -50,7 +59,19 @@ class IngestServiceTest {
     Path runDir;
 
     @BeforeEach
+    @SuppressWarnings("unchecked")
     void setUp() {
+        doAnswer(inv -> {
+            ((java.util.function.Consumer<org.springframework.transaction.TransactionStatus>)
+                    inv.getArgument(0)).accept(null);
+            return null;
+        }).when(txTemplate).executeWithoutResult(any());
+
+        // 스냅샷 로드용 — 테스트는 빈 레지스트리에서 시작한다
+        when(placeRepo.findAll()).thenReturn(List.of());
+        when(aliasRepo.findAll()).thenReturn(List.of());
+        when(sourceRepo.findAll()).thenReturn(List.of());
+
         long[] nextId = {1L};
         when(placeRepo.save(any(Place.class))).thenAnswer(inv -> {
             Place p = inv.getArgument(0);
@@ -256,5 +277,56 @@ class IngestServiceTest {
 
         assertThat(counts.placesResolved()).isEqualTo(1);
         assertThat(counts.insightsUpserted()).isZero();
+    }
+
+    // ── 조용한 유실 막기 (Task 8) ───────────────────────────────────
+
+    /**
+     * 줄 하나가 깨져도 나머지는 살아남고, <b>깨진 줄은 반드시 세어지고 파일에 남는다.</b>
+     *
+     * <p>예전에는 {@code log.warn}만 하고 rejects 카운터도 파일도 안 건드렸다.
+     * 그러면 {@code rejects=0} · {@code _rejects.jsonl} 0바이트 · {@code exit 0}이라
+     * 밖에서는 완전한 성공과 구분되지 않는다.
+     */
+    @Test
+    void 줄_처리_실패는_rejects에_기록된다() throws IOException {
+        manifest();
+        write("places.jsonl", placeLine() + "\n{ 이건 JSON이 아니다\n");
+
+        IngestService.Counts counts = service.ingest(runDir);
+
+        assertThat(counts.rejects()).as("깨진 줄이 세어져야 한다").isEqualTo(1);
+        assertThat(counts.placesResolved()).as("앞 줄은 살아남는다").isEqualTo(1);
+        assertThat(Files.readString(runDir.resolve("_rejects.jsonl"), StandardCharsets.UTF_8))
+                .contains("줄 처리 실패");
+    }
+
+    /**
+     * 죽은 런은 DB에 {@code STARTED}로 남는다 — 샌드박스 teardown을 견디는 유일한 신호다.
+     * 조회 자체가 사라지면 중단 감지 수단이 통째로 없어지므로 호출을 고정한다.
+     */
+    @Test
+    void 중단된_런을_조회해_경고한다() throws IOException {
+        manifest();
+        write("places.jsonl", placeLine());
+        IngestRun dead = new IngestRun("2026-08-05T04-37Z-tour_api-seoul-junggu",
+                "tour_api", Map.of(), "insight-v2");
+        when(runRepo.findByStatus(IngestRun.Status.STARTED)).thenReturn(List.of(dead));
+
+        service.ingest(runDir);
+
+        verify(runRepo).findByStatus(IngestRun.Status.STARTED);
+    }
+
+    /** 경고 기능이 본 작업을 죽이면 본말전도다. */
+    @Test
+    void 중단_런_조회가_실패해도_적재는_계속된다() throws IOException {
+        manifest();
+        write("places.jsonl", placeLine());
+        when(runRepo.findByStatus(any())).thenThrow(new IllegalStateException("DB 일시 오류"));
+
+        IngestService.Counts counts = service.ingest(runDir);
+
+        assertThat(counts.placesResolved()).isEqualTo(1);
     }
 }
