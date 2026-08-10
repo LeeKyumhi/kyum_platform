@@ -1,5 +1,100 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
+## 레지스트리 기반 코스 추천 (2026-08-09, 브랜치 `feat/travel-knowledge-registry`, 백엔드 전용, **178 tests / 0 failures**, 실기동 스모크 5/5, ⚠ 전부 미커밋)
+
+코스 정차지를 Kakao 실시간 검색이 아니라 **우리 `places` 레지스트리**가 정하게 뒤집었다.
+스펙 `docs/superpowers/specs/2026-08-06-registry-driven-course-recommendation-design.md`,
+계획 `docs/superpowers/plans/2026-08-09-registry-driven-course-recommendation.md` (12 태스크).
+
+**★ 이 기능의 존재 이유가 처음으로 실증됐다.** 인사이트가 코스 정차지에 실제로 붙었다:
+`registry | 관훈동 민씨 가옥 | best_time | 행사 운영 시간 09:00~21:00`.
+그전까지는 `PlaceInsightLookup.byKakaoPlaceIds()`가 kakao id로만 조회하는데 인사이트를 가진
+tour_api 장소 13건은 전부 `kakao_place_id = null`이라 **구조적으로 도달 불가**했다.
+
+### 만든 것
+- **`PlaceKind`(10값) + `PlaceKinds.classify(category_raw, name_ko)`** — 분류 규칙이 존재하는 유일한 곳.
+  적재와 백필이 같은 메서드를 부른다(SQL 백필 금지 — 규칙이 두 곳에 생기면 반드시 어긋난다).
+- **`places.place_kind` · `places.address_ko`** (둘 다 nullable) + `PlaceKindBackfill` 러너.
+- **`CoursePlanner`** (geo) — 레지스트리 우선 → 모자란 슬롯만 Kakao 게으른 폴백 → 중복제거 3단
+  (kakao id → 정규화 이름 → 100m) → 구 앵커는 Kakao 없으면 레지스트리 무게중심.
+- **`Stop.source`** (`"registry"`/`"kakao"`) — 조용한 실패를 밖에서 잡는 유일한 관측 지점.
+- **적재 신뢰성**: `RegistrySnapshot`(전체 로드) · 청크 트랜잭션 · 줄 예외 → rejects ·
+  `stalled-runs.jsonl` · 해결 사다리 **의심 구간(200m~2km → 미해결)** · 괄호절 2차 조회.
+- **계약/프롬프트**: CONTRACT §11~15 신설, 프롬프트 **insight-v4**, `sources.yml`에 `searchKeyword2`.
+- **`state/registry-places.jsonl`** — 역방향 시딩의 질의어 목록(`name_ko`·`district`·`place_kind`·
+  `has_tour_api_id`). v4 프롬프트가 "기존 Kakao 장소명으로 역조회하라"고 지시하는데
+  `ingested-sources.jsonl`에는 **URL만 있고 이름이 없어** 수행 불가능한 지시였다.
+  그대로 뒀으면 에이전트가 결국 areaBasedList2 페이징으로 되돌아가 표본 잘림이 재발했을 것이다.
+
+### 실측
+| 항목 | 착수 전 | 지금 |
+|---|---|---|
+| `ingest.sh` 실행 시간 | 58.1초 | **12.0초** (적재 구간만 51초 → 0.6초) |
+| `place_kind` NULL | 53 | **0** (CULTURE 19·ATTRACTION 17·MARKET 10·EVENT 3·FOOD 3·SHOP 1) |
+| `address_ko` 채워짐 | 0/53 | **53/53** |
+| `source="registry"` 정차지 | 불가능 | **5곳 중 4곳** (Kakao 끄면 4/4) |
+| 백엔드 테스트 | 109 | **178** |
+
+### 계획과 다르게 한 것 (전부 실측이 이유)
+1. **`contentTypeId`는 파이프라인에 존재하지 않는다.** 스펙 §3.1·§5.1이 그 필드로 분류·거절하는데
+   TourAPI가 싣는 건 `category_raw = "A02>A0206>A02060500"` 분류코드다(JSONL·DB 양쪽 확인).
+   그대로 갔으면 **기존 13행 백필이 원리상 불가능**했다 → cat 코드로 분류하도록 변경.
+2. **`address_ko`는 재수집 없이 채워졌다.** 스펙은 "재수집 때 채워진다"고 했지만 `address_raw`가
+   기존 run 디렉터리 JSONL에 53/53 들어 있었다 — `PlaceClue`에 필드가 없어 버려지던 것뿐이라
+   필드 추가 + 재적재(멱등)만으로 끝났다.
+3. **`columnDefinition`은 Hibernate의 enum CHECK 제약을 막지 못한다** — 실측. `places_place_kind_check`가
+   10개 값으로 생성됐다. 계획은 반대로 적었다. **enum 값을 처음부터 다 넣어둔 게 결과적으로 필수였다**
+   (`ddl-auto: update`는 이 제약을 나중에 고쳐주지 않는다 → 값 추가 시 `DROP CONSTRAINT` 필요).
+4. **`Resolution.needsSave`** — 안 바뀐 장소는 `save()`를 부르지 않는다. detached 엔티티의 `save()`는
+   `merge`라 행마다 SELECT를 낸다. 적재 11.6초 → 0.6초로 만든 건 스냅샷보다 **이쪽**이었다.
+5. **백필은 `TransactionTemplate`을 쓴다** — `@Transactional`을 같은 클래스 메서드에 붙이면 자기 호출이라
+   프록시를 우회해 아무 효과가 없다. 그리고 예외를 삼켜 **기동을 막지 않는다**(실제로 Supabase 소켓이
+   끊겨 앱이 못 뜬 적이 있다 → 회귀 테스트로 고정). 생성자는 하나만 — 둘이면 Spring이
+   `No default constructor found`로 죽는다(이것도 실제로 밟았다).
+6. **`findCandidates`를 쿼리 둘로 쪼갰다** — `(:district IS NULL OR ...)` 한 방은 Postgres가 null
+   파라미터 타입을 못 정해 **실행 시점**에 죽을 수 있다. 기동은 멀쩡하므로 구 지정 요청만 테스트하면 안 걸린다.
+7. **`PlaceKind.koLabel()` + 표시용 카테고리** — TourAPI 분류코드가 그대로 사용자 화면과 번역 캐시에
+   나갈 뻔했다(컨트롤러의 `" > "` 자르기는 공백이 없어 통째로 통과시킨다).
+8. **`markSeen` 벌크 UPDATE** — `touchSource`가 아는 URL을 건너뛰어 왕복을 아끼는데, 그대로 두면
+   `last_seen_at`이 멈춰 **같은 범위가 계속 다시 뽑히는** 커서 고장이 된다. 실행 끝에 한 번만 친다.
+
+### ✅ v4 재수집 완료 — 완료조건 양쪽 다 증명됨 (2026-08-09)
+
+`codex exec`로 `tour_api × Seoul/중구` 역방향 시딩 실행(`2026-08-09T03-44Z-tour_api-seoul-junggu`).
+
+| 확인 | 결과 |
+|---|---|
+| **적재가 codex 세션 안에서 완주** | ✅ 파일 7/18 = 적재 7/18, rejects 0, `stalled-runs.jsonl` 0바이트 — **유실 0** |
+| **`detailCommon2`(overview) 유래 인사이트** | **11건** (v2에서는 0건) · `detailIntro2` 7건 |
+| **템플릿 결함 해소** | 중복 문구 **0종** — 장소마다 다른 문장 (v2는 같은 문구 5회 반복) |
+| **처음 나온 fact_kind** | `vibe` 7 · `caution` 6 · `photo_spot` 3 (v2에서는 전부 0) |
+| **병합 (스펙 §6.4)** | `both_ids` **0 → 7**, `places` 53 **불변**(새 노드 0), 중복 정규화 이름 **0** |
+| **완료조건 전체** | ✅ `source="registry"` 정차지에 `detailCommon2` 유래 인사이트가 붙는다 |
+
+역방향 시딩이 설계대로 동작했다 — 수집된 7건이 전부 기존 Kakao 장소명(남산케이블카·남산골한옥마을·
+덕수궁 대한문·서소문성지역사박물관·배재학당역사박물관·남대문시장·숭례문)이고 **전부 기존 노드에 병합**됐다.
+레지스트리 오염 0. 커서는 계약 §13대로 완료로 기록되지 않았다(부분 수집).
+
+실증된 정차지 인사이트 예:
+> `[registry] 서소문성지역사박물관 · photo_spot` —
+> "지하 3층 하늘광장은 사각 프레임 안에 하늘과 빛만 남긴 건축적 장면이 돋보인다"
+
+**→ Codex [예약된 작업] 등록을 이제 권할 수 있다.** 미뤄온 유일한 이유(적재가 세션 안에서
+안 끝나 뒷부분이 조용히 유실됨)가 58.1초 → 12.0초로 해소됐고 이번 실행으로 실증됐다.
+
+### 🙋 사용자가 해야 완료되는 것
+**완료조건의 후반부(`evidence.url`이 `detailCommon2`인 인사이트)는 현재 데이터로 증명 불가다.**
+인사이트 9건이 전부 `insight-v2`의 필드 템플릿 산물이다 — 위에서 실증된 `행사 운영 시간 09:00~21:00`이
+바로 그 결함(한옥에 붙은 행사 문구)이다. Phase B가 배관은 다 깔았고, 증명은 **v4 재수집**이 필요하다:
+```
+codex exec --cd ~/peerup-ingest --skip-git-repo-check \
+  --sandbox workspace-write -c sandbox_workspace_write.network_access=true \
+  < <프롬프트 파일>
+```
+⚠ `--cd`가 없으면 쓰기 루트가 앱 리포가 되어 격리 설계가 무너진다. 프롬프트는 stdin으로.
+스모크: `bash scripts/smoke/registry-course-smoke.sh <이메일인증된계정> <비번>`
+
+
 ## 위시리스트 페이즈 1 — 찜 저장 (2026-07-19~20, 브랜치 `feat/wishlist`, 백엔드+프론트, 빌드·테스트·브라우저 스모크 7/7 통과, ⚠ main 미머지)
 
 여행자가 가이드·코스·장소를 ♡ 저장 → `/saved` 3탭에서 재열람 + 저장수 소셜 프루프 + "이 코스 따라하기". 스펙 `docs/superpowers/specs/2026-07-19-wishlist-design.md`, 플랜 `docs/superpowers/plans/2026-07-19-wishlist.md`, 태스크 원장 `.superpowers/sdd/progress.md`. Subagent-Driven Development(태스크당 구현자→리뷰→커밋), 총 14커밋 `e4b1b7e..0aa4efe`.
