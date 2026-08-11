@@ -3,8 +3,9 @@
 // 드래그 타임테이블 빌더 — 여행자 일정(/trips/[id])과 가이드 코스(/guide/courses) 공용.
 // 팔레트(우측)에서 장소/코스/추천을 끌어다 시간표(좌측)에 놓는다.
 // items는 부모가 소유(controlled): 부모가 로드/저장, 여기선 배치/이동/삭제만 onItemsChange로 통지.
-//   - mode="trip"   : 멀티데이(일차 탭) + 팔레트 2번째 탭 = 투어 코스
-//   - mode="course" : 단일 시간표(일차 탭 없음, singleDay) + 팔레트 2번째 탭 = 코스 추천
+//   - mode="trip"   : 멀티데이(일차 탭) + 팔레트 3탭 (장소·투어 코스·추천 동선)
+//   - mode="course" : 단일 시간표(일차 탭 없음, singleDay) + 팔레트 2탭 (장소·코스 추천)
+//   추천 팔레트는 두 모드가 같은 UI를 쓴다 — 여행자용 화면을 따로 만들지 않는다.
 // 드래그 수학(포인터 좌표 → hour/lane 매핑)은 Wave 6에서 검증된 로직 그대로 (절대 재구현 금지, 여기 한 곳에만).
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,11 +16,12 @@ import {
 } from "@dnd-kit/core";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
+import type { Translations } from "@/lib/i18n";
 import { useModalDismiss } from "@/lib/useModalDismiss";
 import DistrictSelect from "@/components/DistrictSelect";
 import TripMap from "@/components/TripMap";
 import { PinIcon } from "@/components/icons";
-import PlaceDetailModal, { type ModalPlace } from "@/components/PlaceDetailModal";
+import PlaceDetailModal, { type ModalPlace, type PlaceInsightView } from "@/components/PlaceDetailModal";
 
 // ── 타임테이블 상수 ──
 const DAY_START = 6;   // 06:00 부터
@@ -49,6 +51,12 @@ type Place = {
   id: string; name: string; category: string | null; address: string | null;
   latitude: number | null; longitude: number | null;
   phone?: string | null; placeUrl?: string | null; distanceMeters?: number | null;
+  /** 추천에서 온 장소 — 담을 때 ADDED 신호를 남기기 위한 표식. 일반 장소 팔레트는 undefined. */
+  rec?: { placeId: number | null; kakaoPlaceId: string | null };
+  /** 추천 정차지의 수집된 지식. 상세 모달에서만 쓴다. */
+  insights?: PlaceInsightView[];
+  /** 추천순으로 앞에 세운 이유 (/api/places가 채운다). 없으면 빈 배열. */
+  reasons?: RecReason[];
 };
 type PlacesResponse = { kakaoEnabled: boolean; places: Place[] };
 
@@ -62,18 +70,33 @@ type Course = {
   waypoints: Waypoint[];
 };
 
-// ── 코스 추천(course 모드) ──
+// ── 코스 추천 ──
+/** 추천 근거. 백엔드는 구조만 내려보내고 문장은 여기서 만든다(ko/en/zh). */
+export type RecReason = {
+  kind: "guide_course" | "traveler_saved" | "official" | "walk";
+  count: number | null; source: string | null; factKind: string | null; walkMinutes: number | null;
+};
 type RecStop = {
   order: number; name: string; category: string; address: string | null;
   latitude: number | null; longitude: number | null; placeUrl: string | null;
   distanceFromPrevMeters: number | null;
+  /** ★ 일정에 담을 때 저장되는 값. 없으면 예전처럼 합성 id가 저장돼 지도 링크가 깨진다. */
+  placeId: number | null; kakaoPlaceId: string | null;
+  reasons: RecReason[];
+  /** 상세 모달용 원본. reasons(앞면 요약)가 이걸 대체하지 않는다. */
+  insights: PlaceInsightView[];
 };
 export type RecResponse = {
   city: string; district: string | null; theme: string; kakaoEnabled: boolean;
   stops: RecStop[]; totalDistanceMeters: number; suggestedDurationHours: number;
+  /** SHOWN↔ADDED 신호를 짝짓는 키. */
+  courseRef: string | null;
 };
-const REC_THEMES = ["mixed", "attraction", "food", "cafe", "culture", "market"] as const;
-type RecTheme = (typeof REC_THEMES)[number];
+/**
+ * 추천 동선은 종류를 고르게 하지 않는다 — 고르는 일은 장소 탭이 맡는다.
+ * 서버는 여전히 theme 파라미터를 받으므로(테마별 슬롯 구성이 살아 있다) 필요해지면 되살릴 수 있다.
+ */
+const REC_THEME = "mixed";
 
 const PLACE_CATS = [
   { key: "attraction", labelKey: "catAttraction", icon: "🏛️" },
@@ -104,6 +127,36 @@ export function kakaoMapUrl(item: { placeId: string | null; placeName: string; l
   if (item.latitude != null && item.longitude != null)
     return `https://map.kakao.com/link/map/${encodeURIComponent(item.placeName)},${item.latitude},${item.longitude}`;
   return `https://map.kakao.com/?q=${encodeURIComponent(item.placeName)}`;
+}
+
+/**
+ * 드래그 미리보기를 커서에 붙인다.
+ *
+ * <b>왜 필요한가</b>: dnd-kit의 오버레이는 커서가 아니라 <b>끌기 시작한 노드의 rect</b>에 앵커된다
+ * (core의 PositionedOverlay가 top/left/width/height를 원본 rect로 고정하고 드래그 델타만 transform으로 얹는다).
+ * 그래서 넓은 팔레트 카드의 오른쪽을 잡으면 미리보기가 커서에서 100px 넘게 떨어진 곳에 뜬다.
+ *
+ * 더 나쁜 건 <b>드롭 판정은 커서 좌표를 쓴다</b>는 것이다(onDragEnd의 activatorEvent + delta).
+ * 즉 미리보기가 실제로 놓일 자리를 거짓말한다. 이 modifier가 그 둘을 일치시킨다.
+ *
+ * @dnd-kit/modifiers의 snapCenterToCursor와 같은 계산이다. 그 패키지를 설치하지 않는 이유는
+ * 이 6줄을 위해 의존성을 늘리지 않기 위해서다(프론트 번들 최소 유지 원칙).
+ */
+export function snapCenterToCursor({ activatorEvent, draggingNodeRect, transform }: {
+  activatorEvent: Event | null;
+  draggingNodeRect: { left: number; top: number; width: number; height: number } | null;
+  transform: { x: number; y: number; scaleX: number; scaleY: number };
+}) {
+  const p = activatorEvent as PointerEvent | null;
+  // 측정 전에는 rect가 없다 — 여기서 NaN이 새면 첫 프레임에 미리보기가 화면 밖으로 튄다
+  if (!draggingNodeRect || !p || typeof p.clientX !== "number") return transform;
+  const offsetX = p.clientX - draggingNodeRect.left;
+  const offsetY = p.clientY - draggingNodeRect.top;
+  return {
+    ...transform,
+    x: transform.x + offsetX - draggingNodeRect.width / 2,
+    y: transform.y + offsetY - draggingNodeRect.height / 2,
+  };
 }
 
 let keySeq = 0;
@@ -143,7 +196,9 @@ export default function TimetableBuilder({
   const [extraLanes, setExtraLanes] = useState<Record<number, number>>({});
 
   // 팔레트
-  const [paletteTab, setPaletteTab] = useState<"places" | "second">("places");
+  // trip 모드는 3탭(장소·투어코스·추천 동선), course 모드는 2탭(장소·코스 추천).
+  // "rec"이 두 모드에서 같은 컴포넌트를 쓴다 — 여행자에게만 다른 화면을 만들지 않는다.
+  const [paletteTab, setPaletteTab] = useState<"places" | "courses" | "rec">("places");
   const [pickerCat, setPickerCat]   = useState("attraction");
   const [pickerDistrict, setPickerDistrict] = useState("");
   const [places, setPlaces]         = useState<Place[]>([]);
@@ -155,7 +210,6 @@ export default function TimetableBuilder({
 
   // 코스 추천 (course 모드)
   const [recDistrict, setRecDistrict] = useState("");
-  const [recTheme, setRecTheme] = useState<RecTheme>("mixed");
   const [recLoading, setRecLoading] = useState(false);
   const [rec, setRec] = useState<RecResponse | null>(null);
 
@@ -240,11 +294,25 @@ export default function TimetableBuilder({
       const p = mod.place;
       setItems((prev) => [...prev, {
         ...base,
-        placeId: p.id, placeName: p.name, category: p.category,
+        // 빈 문자열이 저장되면 카카오맵 링크가 깨진다 — 모르면 null이어야 한다
+        placeId: p.id || null, placeName: p.name, category: p.category,
         address: p.address, latitude: p.latitude, longitude: p.longitude,
         durationHours: 1, sourceCourseId: null,
       }]);
+      if (p.rec) recordAdded(p.rec);
     }
+  }
+
+  /**
+   * "담았다" 신호. 저장(PUT)까지 기다리면 어떤 항목이 추천에서 왔는지 알 방법이 없어서
+   * 담는 순간에만 따로 알린다. 실패해도 사용자 동작을 막지 않는다 — 부가 기록이다.
+   */
+  function recordAdded(ref: { placeId: number | null; kakaoPlaceId: string | null }) {
+    if (!rec?.courseRef) return;
+    api("/api/courses/recommend/signals", {
+      method: "POST", auth: true,
+      body: { placeId: ref.placeId, kakaoPlaceId: ref.kakaoPlaceId, courseRef: rec.courseRef },
+    }).catch(() => {});
   }
 
   function moveBlock(k: string, hour: number, lane: number) {
@@ -324,7 +392,7 @@ export default function TimetableBuilder({
     if (!city) return;
     setRecLoading(true);
     try {
-      const params = new URLSearchParams({ city, theme: recTheme, lang });
+      const params = new URLSearchParams({ city, theme: REC_THEME, lang });
       if (recDistrict) params.set("district", recDistrict);
       const res = await api<RecResponse>(`/api/courses/recommend?${params}`, { auth: true });
       setRec(res);
@@ -332,11 +400,16 @@ export default function TimetableBuilder({
     finally { setRecLoading(false); }
   }
 
-  // 추천 정차지 → 팔레트 드래그용 Place 형태
+  // 추천 정차지 → 팔레트 드래그용 Place 형태.
+  // id는 반드시 Kakao 장소 id여야 한다 — 이 값이 그대로 일정/코스에 저장되기 때문이다.
+  // 예전에는 `rec-3-경복궁` 같은 값을 합성해 넣었고, 그게 카카오맵 링크를 깨뜨리고
+  // tour_course_waypoints.place_id를 조인 불가능한 값으로 오염시켰다.
   const recPlaces: Place[] = useMemo(() =>
     (rec?.stops ?? []).map((s) => ({
-      id: `rec-${s.order}-${s.name}`, name: s.name, category: s.category,
+      id: s.kakaoPlaceId ?? "", name: s.name, category: s.category,
       address: s.address, latitude: s.latitude, longitude: s.longitude, placeUrl: s.placeUrl,
+      rec: { placeId: s.placeId, kakaoPlaceId: s.kakaoPlaceId },
+      insights: s.insights ?? [],
     })), [rec]);
 
   function onDragStart(e: DragStartEvent) {
@@ -493,9 +566,15 @@ export default function TimetableBuilder({
               className={`${paletteTab === "places" ? "chip-active" : "chip"} px-3 py-1.5 text-xs`}>
               📍 {tt.palettePlaces}
             </button>
-            <button onClick={() => setPaletteTab("second")}
-              className={`${paletteTab === "second" ? "chip-active" : "chip"} px-3 py-1.5 text-xs`}>
-              {mode === "trip" ? `🎫 ${tt.paletteCourses}` : `✨ ${lc.recTitle}`}
+            {mode === "trip" && (
+              <button onClick={() => setPaletteTab("courses")}
+                className={`${paletteTab === "courses" ? "chip-active" : "chip"} px-3 py-1.5 text-xs`}>
+                🎫 {tt.paletteCourses}
+              </button>
+            )}
+            <button onClick={() => setPaletteTab("rec")}
+              className={`${paletteTab === "rec" ? "chip-active" : "chip"} px-3 py-1.5 text-xs`}>
+              ✨ {mode === "trip" ? lc.recTravelerTitle : lc.recTitle}
             </button>
             <span className="ml-auto text-[11px] text-stone-400">{tt.dragHint}</span>
           </div>
@@ -533,18 +612,23 @@ export default function TimetableBuilder({
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
                     {places.map((p) => (
-                      <PaletteCard key={p.id} id={`place:${p.id}`}
-                        data={{ kind: "place", place: p }}
-                        icon={categoryIcon(p.name, p.category, false)}
-                        label={p.name} sub={p.address} detailLabel={li.detailsBtn}
-                        onInfo={() => setDetailPlace(p)} />
+                      // 목록은 추천순이다 — 앞에 세운 이유를 카드에 함께 보여줘야
+                      // "왜 이게 위에 있지?"에 답이 된다. 근거가 없으면 아무것도 렌더하지 않는다.
+                      <div key={p.id} className="flex flex-col gap-1">
+                        <PaletteCard id={`place:${p.id}`}
+                          data={{ kind: "place", place: p }}
+                          icon={categoryIcon(p.name, p.category, false)}
+                          label={p.name} sub={p.address} detailLabel={li.detailsBtn}
+                          onInfo={() => setDetailPlace(p)} />
+                        <ReasonChips reasons={p.reasons ?? []} lc={lc} />
+                      </div>
                     ))}
                   </div>
                 )}
               </>
             )
-          ) : mode === "trip" ? (
-            // 투어코스 팔레트
+          ) : paletteTab === "courses" ? (
+            // 투어코스 팔레트 (trip 모드 전용 — 가이드가 파는 상품)
             !city ? (
               <p className="py-4 text-center text-xs text-stone-400">{li.pickCityForPlaces}</p>
             ) : courses.length === 0 ? (
@@ -560,25 +644,13 @@ export default function TimetableBuilder({
               </div>
             )
           ) : (
-            // 코스 추천 팔레트 (course 모드)
+            // 추천 팔레트 — 가이드(코스 추천)와 여행자(추천 동선)가 같은 UI를 쓴다
             !city ? (
               <p className="py-4 text-center text-xs text-stone-400">{lc.recPickCity}</p>
             ) : (
               <div className="flex flex-col gap-2.5">
                 <p className="text-xs text-stone-500">{lc.recDragHint}</p>
                 <DistrictSelect city={city} value={recDistrict} onChange={setRecDistrict} className="text-sm" />
-                <div className="flex flex-wrap gap-1.5">
-                  {REC_THEMES.map((th) => (
-                    <button key={th} type="button" onClick={() => setRecTheme(th)}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        recTheme === th
-                          ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm"
-                          : "bg-stone-100 text-stone-500 hover:bg-stone-200"
-                      }`}>
-                      {lc.recThemes[th]}
-                    </button>
-                  ))}
-                </div>
                 <button type="button" onClick={fetchRecommend} disabled={recLoading}
                   className="btn-primary py-2 text-sm disabled:opacity-50">
                   {recLoading ? lc.recLoading : (rec ? `🔄 ${lc.recAgain}` : `✨ ${lc.recBtn}`)}
@@ -595,11 +667,17 @@ export default function TimetableBuilder({
                     </p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
                       {recPlaces.map((p, i) => (
-                        <PaletteCard key={p.id} id={`place:${p.id}`}
-                          data={{ kind: "place", place: p }}
-                          icon={categoryIcon(p.name, p.category, false)}
-                          label={`${i + 1}. ${p.name}`} sub={p.address} detailLabel={li.detailsBtn}
-                          onInfo={() => setDetailPlace(p)} />
+                        // 근거가 없는 정차지에는 아무것도 렌더하지 않는다 — 빈 자리를 남기면
+                        // 첫 정차지(이전 거리가 없어 구조적으로 📍를 못 받는다)가 고장난 것처럼 보인다
+                        <div key={`${i}-${p.id}`} className="flex flex-col gap-1">
+                          <PaletteCard id={`place:${i}:${p.id}`}
+                            data={{ kind: "place", place: p }}
+                            icon={categoryIcon(p.name, p.category, false)}
+                            label={`${i + 1}. ${p.name}`} sub={p.address} detailLabel={li.detailsBtn}
+                            onInfo={() => setDetailPlace(p)} />
+                          <ReasonChips reasons={rec.stops[i]?.reasons ?? []} lc={lc} />
+                          <VibeLine insights={rec.stops[i]?.insights ?? []} />
+                        </div>
                       ))}
                     </div>
                     {onFillFormFromRec && (
@@ -615,10 +693,17 @@ export default function TimetableBuilder({
         </div>{/* ── /우측 ── */}
         </div>{/* ── /좌우 그리드 ── */}
 
-        <DragOverlay dropAnimation={null}>
+        {/*
+          오버레이 박스는 원본 카드 크기 그대로다(dnd-kit이 그렇게 만든다).
+          modifier가 그 박스의 "중심"을 커서에 맞추므로, 칩도 박스 중앙에 놓아야
+          칩 자체가 커서에 붙는다. 좌상단에 두면 modifier를 넣고도 여전히 어긋난다.
+        */}
+        <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
           {activeLabel ? (
-            <div className="rounded-xl bg-sky-500 px-3 py-2 text-xs font-bold text-white shadow-lg">
-              {activeLabel}
+            <div className="flex h-full w-full items-center justify-center">
+              <span className="whitespace-nowrap rounded-xl bg-sky-500 px-3 py-2 text-xs font-bold text-white shadow-lg">
+                {activeLabel}
+              </span>
             </div>
           ) : null}
         </DragOverlay>
@@ -770,6 +855,66 @@ function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel }
       )}
     </div>
   );
+}
+
+/**
+ * 추천 근거 — "왜 여기인가"를 한 줄로.
+ *
+ * 근거가 없으면 <b>아무것도 렌더하지 않는다</b>. 백엔드가 0인 근거를 아예 안 내려보내므로
+ * 여기서 "0명이 담았어요" 같은 문구가 만들어질 여지 자체가 없다.
+ * 문구를 백엔드가 아니라 여기서 만드는 이유는 ko/en/zh 세 언어가 필요하기 때문이다.
+ */
+function ReasonChips({ reasons, lc }: { reasons: RecReason[]; lc: Translations["courses"] }) {
+  if (reasons.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 px-0.5">
+      {reasons.map((r, i) => {
+        const [icon, text] = reasonText(r, lc);
+        if (!text) return null;
+        return (
+          <span key={i}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+              r.kind === "guide_course" ? "bg-amber-50 text-amber-700"
+                : r.kind === "official" ? "bg-emerald-50 text-emerald-700"
+                : "bg-stone-100 text-stone-500"
+            }`}>
+            <span aria-hidden>{icon}</span>{text}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * 분위기 한 줄 — 근거가 아니라 묘사다. 그래서 배지가 아니라 회색 한 줄로 둔다.
+ * 출처 없는 사실은 띄우지 않는 규칙이 여기에도 그대로 적용된다.
+ */
+function VibeLine({ insights }: { insights: PlaceInsightView[] }) {
+  const vibe = insights.find((i) => i.kind === "vibe" && i.note && i.publisher);
+  if (!vibe) return null;
+  return <p className="px-1 text-[10px] italic leading-snug text-stone-400">“{vibe.note}”</p>;
+}
+
+/** 근거 하나 → [아이콘, 문장]. 모르는 종류는 빈 문자열 — 억지로 문구를 만들지 않는다. */
+function reasonText(r: RecReason, lc: Translations["courses"]): [string, string] {
+  if (r.kind === "guide_course") {
+    // 1명일 때 "1명"은 근거로서 약하게 읽힌다. 사실을 바꾸지 않으면서 숫자만 뺀다.
+    const n = r.count ?? 0;
+    return ["🎫", n <= 1 ? lc.reasonGuideOne : lc.reasonGuideMany.replace("{n}", String(n))];
+  }
+  if (r.kind === "traveler_saved") {
+    return ["🧳", lc.reasonTravelers.replace("{n}", String(r.count ?? 0))];
+  }
+  if (r.kind === "official") {
+    if (!r.source) return ["", ""];   // 출처 없는 자료는 배지가 될 수 없다
+    const fact = r.factKind ? (lc.reasonFacts[r.factKind as keyof typeof lc.reasonFacts] ?? "") : "";
+    return ["🏛", lc.reasonOfficialFmt.replace("{source}", r.source).replace("{fact}", fact).replace(/ · $/, "")];
+  }
+  if (r.kind === "walk" && r.walkMinutes != null) {
+    return ["📍", lc.reasonWalk.replace("{n}", String(r.walkMinutes))];
+  }
+  return ["", ""];
 }
 
 function UnplacedTray({ innerRef, count, label, hint, children }: {
