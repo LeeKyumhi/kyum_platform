@@ -137,7 +137,8 @@ public class KakaoLocalClient {
                 parseDouble(d.x()),
                 d.placeUrl(),
                 parseInt(d.distance()),
-                java.util.List.of()   // 근거는 PlaceController가 채운다
+                java.util.List.of(),  // 근거는 PlaceController가 채운다
+                null, null            // 사진도 PlaceController가 채운다
         )).toList();
     }
 
@@ -165,12 +166,27 @@ public class KakaoLocalClient {
              * 추천 근거 (없으면 빈 목록). Kakao는 이 값을 주지 않는다 —
              * {@link PlaceController}가 우리 레지스트리를 조인해 채운다.
              */
-            java.util.List<CourseReasons.Reason> reasons
+            java.util.List<CourseReasons.Reason> reasons,
+            /**
+             * 사용자가 올린 대표 사진(400px 썸네일)과 장수. Kakao는 사진을 주지 않는다 —
+             * {@link PlaceController}가 우리 노트를 조인해 채운다.
+             * <b>사진이 없으면 둘 다 null이다</b>(0이 아니다) — "사진 0장"을 렌더할 여지를 없앤다.
+             */
+            String coverPhotoUrl,
+            Integer photoCount
     ) {
         /** 근거만 갈아끼운 사본. record라 값을 고치는 대신 새로 만든다. */
         public Place withReasons(java.util.List<CourseReasons.Reason> newReasons) {
             return new Place(id, name, category, categoryGroupCode, phone, address,
-                    latitude, longitude, placeUrl, distanceMeters, newReasons);
+                    latitude, longitude, placeUrl, distanceMeters, newReasons,
+                    coverPhotoUrl, photoCount);
+        }
+
+        /** 노트 사진만 갈아끼운 사본. */
+        public Place withMedia(String newCoverPhotoUrl, Integer newPhotoCount) {
+            return new Place(id, name, category, categoryGroupCode, phone, address,
+                    latitude, longitude, placeUrl, distanceMeters, reasons,
+                    newCoverPhotoUrl, newPhotoCount);
         }
     }
 

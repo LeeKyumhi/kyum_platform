@@ -45,7 +45,8 @@ class CoursePlannerTest {
 
     private static KakaoLocalClient.Place kakaoPlace(String id, String name, double lat, double lng) {
         return new KakaoLocalClient.Place(id, name, "여행 > 관광,명소", "AT4", null,
-                "서울 중구", lat, lng, "http://place.map.kakao.com/" + id, null, java.util.List.of());
+                "서울 중구", lat, lng, "http://place.map.kakao.com/" + id, null, java.util.List.of(),
+                null, null);
     }
 
     @Test

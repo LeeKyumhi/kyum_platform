@@ -3,6 +3,7 @@ package com.guidematch.geo;
 import com.guidematch.geo.KakaoLocalClient.Place;
 import com.guidematch.knowledge.GuideCourseSignalLookup;
 import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.PlaceMediaLookup;
 import com.guidematch.knowledge.TravelerSignalLookup;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,17 +51,20 @@ public class PlaceController {
     private final PlaceInsightLookup insightLookup;
     private final GuideCourseSignalLookup guideCourseLookup;
     private final TravelerSignalLookup travelerLookup;
+    private final PlaceMediaLookup mediaLookup;
 
     public PlaceController(KakaoLocalClient kakaoClient,
                            TranslationService translationService,
                            PlaceInsightLookup insightLookup,
                            GuideCourseSignalLookup guideCourseLookup,
-                           TravelerSignalLookup travelerLookup) {
+                           TravelerSignalLookup travelerLookup,
+                           PlaceMediaLookup mediaLookup) {
         this.kakaoClient = kakaoClient;
         this.translationService = translationService;
         this.insightLookup = insightLookup;
         this.guideCourseLookup = guideCourseLookup;
         this.travelerLookup = travelerLookup;
+        this.mediaLookup = mediaLookup;
     }
 
     @GetMapping("/api/places")
@@ -179,10 +183,34 @@ public class PlaceController {
                 null   // 목록이라 이전 정차지가 없다
         ))).toList();
 
-        return PlaceRanking.sort(withReasons, p -> new PlaceRanking.Signals(
+        List<Place> ranked = PlaceRanking.sort(withReasons, p -> new PlaceRanking.Signals(
                 guideCounts.getOrDefault(p.id(), 0),
                 travelerCounts.getOrDefault(p.id(), 0),
                 p.reasons().stream().anyMatch(r -> "official".equals(r.kind()))));
+        return attachMedia(ranked);
+    }
+
+    /**
+     * 노트 사진을 붙인다. <b>실패해도 목록은 나간다</b> — 사진은 부가 정보이고
+     * 이 경로는 비로그인도 쓴다. {@code counts()}와 같은 격리 원칙이다.
+     */
+    private List<Place> attachMedia(List<Place> places) {
+        if (places.isEmpty()) return places;
+        List<String> ids = places.stream().map(Place::id).filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return places;
+
+        Map<String, PlaceMediaLookup.Cover> covers;
+        try {
+            covers = mediaLookup.coversByKakaoIds(ids);
+        } catch (Exception e) {
+            log.warn("장소 노트 사진 조회 실패 — 사진 없이 진행: {}", e.toString());
+            return places;
+        }
+        return places.stream().map(p -> {
+            PlaceMediaLookup.Cover c = covers.get(p.id());
+            // 없으면 null 유지 — 0을 담은 값을 만들지 않는다.
+            return c == null ? p : p.withMedia(c.thumbUrl(), c.photoCount());
+        }).toList();
     }
 
     private Map<String, Integer> counts(String what, java.util.function.Supplier<Map<String, Integer>> lookup) {
@@ -222,7 +250,8 @@ public class PlaceController {
                     p.categoryGroupCode(), p.phone(),
                     p.address(),   // 주소는 한국어 유지 (택시/지도 사용 편의)
                     p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters(),
-                    p.reasons()   // 번역이 근거를 떨어뜨리면 안 된다
+                    p.reasons(),   // 번역이 근거를 떨어뜨리면 안 된다
+                    p.coverPhotoUrl(), p.photoCount()   // 번역이 사진을 떨어뜨리면 안 된다
             ));
         }
         return result;
