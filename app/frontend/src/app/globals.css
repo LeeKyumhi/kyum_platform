@@ -173,8 +173,21 @@ body {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+/*
+ * fill-mode는 반드시 `backwards`다 — `both`(=backwards+forwards)로 두면 안 된다.
+ *
+ * forwards는 애니메이션이 끝난 뒤에도 마지막 키프레임의 `transform: translateY(0)`을
+ * 영구히 남긴다. transform이 none이 아닌 요소는 자손 `position: fixed`의 **컨테이닝 블록**이
+ * 되므로, 이 클래스로 페이지를 감싼 화면(16곳)에서는 모달의 `fixed inset-0`이 뷰포트가 아니라
+ * 그 래퍼 기준이 된다 → 가로는 래퍼가 mx-auto라 중앙으로 보이지만 세로는 페이지 전체 높이의
+ * 중앙으로 밀려 화면 아래로 잘린다. (실제 발생: /trips/[id] 장소 상세 모달)
+ * 모달 쪽 클래스를 아무리 고쳐도 안 고쳐진다 — 원인이 조상에 있기 때문이다.
+ *
+ * `to` 키프레임은 요소의 기본 상태와 동일하므로 forwards를 빼도 보이는 결과는 같다.
+ * backwards는 남겨야 한다 — .fade-delay-* 가 지연 동안 opacity:0을 유지하는 근거다.
+ */
 .animate-fade-up {
-  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
 /* stagger helpers — apply alongside animate-fade-up */
 .fade-delay-1 { animation-delay: 80ms; }
