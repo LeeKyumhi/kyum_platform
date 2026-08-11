@@ -74,14 +74,9 @@ public class PlaceNoteService {
             throw new IllegalArgumentException("JPG 또는 PNG 이미지만 올릴 수 있습니다.");
         }
 
-        // 상한은 두 키를 함께 센다 — 한쪽만 세면 우회로 실질 상한이 두 배가 된다.
-        if (countMine(userId, placeId, blankToNull(kakaoPlaceId)) >= MAX_NOTES_PER_USER_PER_PLACE) {
-            throw new IllegalArgumentException(
-                    "한 장소에는 " + MAX_NOTES_PER_USER_PER_PLACE + "개까지 올릴 수 있습니다.");
-        }
-
-        String fullUrl = null;
-        String thumbUrl = null;
+        // 디코딩은 네트워크가 아니라 순수 로컬 CPU라 캡 체크(시드니 왕복 1~3회)보다 싸다.
+        // 위장/손상 파일은 캡과 무관하게 어차피 거부되므로, 그 경우를 위해 DB를 먼저 부르지 않는다.
+        PlaceImageProcessor.Processed processed = null;
         if (hasPhoto) {
             byte[] raw;
             try {
@@ -90,11 +85,24 @@ public class PlaceNoteService {
                 throw new IllegalArgumentException("이미지를 읽을 수 없습니다.", e);
             }
             // 디코딩 실패는 IllegalArgumentException으로 나온다 → 400. 위장 파일의 실질 관문이다.
-            PlaceImageProcessor.Processed p = processor.process(raw);
+            processed = processor.process(raw);
+        }
 
+        // 상한은 두 키를 함께 센다 — 한쪽만 세면 우회로 실질 상한이 두 배가 된다.
+        // 업로드는 상한 체크보다 뒤에 둔다 — 상한 초과는 거부되므로 그보다 앞서 올리면 고아 객체가 남는다.
+        if (countMine(userId, placeId, blankToNull(kakaoPlaceId)) >= MAX_NOTES_PER_USER_PER_PLACE) {
+            throw new IllegalArgumentException(
+                    "한 장소에는 " + MAX_NOTES_PER_USER_PER_PLACE + "개까지 올릴 수 있습니다.");
+        }
+
+        String fullUrl = null;
+        String thumbUrl = null;
+        if (hasPhoto) {
+            // full 성공 후 thumb이 실패하면 행은 저장되지 않고 full 객체만 스토리지에 고아로 남는다 —
+            // 정리 러너가 다루는 별건이다(위 delete()의 이유와 같다).
             String base = "place-notes/" + userId + "/" + UUID.randomUUID();
-            fullUrl = storage.uploadPublic(bucket, base + "_full.jpg", p.full(), "image/jpeg");
-            thumbUrl = storage.uploadPublic(bucket, base + "_thumb.jpg", p.thumb(), "image/jpeg");
+            fullUrl = storage.uploadPublic(bucket, base + "_full.jpg", processed.full(), "image/jpeg");
+            thumbUrl = storage.uploadPublic(bucket, base + "_thumb.jpg", processed.thumb(), "image/jpeg");
         }
 
         return repo.save(new PlaceNote(placeId, blankToNull(kakaoPlaceId), placeName, userId,

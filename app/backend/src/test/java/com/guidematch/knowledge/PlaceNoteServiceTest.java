@@ -126,6 +126,19 @@ class PlaceNoteServiceTest {
     }
 
     @Test
+    void 위장_파일은_상한_조회보다_먼저_거부된다() {
+        // 디코딩은 로컬 CPU라 시드니 왕복인 캡 조회보다 싸다. 위장 파일은 캡과 무관하게
+        // 어차피 거부되므로, 그 경우를 위해 DB를 먼저 부르면 안 된다.
+        MockMultipartFile fake = new MockMultipartFile("photo", "a.jpg", "image/jpeg",
+                "MZ not an image".getBytes());
+        assertThatThrownBy(() -> service.create(3L, 17L, null, "덕수궁", fake, null))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(repo, never()).idsByUserAndPlaceId(anyLong(), any());
+        verify(repo, never()).idsByUserAndKakaoPlaceId(anyLong(), any());
+        verify(repo, never()).save(any());
+    }
+
+    @Test
     void 한_사용자가_한_장소에_3개까지만_올릴_수_있다() {
         when(repo.idsByUserAndPlaceId(3L, 17L)).thenReturn(List.of(1L, 2L, 3L));
 
