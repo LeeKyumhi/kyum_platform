@@ -39,3 +39,6 @@ app/backend/bin/
 # Scratch files that landed in the tree by accident
 app/SCR-*.png
 app/iTerm2-Color-Schemes/
+
+# Claude Code 워크트리 (격리 작업공간 — 소스 아님)
+.claude/worktrees/
