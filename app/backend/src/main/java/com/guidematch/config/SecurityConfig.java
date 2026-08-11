@@ -76,7 +76,11 @@ public class SecurityConfig {
                         // 게시글/리뷰는 공개 콘텐츠 — 번역도 비로그인 방문자가 사용 가능
                         .requestMatchers(HttpMethod.GET, "/api/posts/*/translate", "/api/reviews/*/translate").permitAll()
                         // 도시 목록·지역 장소 검색은 비로그인도 사용 (도시 선택/둘러보기 UI)
-                        .requestMatchers(HttpMethod.GET, "/api/cities", "/api/places", "/api/places/nearby").permitAll()
+                        // 노트 읽기(GET /api/places/notes)도 비로그인 탐색에서 보여야 한다.
+                        // ⚠ 경로 정확 일치다. "/api/places/**"로 넓히면 앞으로 추가되는 GET 하위 경로가
+                        //   의도치 않게 전부 공개된다 — 하나씩 명시한다. (POST/DELETE는 여기 없어 인증 필요)
+                        .requestMatchers(HttpMethod.GET, "/api/cities", "/api/places", "/api/places/nearby",
+                                         "/api/places/notes").permitAll()
                         // PortOne 웹훅 — 페이로드를 신뢰하지 않고 PortOne 재조회로만 확정하므로 public 안전
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         // 운영자 전용 API — ROLE_ADMIN 권한(JWT role=ADMIN)이 있어야 접근 가능
