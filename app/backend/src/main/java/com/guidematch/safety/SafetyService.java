@@ -18,8 +18,9 @@ import java.util.Set;
 @Service
 public class SafetyService {
 
+    // PLACE_NOTE: 사용자가 장소에 올린 사진·한줄팁. 사전 검수 큐 없이 사후 대응으로 시작하므로 이 경로가 유일한 안전장치다.
     private static final Set<String> VALID_TARGET_TYPES =
-            Set.of("USER", "CONVERSATION", "POST", "REVIEW", "BOOKING");
+            Set.of("USER", "CONVERSATION", "POST", "REVIEW", "BOOKING", "PLACE_NOTE");
     private static final Set<String> VALID_REASONS =
             // IMPERSONATION: 예약한 가이드와 다른 사람이 나타남(계정·자격 대여 탐지 — 오프라인 갭을 닫는 신고).
             Set.of("SPAM", "HARASSMENT", "SCAM", "INAPPROPRIATE", "IMPERSONATION", "OTHER");
