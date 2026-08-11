@@ -56,6 +56,11 @@ public class PlaceNoteService {
         boolean hasTip = cleanTip != null && !cleanTip.isEmpty();
 
         // 순서가 중요하다: 싼 검증을 먼저 해서 업로드 왕복을 낭비하지 않는다.
+        // placeName은 PlaceNote 생성자도 막지만, 그 시점은 업로드가 끝난 뒤라 여기서 먼저 막는다
+        // — 안 그러면 이름 없는 요청이 스토리지에 고아 객체를 두 개 남기고서야 거부된다.
+        if (placeName == null || placeName.isBlank()) {
+            throw new IllegalArgumentException("장소 이름이 없습니다.");
+        }
         if (placeId == null && (kakaoPlaceId == null || kakaoPlaceId.isBlank())) {
             throw new IllegalArgumentException("장소 정보가 없습니다.");
         }

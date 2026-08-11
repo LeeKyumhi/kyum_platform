@@ -76,6 +76,16 @@ class PlaceNoteServiceTest {
     }
 
     @Test
+    void 장소_이름이_없으면_업로드_전에_거부한다() throws IOException {
+        // 이름 검증이 업로드보다 뒤에 있으면, 이름 없는 요청이 스토리지에 고아 객체를
+        // 두 개 남기고서야 거부된다 — 업로드 왕복 전에 막아야 한다.
+        assertThatThrownBy(() -> service.create(3L, 17L, null, "  ", photo(), null))
+                .isInstanceOf(IllegalArgumentException.class);
+        verifyNoInteractions(storage);
+        verify(repo, never()).save(any());
+    }
+
+    @Test
     void 식별자가_없으면_거부한다() throws IOException {
         assertThatThrownBy(() -> service.create(3L, null, null, "무명", photo(), null))
                 .isInstanceOf(IllegalArgumentException.class);
