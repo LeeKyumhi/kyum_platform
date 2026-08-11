@@ -66,18 +66,67 @@ class PlaceMediaLookupTest {
     void 같은_노트가_양쪽_쿼리에_걸려도_한_번만_센다() {
         // 두 키가 다 채워진 노트(백필이 place_id를 채운 뒤)는 두 쿼리에 모두 걸린다.
         // 중복 제거가 없으면 사진 장수가 부풀려진다.
+        //
+        // 두 mock에 같은 인스턴스를 넘기면 identity 기반 dedupe로도 우연히 통과한다 — 실제로는
+        // Hibernate 1차 캐시가 같은 행에 대해 같은 인스턴스를 돌려줄 때가 많아 그 결함이 실사용에서도
+        // 안 보일 수 있다. 그래서 반드시 id는 같고 인스턴스는 다른 두 객체로 만든다.
         Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
                 "8113954", null, "관광명소", "서울 중구");
         ReflectionTestUtils.setField(registryPlace, "id", 17L);
-        PlaceNote both = note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null);
 
         when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
-        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(both));
-        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(both));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null)));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null)));
 
         Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
 
         assertThat(covers.get("8113954").photoCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 대표_썸네일은_두_출신_중_더_최신_사진이다() {
+        // 두 쿼리 결과를 kakao 경로 먼저, 레지스트리 경로 나중에 concat하기 때문에 get(0)을 쓰면
+        // 항상 kakao 출신 사진이 이긴다 — 이 클래스가 두 출신을 대칭적으로 합치는 게 존재 이유인데
+        // 그 반대다. 오래된 kakao 사진과 더 최신인 레지스트리 사진을 섞어 max가 이겨야 함을 강제한다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", "https://sb/old_thumb.jpg", null)));   // Kakao 경로, 더 오래됨
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(2L, 17L, null, "https://sb/new_thumb.jpg", null)));        // 레지스트리 경로, 더 최신
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers.get("8113954").thumbUrl()).isEqualTo("https://sb/new_thumb.jpg");
+    }
+
+    @Test
+    void 요청한_여러_kakao_id_중_일부만_레지스트리에_걸려도_각각_올바르게_귀속된다() {
+        // "8113954"만 레지스트리에 걸리고 "9999999"는 안 걸린다 — 두 요청 id의 사진 수가
+        // 서로 오염되지 않아야 한다(귀속이 잘못되면 조용히 섞이거나 사라진다).
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", "https://sb/a_thumb.jpg", null),
+                note(2L, null, "9999999", "https://sb/z_thumb.jpg", null)
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(3L, 17L, null, "https://sb/b_thumb.jpg", null)   // 레지스트리 경로 — "8113954"에만 귀속돼야 한다
+        ));
+
+        Map<String, PlaceMediaLookup.Cover> covers =
+                lookup.coversByKakaoIds(List.of("8113954", "9999999"));
+
+        assertThat(covers.get("8113954").photoCount()).isEqualTo(2);
+        assertThat(covers.get("9999999").photoCount()).isEqualTo(1);
     }
 
     @Test
@@ -117,10 +166,22 @@ class PlaceMediaLookupTest {
 
     @Test
     void 상세는_사진과_팁을_모두_최신순으로_준다() {
-        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        // kakao 쿼리만 부르면 mock이 이미 원하는 순서로 반환하므로 sort()를 지워도 통과해
+        // 버린다(정렬 로직이 존재하는 이유인 "두 쿼리 결과 병합" 자체를 검증 못 함). placeId
+        // 쿼리에서도 노트 하나를 섞어 넣어, 그 노트의 createdAt이 kakao 쪽 두 노트 사이에
+        // 오도록(id=3 > id=2 > id=1) 만든다. concat 순서는 [3,1,2]이므로 sort가 없으면
+        // views.get(1)이 1이 되어 기대값 2와 어긋난다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
         when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
-                note(2L, null, "8113954", "https://sb/b_thumb.jpg", null),
-                note(1L, null, "8113954", null, "돌담길이 예뻐요")
+                note(3L, null, "8113954", "https://sb/b_thumb.jpg", null),   // 최신, kakao 경로
+                note(1L, null, "8113954", null, "돌담길이 예뻐요")             // 최고참, kakao 경로
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(2L, 17L, null, "https://sb/c_thumb.jpg", null)          // 중간, 레지스트리 경로
         ));
         User u = mock(User.class);
         when(u.getId()).thenReturn(3L);
@@ -129,8 +190,10 @@ class PlaceMediaLookupTest {
 
         List<PlaceMediaLookup.NoteView> views = lookup.notesFor(null, "8113954");
 
-        assertThat(views).hasSize(2);
-        assertThat(views.get(0).id()).isEqualTo(2L);
+        assertThat(views).hasSize(3);
+        assertThat(views.get(0).id()).isEqualTo(3L);
+        assertThat(views.get(1).id()).isEqualTo(2L);
+        assertThat(views.get(2).id()).isEqualTo(1L);
         assertThat(views).allMatch(v -> "seoul_lover".equals(v.authorHandle()));
     }
 

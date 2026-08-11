@@ -90,7 +90,12 @@ public class PlaceMediaLookup {
             List<PlaceNote> withPhoto = notesForKakao.stream()
                     .filter(n -> n.getPhotoThumbUrl() != null).toList();
             if (withPhoto.isEmpty()) return;   // 규칙: 0은 표시하지 않는다
-            out.put(kakaoId, new Cover(withPhoto.get(0).getPhotoThumbUrl(), withPhoto.size()));
+            // 대표 썸네일은 최신 사진이어야 한다 — 두 쿼리 결과를 이 순서로 concat하기 때문에
+            // get(0)을 쓰면 kakao 출신 사진이 항상 이겨버린다. 이 클래스가 있는 이유(두 출신을
+            // 대칭적으로 합치는 것)와 정반대라 max로 명시적으로 고른다.
+            PlaceNote newest = withPhoto.stream()
+                    .max(Comparator.comparing(PlaceNote::getCreatedAt)).orElseThrow();
+            out.put(kakaoId, new Cover(newest.getPhotoThumbUrl(), withPhoto.size()));
         });
         return out;
     }
