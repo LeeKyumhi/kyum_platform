@@ -10,10 +10,12 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Map;
-
 /**
  * 장소 노트 쓰기. 읽기는 {@link PlaceController}(목록)와 {@code GET /api/places/notes}(상세)가 맡는다.
+ *
+ * <p>검증 실패({@code IllegalArgumentException})는 여기서 잡지 않는다 — {@code GlobalExceptionHandler}가
+ * 전역에서 400 + {@code {"error": ...}}로 변환한다. 로컬 try/catch를 다시 추가하지 말 것
+ * (본문 키가 "error"가 아닌 다른 값으로 갈라지고, 이미 있는 처리기와 중복된다).
  */
 @RestController
 public class PlaceNoteController {
@@ -31,7 +33,7 @@ public class PlaceNoteController {
                                String authorHandle, String createdAt) {}
 
     @PostMapping("/api/places/notes")
-    public ResponseEntity<?> create(
+    public ResponseEntity<NoteResponse> create(
             @AuthenticationPrincipal Long userId,
             @RequestParam(required = false) Long placeId,
             @RequestParam(required = false) String kakaoPlaceId,
@@ -39,30 +41,24 @@ public class PlaceNoteController {
             @RequestParam(required = false) MultipartFile photo,
             @RequestParam(required = false) String tip
     ) {
+        // SecurityConfig가 이미 비로그인을 막는다 — null은 설정 오류다. 401을 컨트롤러가
+        // 직접 던지지 않고, 다른 검증 실패와 같은 400 경로(GlobalExceptionHandler)로 보낸다.
         if (userId == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "로그인이 필요합니다."));
+            throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        try {
-            PlaceNote saved = service.create(userId, placeId, kakaoPlaceId, placeName, photo, tip);
-            String handle = userRepository.findById(userId).map(User::getHandle).orElse(null);
-            return ResponseEntity.status(HttpStatus.CREATED).body(new NoteResponse(
-                    saved.getId(), saved.getPhotoUrl(), saved.getPhotoThumbUrl(), saved.getTip(),
-                    handle, saved.getCreatedAt().toString()));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+        PlaceNote saved = service.create(userId, placeId, kakaoPlaceId, placeName, photo, tip);
+        String handle = userRepository.findById(userId).map(User::getHandle).orElse(null);
+        return ResponseEntity.status(HttpStatus.CREATED).body(new NoteResponse(
+                saved.getId(), saved.getPhotoUrl(), saved.getPhotoThumbUrl(), saved.getTip(),
+                handle, saved.getCreatedAt().toString()));
     }
 
     @DeleteMapping("/api/places/notes/{id}")
-    public ResponseEntity<?> delete(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
+    public ResponseEntity<Void> delete(@AuthenticationPrincipal Long userId, @PathVariable Long id) {
         if (userId == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "로그인이 필요합니다."));
+            throw new IllegalArgumentException("로그인이 필요합니다.");
         }
-        try {
-            service.delete(userId, id);
-            return ResponseEntity.noContent().build();
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
-        }
+        service.delete(userId, id);
+        return ResponseEntity.noContent().build();
     }
 }

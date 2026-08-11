@@ -9,12 +9,15 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
  * 쓰기 엔드포인트. <b>비로그인은 여기 오지 않는다</b>(SecurityConfig가 막는다) —
- * 그래서 userId가 null이면 그건 설정 오류이고, 조용히 저장하는 것보다 400이 낫다.
+ * 그래서 userId가 null이면 그건 설정 오류이고, 조용히 저장하는 것보다 예외가 낫다.
+ * 검증 실패는 컨트롤러가 잡지 않고 그대로 던진다 — {@code GlobalExceptionHandler}가
+ * 400으로 변환하므로, 여기서는 예외가 올라오는지와 부수효과(서비스 호출 여부)만 본다.
  */
 class PlaceNoteControllerTest {
 
@@ -44,22 +47,21 @@ class PlaceNoteControllerTest {
     }
 
     @Test
-    void 검증_실패는_400과_메시지다() {
+    void 검증_실패는_예외를_그대로_던진다() {
         when(service.create(anyLong(), any(), any(), any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("사진 또는 한줄팁 중 하나는 입력해야 합니다."));
 
-        ResponseEntity<?> res = controller.create(3L, 17L, null, "덕수궁", null, null);
-
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(res.getBody().toString()).contains("한줄팁");
+        assertThatThrownBy(() -> controller.create(3L, 17L, null, "덕수궁", null, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("한줄팁");
     }
 
     @Test
-    void 인증_없이_들어오면_400이다() {
+    void 인증_없이_들어오면_예외를_던지고_서비스는_건드리지_않는다() {
         // SecurityConfig가 이미 막지만, 규칙이 바뀌어 새면 저장하지 않고 거부해야 한다.
-        ResponseEntity<?> res = controller.create(null, 17L, null, "덕수궁", null, "팁");
+        assertThatThrownBy(() -> controller.create(null, 17L, null, "덕수궁", null, "팁"))
+                .isInstanceOf(IllegalArgumentException.class);
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         verifyNoInteractions(service);
     }
 
