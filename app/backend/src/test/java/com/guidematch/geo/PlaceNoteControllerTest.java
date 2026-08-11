@@ -110,6 +110,15 @@ class PlaceNoteControllerTest {
     }
 
     @Test
+    void 공백_kakaoPlaceId도_없는_것과_같다() {
+        // notesFor 내부도 blank를 방어하지만, 여기서 걸러야 mediaLookup을 아예 안 부른다.
+        List<PlaceMediaLookup.NoteView> res = controller.list(null, "   ");
+
+        assertThat(res).isEmpty();
+        verifyNoInteractions(mediaLookup);
+    }
+
+    @Test
     void 조회가_죽어도_빈_목록으로_degrade한다() {
         when(mediaLookup.notesFor(any(), any())).thenThrow(new RuntimeException("DB 끊김"));
 
