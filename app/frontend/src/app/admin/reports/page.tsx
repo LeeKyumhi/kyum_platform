@@ -68,7 +68,9 @@ export default function AdminReportsPage() {
     if (it.targetType === "BOOKING") {
       return `${lr.booking} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
     }
-    return `${it.targetType} #${it.targetId}`;
+    // PLACE_NOTE 등 targetSummary가 채워진 다른 대상 종류도 미리보기를 붙인다 —
+    // 관리자가 뭘 숨기는지 안 보고 누르는 걸 막는다.
+    return `${it.targetType} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
   }
 
   if (loading) return (

@@ -196,4 +196,27 @@ class PlaceNoteServiceTest {
 
         verify(repo).delete(mine);
     }
+
+    @Test
+    void 관리자가_노트를_숨기면_status가_HIDDEN이_된다() {
+        PlaceNote note = new PlaceNote(17L, null, "덕수궁", 3L, null, null, "내 팁");
+        ReflectionTestUtils.setField(note, "id", 5L);
+        when(repo.findById(5L)).thenReturn(java.util.Optional.of(note));
+
+        service.hide(5L);
+
+        assertThat(note.getStatus()).isEqualTo("HIDDEN");
+        verify(repo).save(note);
+    }
+
+    @Test
+    void 없는_노트를_숨기려_하면_조용히_넘어가지_않고_던진다() {
+        // 사전 검수 큐가 없는 기능에서 이 조치가 유일한 안전장치다 — 조용히 성공하면
+        // 관리자는 숨겼다고 믿지만 실제로는 아무 일도 일어나지 않는다.
+        when(repo.findById(999L)).thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> service.hide(999L))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(repo, never()).save(any());
+    }
 }

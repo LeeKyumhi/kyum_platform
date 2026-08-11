@@ -4,6 +4,8 @@ import com.guidematch.booking.Booking;
 import com.guidematch.booking.BookingRepository;
 import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
+import com.guidematch.knowledge.PlaceNote;
+import com.guidematch.knowledge.PlaceNoteRepository;
 import com.guidematch.knowledge.PlaceNoteService;
 import com.guidematch.safety.Report;
 import com.guidematch.safety.ReportRepository;
@@ -31,6 +33,7 @@ public class AdminReportService {
     private final ModerationService moderationService;
     private final AdminUserService adminUserService;
     private final PlaceNoteService placeNoteService;
+    private final PlaceNoteRepository placeNoteRepository;
 
     public AdminReportService(ReportRepository reportRepository,
                               UserRepository userRepository,
@@ -38,7 +41,8 @@ public class AdminReportService {
                               GuideProfileRepository guideProfileRepository,
                               ModerationService moderationService,
                               AdminUserService adminUserService,
-                              PlaceNoteService placeNoteService) {
+                              PlaceNoteService placeNoteService,
+                              PlaceNoteRepository placeNoteRepository) {
         this.reportRepository = reportRepository;
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
@@ -46,9 +50,16 @@ public class AdminReportService {
         this.moderationService = moderationService;
         this.adminUserService = adminUserService;
         this.placeNoteService = placeNoteService;
+        this.placeNoteRepository = placeNoteRepository;
     }
 
-    /** 관리자 신고 대기열 항목. targetSummary는 BOOKING(사칭 신고)일 때 대상 가이드 이름 등 조치용 문맥. */
+    /** truncated tip이 이 길이를 넘으면 잘라서 "…"을 붙인다 — 목록 한 줄에 담기 위함. */
+    private static final int TIP_SUMMARY_LENGTH = 40;
+
+    /**
+     * 관리자 신고 대기열 항목. targetSummary는 조치용 문맥 —
+     * BOOKING(사칭 신고)이면 대상 가이드 이름, PLACE_NOTE면 장소명+한줄팁 미리보기.
+     */
     public record ReportItem(
             Long id,
             String reporterName,
@@ -79,6 +90,13 @@ public class AdminReportService {
                 bookings.values().stream().map(Booking::getGuideProfileId).distinct().toList()
         ).forEach(p -> profiles.put(p.getId(), p));
 
+        // PLACE_NOTE 대상 → 노트 (장소명+한줄팁 미리보기용, 관리자가 뭘 숨기는지 보여준다)
+        List<Long> placeNoteIds = reports.stream()
+                .filter(r -> "PLACE_NOTE".equals(r.getTargetType()))
+                .map(Report::getTargetId).distinct().toList();
+        Map<Long, PlaceNote> placeNotes = new HashMap<>();
+        placeNoteRepository.findAllById(placeNoteIds).forEach(n -> placeNotes.put(n.getId(), n));
+
         // 이름이 필요한 모든 user id(신고자 + BOOKING 대상 가이드)를 한 번에 조회
         java.util.Set<Long> userIds = new java.util.HashSet<>();
         reports.forEach(r -> userIds.add(r.getReporterUserId()));
@@ -92,6 +110,8 @@ public class AdminReportService {
                 Booking b = bookings.get(r.getTargetId());
                 GuideProfile p = b != null ? profiles.get(b.getGuideProfileId()) : null;
                 if (p != null) targetSummary = names.getOrDefault(p.getUserId(), "알 수 없음");
+            } else if ("PLACE_NOTE".equals(r.getTargetType())) {
+                targetSummary = placeNoteSummary(placeNotes.get(r.getTargetId()));
             }
             return new ReportItem(
                     r.getId(),
@@ -104,6 +124,21 @@ public class AdminReportService {
                     r.getCreatedAt()
             );
         }).toList();
+    }
+
+    /**
+     * 관리자가 뭘 숨기는지 사진 없이도 짐작할 수 있게 장소명+한줄팁을 한 줄로 요약한다.
+     * 노트가 이미 삭제됐으면 null을 돌려준다 — 목록 전체가 죽으면 안 되고,
+     * 화면은 targetSummary가 null이면 기존의 `PLACE_NOTE #id` 표기로 대체한다.
+     */
+    private String placeNoteSummary(PlaceNote n) {
+        if (n == null) return null;
+        String tip = n.getTip();
+        if (tip == null || tip.isBlank()) return n.getPlaceNameSnapshot();
+        String truncated = tip.length() > TIP_SUMMARY_LENGTH
+                ? tip.substring(0, TIP_SUMMARY_LENGTH) + "…"
+                : tip;
+        return n.getPlaceNameSnapshot() + " · \"" + truncated + "\"";
     }
 
     /** 검토 완료(조치함) 처리. */

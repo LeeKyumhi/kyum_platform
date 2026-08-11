@@ -125,10 +125,19 @@ public class PlaceNoteService {
         repo.delete(note);
     }
 
-    /** 관리자 숨김. 행은 남기고 조회에서만 빠진다. */
+    /**
+     * 관리자 숨김. 행은 남기고 조회에서만 빠진다.
+     *
+     * <p>사전 검수 큐가 없는 이 기능에서 신고 조치가 유일한 안전장치다 — 조용히 아무 일도
+     * 안 하면 관리자는 성공했다고 믿고 신고를 닫지만 실제로는 아무것도 숨겨지지 않는다.
+     * 그래서 {@code ModerationService#hidePost}와 같이 못 찾으면 던진다.
+     */
     @Transactional
     public void hide(Long noteId) {
-        repo.findById(noteId).ifPresent(n -> { n.hide(); repo.save(n); });
+        PlaceNote n = repo.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 노트입니다."));
+        n.hide();
+        repo.save(n);
     }
 
     /**
