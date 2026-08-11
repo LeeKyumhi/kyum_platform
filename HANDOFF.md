@@ -1,5 +1,100 @@
 # PeerUp 인수인계서
 
+## 0. 재개 지점 (2026-08-11) — 장소 사진·노트, 구현 진행 중
+
+### 먼저 알아야 할 것: 오래된 미커밋 더미가 사라졌다
+
+이 날 이전까지 `main` 작업트리에 **8/10 플라이휠 작업 30여 개 파일이 미커밋**으로 쌓여 있었다.
+전부 커밋해서 브랜치로 분리했다. `main`은 건드리지 않았다.
+
+| 브랜치 | 내용 | 상태 |
+|---|---|---|
+| `feat/course-planner-flywheel` | 코스 추천 플라이휠 1사이클(+2사이클 일부) — 그동안의 미커밋분 전부 | **12커밋, 260 tests green.** main 미머지 |
+| `feat/place-media-and-notes` | 장소 사진·한줄팁 (신규) | **18커밋, 322 tests green.** 진행 중 |
+
+`feat/place-media-and-notes`는 `feat/course-planner-flywheel`에서 분기했다 — 후자의 코드에
+얹혀 있으므로 **머지 순서를 지켜야 한다**(flywheel → main, 그다음 place-media → main).
+
+커밋 분리 과정에서 같이 정리한 것:
+- 리포 루트 잡파일 gitignore — `/node_modules`(26MB)·`/package.json`·`next-env.d.ts`·`.tmp/`·`*.pptx`
+- **모달이 화면 아래로 밀리던 버그 수정** (`fix(frontend): 모달이 화면 아래로 밀리던 원인 제거`).
+  원인은 모달이 아니라 `globals.css`의 `.animate-fade-up`이었다 — `fill-mode: both`의 `forwards`가
+  애니메이션 종료 후에도 `transform: translateY(0)`을 남기고, transform이 있는 요소는 자손
+  `position: fixed`의 컨테이닝 블록이 된다. `/trips/[id]`에서 오버레이가 뷰포트(772px)가 아니라
+  래퍼(1824px) 기준이 되어 세로로 밀렸다. `both` → `backwards` 한 줄로 해결(브라우저 A/B 2회 검증).
+
+### 진행 중인 작업: 장소 사진·노트
+
+- 설계: `docs/superpowers/specs/2026-08-11-place-media-and-notes-design.md`
+- 계획: `docs/superpowers/plans/2026-08-11-place-media-and-notes.md` (16개 태스크)
+- 방식: superpowers **subagent-driven-development** (태스크마다 구현자 1 + 리뷰어 1, 수정 루프)
+- 워크트리: `.claude/worktrees/place-media-and-notes` (브랜치 `feat/place-media-and-notes`)
+- **원장(진행 기록): `.superpowers/sdd/2026-08-11-place-media-and-notes/progress.md`**
+  ⚠ 이 경로는 gitignore다. 태스크별 상세·이월 항목이 전부 여기 있으니 **재개 시 먼저 읽을 것.**
+  `git clean -fdx`를 돌리면 사라진다.
+
+**완료: Task 1~8, 16 (백엔드 전부).** 322 tests green.
+
+| # | 내용 |
+|---|---|
+| 1 | `PlaceNote` 엔티티 — 두 장소 식별자(`place_id`/`kakao_place_id`)를 **둘 다** 저장 |
+| 2 | `PlaceImageProcessor` — EXIF 제거 + Orientation 회전 + 2크기(1600/400) |
+| 3 | `PlaceNoteService` — 검증·업로드·장소당 3개 상한 |
+| 4 | `PlaceNoteController` — POST/DELETE + `GET /api/places/notes` permitAll 등록 |
+| 5 | `PLACE_NOTE` 신고 대상 추가 (프로덕션 1줄) |
+| 16 | 관리자 숨김 조치 `HIDE_PLACE_NOTE` + 신고 목록에 노트 요약 |
+| 6 | `PlaceMediaLookup` — 두 식별자를 **읽기 시점에 합치는 유일한 지점** |
+| 7 | 장소 목록에 대표 사진 배선 (배치 1회, 실패해도 목록은 나감) |
+| 8 | 노트 상세 조회 (공개, 실패 시 빈 목록 degrade) |
+
+**남은 것: Task 9~15 (7개).**
+
+| # | 내용 |
+|---|---|
+| 9 | i18n `placeNotes.*` ko/en/zh + `PlaceDetailModal`에 사진 스트립·팁 표시 |
+| 10 | `PlaceNoteComposer` 업로드 UI |
+| 11 | 목록 카드 썸네일 (`/explore`, `TimetableBuilder` 팔레트) |
+| 12 | 시드 — `place.schema.json` + `Place.imageUrl`·`imagePublisher` |
+| 13 | 프롬프트 insight-v5 (`detailCommon2`의 `firstimage`) + CONTRACT §16 |
+| 14 | 흡수 백필 — kakao 유래 노트에 `place_id` 채우기 |
+| 15 | 실 DB 스모크 (어서션 7개) |
+
+### 재개 방법
+
+워크트리로 들어가서 원장을 읽고 Task 9부터 이어가면 된다. 계획서의 각 태스크는 브리프로 뽑아
+서브에이전트에 넘기는 구조다(`superpowers/.../scripts/task-brief <plan> <N>`).
+
+### ⚠ 계획서보다 실제 코드가 옳았던 것 (남은 태스크에도 적용됨)
+
+구현 중 브리프가 틀린 것으로 드러난 것들. 남은 태스크 브리프를 그대로 믿지 말 것:
+
+1. `User`·`UserRepository`는 `com.guidematch.auth`가 아니라 **`com.guidematch.user`**.
+2. 버킷 프로퍼티 키는 **`supabase.storage.credentials-bucket`** (`GuidePostService:36`과 동일).
+3. **에러 본문 키는 `error`** — `GlobalExceptionHandler`가 `IllegalArgumentException`을 이미
+   400 + `{"error": ...}`로 바꾼다. 컨트롤러에 로컬 try/catch를 두지 말 것.
+   **Task 10 프론트가 상한·형식 안내 메시지를 읽을 때 `error` 키를 파싱해야 한다.**
+4. Task 6·7의 쿼리 횟수 주석이 계획서엔 틀리게 적혀 있었다(실제 2~3회 / 최대 4회).
+
+### 이월된 판단거리 (최종 리뷰에서 정리)
+
+- `/api/places/nearby`·`/api/places/search`는 대표 사진을 안 붙인다(`recommendFirst`만 배선됨).
+  **Task 11이 그 경로를 쓰면 썸네일이 안 보인다** — 확인 필요.
+- 업로드 1건당 이미지를 4번 디코딩한다(`process`가 `scale`을 2번, 각 `scale`이 다시 디코딩).
+  폰 원본 4~8MB 경로라 CPU 낭비가 실재. 크기를 한 번만 재면 절반.
+- `_full` 업로드 성공 후 `_thumb` 실패 시 행은 안 생기고 full 객체만 고아로 남는다(미문서화).
+- 삭제·숨김은 DB 행만 건드리고 Supabase 객체는 안 지운다(설계상 수용, 정리 러너는 범위 밖).
+- 업로드 이미지는 EXIF를 지우지만 **Task 15 스모크 전까지 실 파일로 검증된 적은 없다.**
+
+### ⚠ 아직 아무도 실행하지 않은 것
+
+- **백엔드를 한 번도 기동하지 않았다.** 모든 테스트가 목 기반이고 이 리포에는 `@SpringBootTest`가
+  0개라, `PlaceNoteRepository`의 JPQL은 **런타임에 파싱된 적이 없다.** Spring Data는 컨텍스트
+  기동 시 `@Query`를 파싱하므로 백엔드가 처음 뜨는 순간 검증된다 — Task 15 스모크가 그 지점이다.
+- `place_notes` 테이블은 `ddl-auto: update`가 만들 예정이고 아직 실 DB에 없다.
+- 시드(Task 12~14)가 실제로 채워지려면 **사용자가 v5 재수집을 1회 실행**해야 한다.
+
+---
+
 > ## ⚠ 이 파일은 이 브랜치 기준으로 낡았다
 > 2026-08-07에 HANDOFF를 46KB→13KB로 정리한 판본은 **`feat/payment-completion-deploy`
 > 브랜치에 있다.** 이 브랜치는 그 이전 `main`에서 분기해서 아래 `## 0. 최신` 섹션이
