@@ -67,9 +67,12 @@ public class PlaceNote {
         if (!notBlank(photoUrl) && !notBlank(tip)) {
             throw new IllegalArgumentException("사진 또는 팁 중 최소 하나는 있어야 한다");
         }
+        if (!notBlank(placeNameSnapshot)) {
+            throw new IllegalArgumentException("place_name_snapshot은 비어 있을 수 없다 — DB NOT NULL을 여기서 미리 막는다");
+        }
         this.placeId = placeId;
         this.kakaoPlaceId = notBlank(kakaoPlaceId) ? kakaoPlaceId.trim() : null;
-        this.placeNameSnapshot = placeNameSnapshot;
+        this.placeNameSnapshot = placeNameSnapshot.trim();
         this.userId = userId;
         this.photoUrl = photoUrl;
         this.photoThumbUrl = photoThumbUrl;

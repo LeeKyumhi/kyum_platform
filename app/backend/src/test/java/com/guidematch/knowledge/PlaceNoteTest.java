@@ -54,6 +54,17 @@ class PlaceNoteTest {
     }
 
     @Test
+    void 장소_이름_스냅샷이_없으면_만들_수_없다() {
+        // place_name_snapshot은 컬럼이 NOT NULL이다. 생성자에서 막지 않으면 flush 시점에야
+        // DB 제약 위반으로 터져서, 원인을 던진 호출부에서 멀리 떨어진 곳에서 실패가 드러난다.
+        assertThatThrownBy(() -> new PlaceNote(17L, null, null, 3L, "u/full.jpg", "u/thumb.jpg", null))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> new PlaceNote(17L, null, "   ", 3L, "u/full.jpg", "u/thumb.jpg", null))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void 숨기면_status가_바뀐다() {
         PlaceNote n = new PlaceNote(17L, null, "덕수궁", 3L, "u/full.jpg", "u/thumb.jpg", null);
         n.hide();
