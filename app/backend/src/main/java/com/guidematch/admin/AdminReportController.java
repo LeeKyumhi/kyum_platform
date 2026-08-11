@@ -43,7 +43,7 @@ public class AdminReportController {
         adminReportService.dismiss(id);
     }
 
-    /** 신고 대상 조치 (body: { "action": "HIDE_POST"|"SUSPEND_USER", "reason": "..." }). */
+    /** 신고 대상 조치 (body: { "action": "HIDE_POST"|"SUSPEND_USER"|"HIDE_PLACE_NOTE", "reason": "..." }). */
     @PostMapping("/{id}/act")
     public void act(@PathVariable Long id,
                     @AuthenticationPrincipal Long adminId,

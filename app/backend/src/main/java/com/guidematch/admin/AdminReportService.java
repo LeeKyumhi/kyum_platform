@@ -4,6 +4,7 @@ import com.guidematch.booking.Booking;
 import com.guidematch.booking.BookingRepository;
 import com.guidematch.guide.GuideProfile;
 import com.guidematch.guide.GuideProfileRepository;
+import com.guidematch.knowledge.PlaceNoteService;
 import com.guidematch.safety.Report;
 import com.guidematch.safety.ReportRepository;
 import com.guidematch.user.User;
@@ -29,19 +30,22 @@ public class AdminReportService {
     private final GuideProfileRepository guideProfileRepository;
     private final ModerationService moderationService;
     private final AdminUserService adminUserService;
+    private final PlaceNoteService placeNoteService;
 
     public AdminReportService(ReportRepository reportRepository,
                               UserRepository userRepository,
                               BookingRepository bookingRepository,
                               GuideProfileRepository guideProfileRepository,
                               ModerationService moderationService,
-                              AdminUserService adminUserService) {
+                              AdminUserService adminUserService,
+                              PlaceNoteService placeNoteService) {
         this.reportRepository = reportRepository;
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.guideProfileRepository = guideProfileRepository;
         this.moderationService = moderationService;
         this.adminUserService = adminUserService;
+        this.placeNoteService = placeNoteService;
     }
 
     /** 관리자 신고 대기열 항목. targetSummary는 BOOKING(사칭 신고)일 때 대상 가이드 이름 등 조치용 문맥. */
@@ -125,7 +129,8 @@ public class AdminReportService {
 
     /**
      * 신고 대상에 실제 조치를 취하고 신고를 REVIEWED로 닫는다.
-     * action: "HIDE_POST"(대상이 POST), "SUSPEND_USER"(대상이 USER 또는 BOOKING의 가이드).
+     * action: "HIDE_POST"(대상이 POST), "SUSPEND_USER"(대상이 USER 또는 BOOKING의 가이드),
+     * "HIDE_PLACE_NOTE"(대상이 PLACE_NOTE).
      */
     @Transactional
     public void act(Long reportId, Long adminId, String action, String reason) {
@@ -143,6 +148,13 @@ public class AdminReportService {
             case "SUSPEND_USER" -> {
                 Long userId = resolveTargetUserId(r);
                 adminUserService.suspend(userId, adminId, reason);
+            }
+            case "HIDE_PLACE_NOTE" -> {
+                // 대상 종류를 확인하지 않으면 게시글 id로 엉뚱한 노트를 숨길 수 있다.
+                if (!"PLACE_NOTE".equals(r.getTargetType())) {
+                    throw new IllegalArgumentException("이 신고 대상은 장소 노트가 아닙니다.");
+                }
+                placeNoteService.hide(r.getTargetId());
             }
             default -> throw new IllegalArgumentException("알 수 없는 조치입니다.");
         }
