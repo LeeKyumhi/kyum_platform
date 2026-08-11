@@ -20,6 +20,15 @@ app/backend/.gradle/
 
 # Node
 app/frontend/node_modules/
+# 리포 루트에 생긴 것 — 에디터가 타입 확인용으로 만든 것이라 소스가 아니다 (26MB)
+/node_modules/
+/package.json
+/package-lock.json
+/next-env.d.ts
+
+# 스크래치·산출물 (소스 아님)
+.tmp/
+*.pptx
 
 # Logs
 *.log
