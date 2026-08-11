@@ -81,8 +81,10 @@
   - `PlaceNote#getId/getPlaceId/getKakaoPlaceId/getPlaceNameSnapshot/getUserId/getPhotoUrl/getPhotoThumbUrl/getTip/getStatus/getCreatedAt`
   - `PlaceNote#hide()` → `status = "HIDDEN"`
   - `PlaceNote#linkPlaceId(Long)` → `place_id` 채우기 (Task 14가 씀)
-  - `PlaceNoteRepository#findVisibleByKakaoIds(Collection<String> kakaoIds)` → `List<PlaceNote>`
-  - `PlaceNoteRepository#countByUserForPlace(Long userId, Long placeId, String kakaoPlaceId)` → `long`
+  - `PlaceNoteRepository#findVisibleByKakaoIdIn(Collection<String> kakaoIds)` → `List<PlaceNote>`
+  - `PlaceNoteRepository#findVisibleByPlaceIdIn(Collection<Long> placeIds)` → `List<PlaceNote>`
+  - `PlaceNoteRepository#idsByUserAndPlaceId(Long userId, Long placeId)` → `List<Long>`
+  - `PlaceNoteRepository#idsByUserAndKakaoPlaceId(Long userId, String kakaoPlaceId)` → `List<Long>`
   - `PlaceNoteRepository#findUnlinkedKakaoIds()` → `List<String>`
 
 - [ ] **Step 1: 실패하는 테스트를 쓴다**
@@ -293,42 +295,45 @@ public interface PlaceNoteRepository extends JpaRepository<PlaceNote, Long> {
      * <b>두 키를 합쳐서</b> 가져온다 — 이 프로젝트의 핵심 조회.
      *
      * <p>목록 화면은 kakao id만 쥐고 있다. 그런데 같은 장소에 레지스트리 경로로 올린 노트는
-     * {@code place_id}에만 붙어 있다. {@code places}를 조인해 양쪽을 한 번에 긁는다 —
-     * 조인이 하나 늘 뿐 <b>쿼리는 1회</b>다. 두 키 중 하나만 보면 노트가 갈라져 보이고,
-     * 화면에는 "사진이 좀 적네"로만 나타나 결함인지 알 수 없다.
+     * {@code place_id}에만 붙어 있다. 그래서 호출부가 <b>미리 kakao id → place id를 풀어</b>
+     * 두 집합을 함께 넘긴다({@link PlaceMediaLookup}). 두 키 중 하나만 보면 노트가 갈라져
+     * 보이고, 화면에는 "사진이 좀 적네"로만 나타나 결함인지 알 수 없다.
+     *
+     * <p>place id를 호출부가 푸는 이유: 조인 한 방으로 긁으면 <b>어느 노트가 어느 요청 id에
+     * 속하는지 되돌릴 수 없다</b>(노트는 kakao id를 안 들고 있을 수 있다). 귀속을 추측으로
+     * 메우면 목록에서 노트가 조용히 사라진다. {@code PlaceInsightLookup}이 쓰는 것과 같은 2회 패턴이다.
+     *
+     * <p><b>쿼리를 둘로 쪼갠 이유</b>: {@code (:param is null or ...)} 한 방으로 합치면
+     * Postgres가 null 파라미터의 타입을 정하지 못해 <b>실행 시점</b>에 죽을 수 있다.
+     * 기동은 멀쩡하므로 한쪽 경로만 테스트하면 안 걸린다 — {@code PlaceRepository.findCandidates}를
+     * 쪼갠 것과 같은 이유다. 호출부가 빈 컬렉션이면 아예 부르지 않는다.
      */
-    @Query("""
-           select n from PlaceNote n
-             left join Place p on p.id = n.placeId
-           where n.status = 'VISIBLE'
-             and (n.kakaoPlaceId in :kakaoIds or p.kakaoPlaceId in :kakaoIds)
-           order by n.createdAt desc
-           """)
-    List<PlaceNote> findVisibleByKakaoIds(@Param("kakaoIds") Collection<String> kakaoIds);
+    @Query("select n from PlaceNote n where n.status = 'VISIBLE' "
+         + "and n.kakaoPlaceId in :kakaoIds order by n.createdAt desc")
+    List<PlaceNote> findVisibleByKakaoIdIn(@Param("kakaoIds") Collection<String> kakaoIds);
 
-    /** 레지스트리 장소를 직접 열었을 때 (kakao id가 없는 장소도 있다 — placeId=44 "개화"). */
-    @Query("""
-           select n from PlaceNote n
-           where n.status = 'VISIBLE' and n.placeId = :placeId
-           order by n.createdAt desc
-           """)
-    List<PlaceNote> findVisibleByPlaceId(@Param("placeId") Long placeId);
+    @Query("select n from PlaceNote n where n.status = 'VISIBLE' "
+         + "and n.placeId in :placeIds order by n.createdAt desc")
+    List<PlaceNote> findVisibleByPlaceIdIn(@Param("placeIds") Collection<Long> placeIds);
 
     /**
-     * 도배 상한을 세는 쿼리. <b>두 키를 다 본다</b> — 같은 장소를 place_id로 3개,
-     * kakao_place_id로 3개 올려 상한을 우회하는 걸 막아야 한다(안 막으면 실질 상한이 6이 된다).
+     * 도배 상한을 세는 쿼리 — 두 갈래로 나눠 두고 <b>서비스가 둘 다 불러 합친다.</b>
+     *
+     * <p>한 방으로 합치지 않는 이유는 위와 같다: {@code (:param is not null and ...)}는
+     * Postgres가 null 파라미터의 타입을 못 정해 실행 시점에 죽을 수 있다.
+     *
+     * <p>같은 노트가 양쪽에 다 걸릴 수 있으므로 <b>count가 아니라 id를 돌려준다</b> —
+     * 서비스가 합집합 크기를 센다. count를 더하면 두 키가 다 채워진 노트가 두 번 세어져
+     * 상한이 실제보다 빨리 걸린다.
      */
-    @Query("""
-           select count(n) from PlaceNote n
-             left join Place p on p.id = n.placeId
-           where n.status = 'VISIBLE' and n.userId = :userId
-             and ((:placeId is not null and (n.placeId = :placeId or p.id = :placeId))
-                  or (:kakaoPlaceId is not null
-                      and (n.kakaoPlaceId = :kakaoPlaceId or p.kakaoPlaceId = :kakaoPlaceId)))
-           """)
-    long countByUserForPlace(@Param("userId") Long userId,
-                             @Param("placeId") Long placeId,
-                             @Param("kakaoPlaceId") String kakaoPlaceId);
+    @Query("select n.id from PlaceNote n where n.status = 'VISIBLE' "
+         + "and n.userId = :userId and n.placeId = :placeId")
+    List<Long> idsByUserAndPlaceId(@Param("userId") Long userId, @Param("placeId") Long placeId);
+
+    @Query("select n.id from PlaceNote n where n.status = 'VISIBLE' "
+         + "and n.userId = :userId and n.kakaoPlaceId = :kakaoPlaceId")
+    List<Long> idsByUserAndKakaoPlaceId(@Param("userId") Long userId,
+                                        @Param("kakaoPlaceId") String kakaoPlaceId);
 
     /** 백필 대상 — kakao id만 있고 아직 레지스트리에 연결되지 않은 노트들의 kakao id. */
     @Query("select distinct n.kakaoPlaceId from PlaceNote n where n.placeId is null and n.kakaoPlaceId is not null")
@@ -599,7 +604,7 @@ git commit -m "feat(knowledge): 업로드 이미지 전처리 — EXIF 제거·�
 - Test: `app/backend/src/test/java/com/guidematch/knowledge/PlaceNoteServiceTest.java`
 
 **Interfaces:**
-- Consumes: `PlaceNote`, `PlaceNoteRepository`(Task 1), `PlaceImageProcessor`(Task 2), `SupabaseStorageClient#uploadPublic(String bucket, String path, byte[] data, String contentType)`
+- Consumes: `PlaceNote`, `PlaceNoteRepository`(Task 1), `PlaceImageProcessor`(Task 2), `PlaceRepository#findAllByKakaoPlaceIdIn`, `SupabaseStorageClient#uploadPublic(String bucket, String path, byte[] data, String contentType)`
 - Produces:
   - `PlaceNoteService#create(Long userId, Long placeId, String kakaoPlaceId, String placeName, MultipartFile photo, String tip)` → `PlaceNote`
   - `PlaceNoteService#delete(Long userId, Long noteId)` → `void`
@@ -637,10 +642,11 @@ import static org.mockito.Mockito.*;
 class PlaceNoteServiceTest {
 
     private final PlaceNoteRepository repo = mock(PlaceNoteRepository.class);
+    private final PlaceRepository placeRepo = mock(PlaceRepository.class);
     private final SupabaseStorageClient storage = mock(SupabaseStorageClient.class);
     private final PlaceImageProcessor processor = new PlaceImageProcessor();
     private final PlaceNoteService service =
-            new PlaceNoteService(repo, storage, processor, "posts");
+            new PlaceNoteService(repo, placeRepo, storage, processor, "posts");
 
     private byte[] jpegBytes() throws IOException {
         BufferedImage img = new BufferedImage(800, 600, BufferedImage.TYPE_INT_RGB);
@@ -729,7 +735,7 @@ class PlaceNoteServiceTest {
 
     @Test
     void 한_사용자가_한_장소에_3개까지만_올릴_수_있다() {
-        when(repo.countByUserForPlace(3L, 17L, null)).thenReturn(3L);
+        when(repo.idsByUserAndPlaceId(3L, 17L)).thenReturn(List.of(1L, 2L, 3L));
 
         assertThatThrownBy(() -> service.create(3L, 17L, null, "덕수궁", null, "네번째"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -737,15 +743,31 @@ class PlaceNoteServiceTest {
     }
 
     @Test
-    void 상한은_두_키를_함께_센다() {
-        // place_id로 3개, kakao_place_id로 3개를 따로 세면 실질 상한이 6이 된다.
-        // 리포지토리에 두 키를 다 넘겨야 한다.
+    void 같은_노트가_양쪽_쿼리에_걸려도_한_번만_센다() {
+        // 두 키가 다 채워진 노트는 양쪽에 걸린다. count를 더하면 3개가 6개로 세어져
+        // 두 번째 업로드부터 막힌다.
         stubSaveReturnsArg();
-        when(repo.countByUserForPlace(anyLong(), any(), any())).thenReturn(0L);
+        when(repo.idsByUserAndPlaceId(3L, 17L)).thenReturn(List.of(1L, 2L));
+        when(repo.idsByUserAndKakaoPlaceId(3L, "8113954")).thenReturn(List.of(1L, 2L));
 
-        service.create(3L, 17L, "8113954", "덕수궁", null, "좋아요");
+        PlaceNote n = service.create(3L, 17L, "8113954", "덕수궁", null, "세번째");
 
-        verify(repo).countByUserForPlace(3L, 17L, "8113954");
+        assertThat(n).isNotNull();   // 합집합은 2이므로 통과해야 한다
+    }
+
+    @Test
+    void 키_하나만_와도_레지스트리로_풀어서_센다() {
+        // place_id로 3개 올린 뒤 Kakao 카드에서 열면 클라이언트는 kakao id만 보낸다.
+        // 그때 kakao id로만 세면 0이 나와 실질 상한이 6이 된다.
+        Place p = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9, "8113954", null, "관광명소", "서울");
+        ReflectionTestUtils.setField(p, "id", 17L);
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(p));
+        when(repo.idsByUserAndPlaceId(3L, 17L)).thenReturn(List.of(1L, 2L, 3L));
+        when(repo.idsByUserAndKakaoPlaceId(3L, "8113954")).thenReturn(List.of());
+
+        assertThatThrownBy(() -> service.create(3L, null, "8113954", "덕수궁", null, "우회 시도"))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(repo, never()).save(any());
     }
 
     @Test
@@ -815,15 +837,18 @@ public class PlaceNoteService {
     private static final Set<String> ALLOWED_TYPES = Set.of("image/jpeg", "image/png");
 
     private final PlaceNoteRepository repo;
+    private final PlaceRepository placeRepository;
     private final SupabaseStorageClient storage;
     private final PlaceImageProcessor processor;
     private final String bucket;
 
     public PlaceNoteService(PlaceNoteRepository repo,
+                            PlaceRepository placeRepository,
                             SupabaseStorageClient storage,
                             PlaceImageProcessor processor,
                             @Value("${supabase.bucket}") String bucket) {
         this.repo = repo;
+        this.placeRepository = placeRepository;
         this.storage = storage;
         this.processor = processor;
         this.bucket = bucket;
@@ -851,8 +876,7 @@ public class PlaceNoteService {
         }
 
         // 상한은 두 키를 함께 센다 — 한쪽만 세면 우회로 실질 상한이 두 배가 된다.
-        long mine = repo.countByUserForPlace(userId, placeId, blankToNull(kakaoPlaceId));
-        if (mine >= MAX_NOTES_PER_USER_PER_PLACE) {
+        if (countMine(userId, placeId, blankToNull(kakaoPlaceId)) >= MAX_NOTES_PER_USER_PER_PLACE) {
             throw new IllegalArgumentException(
                     "한 장소에는 " + MAX_NOTES_PER_USER_PER_PLACE + "개까지 올릴 수 있습니다.");
         }
@@ -898,6 +922,29 @@ public class PlaceNoteService {
     @Transactional
     public void hide(Long noteId) {
         repo.findById(noteId).ifPresent(n -> { n.hide(); repo.save(n); });
+    }
+
+    /**
+     * 이 사용자가 이 장소에 이미 올린 노트 수.
+     *
+     * <p><b>키 하나만 세면 우회할 수 있다.</b> place_id로 3개를 올린 사용자가 같은 장소를
+     * Kakao 검색 결과에서 열면 클라이언트는 kakao id만 보낸다 — 그때 kakao id로만 세면 0이
+     * 나와 실질 상한이 6이 된다. 그래서 한쪽만 온 경우 <b>레지스트리에서 나머지 한쪽을 풀어</b>
+     * 양쪽을 다 센다.
+     *
+     * <p>합집합 크기를 세는 이유: 두 키가 다 채워진 노트는 양쪽 쿼리에 걸린다. count를 더하면
+     * 두 번 세어져 상한이 실제보다 빨리 걸린다.
+     */
+    private int countMine(Long userId, Long placeId, String kakaoPlaceId) {
+        Long resolvedPlaceId = placeId;
+        if (resolvedPlaceId == null && kakaoPlaceId != null) {
+            resolvedPlaceId = placeRepository.findAllByKakaoPlaceIdIn(java.util.List.of(kakaoPlaceId))
+                    .stream().findFirst().map(Place::getId).orElse(null);
+        }
+        java.util.Set<Long> ids = new java.util.HashSet<>();
+        if (resolvedPlaceId != null) ids.addAll(repo.idsByUserAndPlaceId(userId, resolvedPlaceId));
+        if (kakaoPlaceId != null)    ids.addAll(repo.idsByUserAndKakaoPlaceId(userId, kakaoPlaceId));
+        return ids.size();
     }
 
     private static String blankToNull(String s) {
@@ -1255,7 +1302,7 @@ git commit -m "feat(safety): 장소 노트 신고 대상 추가"
 - Test: `app/backend/src/test/java/com/guidematch/knowledge/PlaceMediaLookupTest.java`
 
 **Interfaces:**
-- Consumes: `PlaceNoteRepository#findVisibleByKakaoIds/findVisibleByPlaceId`(Task 1), `com.guidematch.auth.UserRepository`
+- Consumes: `PlaceNoteRepository#findVisibleByKakaoIdIn/findVisibleByPlaceIdIn`(Task 1), `PlaceRepository#findAllByKakaoPlaceIdIn`, `com.guidematch.auth.UserRepository`
 - Produces:
   - `PlaceMediaLookup.NoteView(Long id, String photoUrl, String photoThumbUrl, String tip, String authorHandle, String createdAt)`
   - `PlaceMediaLookup.Cover(String thumbUrl, int photoCount)`
@@ -1290,8 +1337,9 @@ import static org.mockito.Mockito.*;
 class PlaceMediaLookupTest {
 
     private final PlaceNoteRepository repo = mock(PlaceNoteRepository.class);
+    private final PlaceRepository placeRepo = mock(PlaceRepository.class);
     private final UserRepository userRepo = mock(UserRepository.class);
-    private final PlaceMediaLookup lookup = new PlaceMediaLookup(repo, userRepo);
+    private final PlaceMediaLookup lookup = new PlaceMediaLookup(repo, placeRepo, userRepo);
 
     private PlaceNote note(long id, Long placeId, String kakaoId, String thumb, String tip) {
         PlaceNote n = new PlaceNote(placeId, kakaoId, "장소", 3L,
@@ -1308,9 +1356,12 @@ class PlaceMediaLookupTest {
                 "8113954", null, "관광명소", "서울 중구");
         ReflectionTestUtils.setField(registryPlace, "id", 17L);
 
-        when(repo.findVisibleByKakaoIds(anyCollection())).thenReturn(List.of(
-                note(1L, 17L, null, "https://sb/a_thumb.jpg", null),        // 레지스트리 경로로 올림
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
                 note(2L, null, "8113954", "https://sb/b_thumb.jpg", null)   // Kakao 경로로 올림
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, null, "https://sb/a_thumb.jpg", null)         // 레지스트리 경로로 올림
         ));
 
         Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
@@ -1321,10 +1372,29 @@ class PlaceMediaLookupTest {
     }
 
     @Test
+    void 같은_노트가_양쪽_쿼리에_걸려도_한_번만_센다() {
+        // 두 키가 다 채워진 노트(백필이 place_id를 채운 뒤)는 두 쿼리에 모두 걸린다.
+        // 중복 제거가 없으면 사진 장수가 부풀려진다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+        PlaceNote both = note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(both));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(both));
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers.get("8113954").photoCount()).isEqualTo(1);
+    }
+
+    @Test
     void 사진이_없으면_키가_아예_없다() {
         // "0장"을 담은 항목을 만들면 프론트가 "사진 0장"을 렌더할 여지가 생긴다.
-        when(repo.findVisibleByKakaoIds(anyCollection())).thenReturn(List.of(
-                note(1L, 17L, null, null, "팁만 있음")
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", null, "팁만 있음")
         ));
 
         Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
@@ -1333,26 +1403,31 @@ class PlaceMediaLookupTest {
     }
 
     @Test
-    void 조회는_장소_수와_무관하게_1회다() {
-        when(repo.findVisibleByKakaoIds(anyCollection())).thenReturn(List.of());
+    void 조회는_장소_수와_무관하게_고정_횟수다() {
+        // 레지스트리에 걸리는 장소가 없으면 place_id 쿼리는 아예 안 나간다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
 
         lookup.coversByKakaoIds(List.of("1", "2", "3", "4", "5", "6", "7", "8"));
 
         ArgumentCaptor<Collection<String>> captor = ArgumentCaptor.forClass(Collection.class);
-        verify(repo, times(1)).findVisibleByKakaoIds(captor.capture());
+        verify(repo, times(1)).findVisibleByKakaoIdIn(captor.capture());
         assertThat(captor.getValue()).hasSize(8);
-        verifyNoMoreInteractions(repo);
+        verify(repo, never()).findVisibleByPlaceIdIn(anyCollection());
+        verify(placeRepo, times(1)).findAllByKakaoPlaceIdIn(anyCollection());
     }
 
     @Test
     void 빈_입력은_쿼리를_내지_않는다() {
         assertThat(lookup.coversByKakaoIds(List.of())).isEmpty();
         verifyNoInteractions(repo);
+        verifyNoInteractions(placeRepo);
     }
 
     @Test
     void 상세는_사진과_팁을_모두_최신순으로_준다() {
-        when(repo.findVisibleByKakaoIds(anyCollection())).thenReturn(List.of(
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
                 note(2L, null, "8113954", "https://sb/b_thumb.jpg", null),
                 note(1L, null, "8113954", null, "돌담길이 예뻐요")
         ));
@@ -1369,8 +1444,23 @@ class PlaceMediaLookupTest {
     }
 
     @Test
+    void kakao_id가_없는_레지스트리_장소도_상세를_준다() {
+        // placeId=44 "개화"처럼 kakao_place_id가 비어 있는 레지스트리 장소가 실제로 있다.
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 44L, null, "https://sb/a_thumb.jpg", null)
+        ));
+        when(userRepo.findAllById(anyCollection())).thenReturn(List.of());
+
+        List<PlaceMediaLookup.NoteView> views = lookup.notesFor(44L, null);
+
+        assertThat(views).hasSize(1);
+        verify(repo, never()).findVisibleByKakaoIdIn(anyCollection());
+    }
+
+    @Test
     void 작성자_조회도_배치_1회다() {
-        when(repo.findVisibleByKakaoIds(anyCollection())).thenReturn(List.of(
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
                 note(1L, null, "8113954", "https://sb/a_thumb.jpg", null),
                 note(2L, null, "8113954", "https://sb/b_thumb.jpg", null)
         ));
@@ -1421,10 +1511,13 @@ import java.util.stream.Collectors;
 public class PlaceMediaLookup {
 
     private final PlaceNoteRepository repo;
+    private final PlaceRepository placeRepo;
     private final UserRepository userRepository;
 
-    public PlaceMediaLookup(PlaceNoteRepository repo, UserRepository userRepository) {
+    public PlaceMediaLookup(PlaceNoteRepository repo, PlaceRepository placeRepo,
+                            UserRepository userRepository) {
         this.repo = repo;
+        this.placeRepo = placeRepo;
         this.userRepository = userRepository;
     }
 
@@ -1446,16 +1539,31 @@ public class PlaceMediaLookup {
         if (ids.isEmpty()) return Map.of();
 
         Set<String> wanted = Set.copyOf(ids);
-        Map<String, List<PlaceNote>> byKakao = new LinkedHashMap<>();
 
-        // 쿼리가 두 키를 OR로 긁어오므로, 어느 요청 id에 속하는지는 여기서 되돌려 맞춘다.
-        // 노트가 kakao id를 직접 들고 있으면 그것을 쓰고, place_id로만 붙은 것은
-        // 리포지토리 조인이 이미 걸러줬으니 요청 id가 1개일 때는 그것으로 귀속시킨다.
-        for (PlaceNote n : repo.findVisibleByKakaoIds(ids)) {
-            String key = n.getKakaoPlaceId() != null && wanted.contains(n.getKakaoPlaceId())
+        // 1회차: kakao id → 우리 place id. 이 지도가 있어야 place_id로만 붙은 노트를
+        // 어느 요청 id에 귀속시킬지 <b>추측 없이</b> 정할 수 있다.
+        // (PlaceInsightLookup이 쓰는 것과 같은 2회 패턴)
+        Map<Long, String> placeIdToKakao = new LinkedHashMap<>();
+        for (Place p : placeRepo.findAllByKakaoPlaceIdIn(ids)) {
+            placeIdToKakao.put(p.getId(), p.getKakaoPlaceId());
+        }
+
+        // 2회차: 두 키로 각각. 한 방 OR로 합치지 않는다 — 빈 컬렉션과 null 파라미터 타입
+        // 문제를 동시에 피하려면 호출을 나누는 편이 안전하다(플라이휠 교훈).
+        List<PlaceNote> notes = new java.util.ArrayList<>(repo.findVisibleByKakaoIdIn(ids));
+        if (!placeIdToKakao.isEmpty()) {
+            notes.addAll(repo.findVisibleByPlaceIdIn(placeIdToKakao.keySet()));
+        }
+
+        Map<String, List<PlaceNote>> byKakao = new LinkedHashMap<>();
+        Set<Long> seen = new java.util.HashSet<>();
+        for (PlaceNote n : notes) {
+            // 두 키가 다 채워진 노트는 양쪽 쿼리에 다 걸린다 — 한 번만 센다.
+            if (!seen.add(n.getId())) continue;
+            String key = (n.getKakaoPlaceId() != null && wanted.contains(n.getKakaoPlaceId()))
                     ? n.getKakaoPlaceId()
-                    : (ids.size() == 1 ? ids.get(0) : null);
-            if (key == null) continue;
+                    : placeIdToKakao.get(n.getPlaceId());
+            if (key == null) continue;   // 요청 범위 밖 — 여기 오면 쿼리가 잘못된 것이다
             byKakao.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(n);
         }
 
@@ -1471,16 +1579,27 @@ public class PlaceMediaLookup {
 
     /** 상세 모달용 — 그 장소의 노트 전체(최신순). 쿼리 2회 고정(노트 + 작성자 배치). */
     public List<NoteView> notesFor(Long placeId, String kakaoPlaceId) {
-        List<PlaceNote> notes;
+        // 상세는 요청 id가 1개뿐이라 귀속 문제가 없다 — 두 키로 긁어 합치고 중복만 제거한다.
+        // kakao id가 없는 레지스트리 장소도 있으므로(placeId=44 "개화") 양쪽 다 지원해야 한다.
+        List<PlaceNote> notes = new java.util.ArrayList<>();
+        Set<Long> seen = new java.util.HashSet<>();
         if (kakaoPlaceId != null && !kakaoPlaceId.isBlank()) {
-            notes = repo.findVisibleByKakaoIds(List.of(kakaoPlaceId));
-        } else if (placeId != null) {
-            // kakao id가 없는 레지스트리 장소도 있다(placeId=44 "개화") — 그쪽 경로.
-            notes = repo.findVisibleByPlaceId(placeId);
-        } else {
-            return List.of();
+            for (PlaceNote n : repo.findVisibleByKakaoIdIn(List.of(kakaoPlaceId))) {
+                if (seen.add(n.getId())) notes.add(n);
+            }
+        }
+        Long resolved = placeId;
+        if (resolved == null && kakaoPlaceId != null && !kakaoPlaceId.isBlank()) {
+            resolved = placeRepo.findAllByKakaoPlaceIdIn(List.of(kakaoPlaceId))
+                    .stream().findFirst().map(Place::getId).orElse(null);
+        }
+        if (resolved != null) {
+            for (PlaceNote n : repo.findVisibleByPlaceIdIn(List.of(resolved))) {
+                if (seen.add(n.getId())) notes.add(n);
+            }
         }
         if (notes.isEmpty()) return List.of();
+        notes.sort(java.util.Comparator.comparing(PlaceNote::getCreatedAt).reversed());
 
         // 작성자 핸들은 배치 1회로 가져온다. 노트마다 조회하면 여기서 N+1이 생긴다.
         Map<Long, String> handles = userRepository
