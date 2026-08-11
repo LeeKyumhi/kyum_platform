@@ -1,5 +1,6 @@
 package com.guidematch.geo;
 
+import com.guidematch.knowledge.PlaceMediaLookup;
 import com.guidematch.knowledge.PlaceNote;
 import com.guidematch.knowledge.PlaceNoteService;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -24,7 +27,8 @@ class PlaceNoteControllerTest {
     private final PlaceNoteService service = mock(PlaceNoteService.class);
     private final com.guidematch.user.UserRepository userRepo =
             mock(com.guidematch.user.UserRepository.class);
-    private final PlaceNoteController controller = new PlaceNoteController(service, userRepo);
+    private final PlaceMediaLookup mediaLookup = mock(PlaceMediaLookup.class);
+    private final PlaceNoteController controller = new PlaceNoteController(service, userRepo, mediaLookup);
 
     private PlaceNote note(long id) {
         PlaceNote n = new PlaceNote(17L, null, "덕수궁", 3L, "https://sb/f.jpg", "https://sb/t.jpg", "팁");
@@ -82,5 +86,35 @@ class PlaceNoteControllerTest {
         ResponseEntity<?> res = controller.create(3L, null, "9982341", "카페", photo, null);
 
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
+    void 상세_조회는_비로그인도_된다() {
+        when(mediaLookup.notesFor(null, "8113954")).thenReturn(List.of(
+                new PlaceMediaLookup.NoteView(1L, "https://sb/f.jpg", "https://sb/t.jpg",
+                        "돌담길이 예뻐요", "seoul_lover", "2026-08-11T00:00:00Z")));
+
+        List<PlaceMediaLookup.NoteView> res = controller.list(null, "8113954");
+
+        assertThat(res).hasSize(1);
+        assertThat(res.get(0).authorHandle()).isEqualTo("seoul_lover");
+    }
+
+    @Test
+    void 식별자가_없으면_빈_목록이다() {
+        // 400이 아니라 빈 목록이다 — 공개 경로에서 400을 던지면 모달이 깨진 것처럼 보인다.
+        List<PlaceMediaLookup.NoteView> res = controller.list(null, null);
+
+        assertThat(res).isEmpty();
+        verifyNoInteractions(mediaLookup);
+    }
+
+    @Test
+    void 조회가_죽어도_빈_목록으로_degrade한다() {
+        when(mediaLookup.notesFor(any(), any())).thenThrow(new RuntimeException("DB 끊김"));
+
+        List<PlaceMediaLookup.NoteView> res = controller.list(17L, null);
+
+        assertThat(res).isEmpty();
     }
 }
