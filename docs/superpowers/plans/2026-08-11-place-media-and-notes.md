@@ -2859,6 +2859,86 @@ git commit -m "test(smoke): 장소 노트 실 DB 스모크 (7개 어서션)"
 
 ---
 
+## Task 16: 관리자 숨김 조치 (`HIDE_PLACE_NOTE`)
+
+> **실행 순서 주의**: 번호는 16이지만 Task 3·5에만 의존하므로 **Task 5 직후에 실행한다.**
+> Pre-flight에서 "스펙 §3의 관리자 숨김 버튼에 해당하는 태스크가 없다"고 식별된 빈칸을 메우는 태스크다.
+> 관리자 포털 구조를 실측한 뒤에 쓰기 위해 일부러 미뤄뒀다.
+
+**Files:**
+- Modify: `app/backend/src/main/java/com/guidematch/admin/AdminReportService.java` (`act` 스위치)
+- Modify: `app/frontend/src/app/admin/reports/page.tsx` (조치 버튼)
+- Test: `app/backend/src/test/java/com/guidematch/admin/AdminReportServicePlaceNoteTest.java`
+
+**Interfaces:**
+- Consumes: `PlaceNoteService#hide(Long noteId)`(Task 3, 아직 아무도 안 부름), `Report#getTargetType/getTargetId`
+- Produces: `act(..., action="HIDE_PLACE_NOTE", ...)`
+
+**배경 (실측)**: 관리자 포털에 이미 범용 조치 엔드포인트가 있다 —
+`POST /api/admin/reports/{id}/act`, body `{action, reason}`. `AdminReportService.act`가
+`switch (action)`으로 `HIDE_POST` / `SUSPEND_USER`를 처리하고 끝에 `r.markReviewed()`를 부른다.
+새 조치는 이 스위치에 case 하나를 더하는 일이다.
+
+**이 태스크가 닫는 두 개의 구멍:**
+1. 스펙 §3이 약속한 "관리자 포털 숨김"이 실제로 동작하게 된다.
+2. `PlaceNoteService.hide()`가 Task 3에서 만들어졌지만 **아무도 부르지 않고 테스트도 없었다**
+   (Task 3 리뷰의 Minor). 여기서 호출자와 테스트가 동시에 생긴다.
+
+- [ ] **Step 1: 실패하는 테스트를 쓴다**
+
+`AdminReportServicePlaceNoteTest.java` — 기존 `AdminReportService` 테스트가 있으면 그 설정 방식을
+그대로 따른다(없으면 `SafetyServicePlaceNoteTest` 스타일). 고정할 것 4가지:
+
+1. `action="HIDE_PLACE_NOTE"` + `targetType="PLACE_NOTE"` → `placeNoteService.hide(targetId)`가
+   호출되고 신고가 `REVIEWED`로 닫힌다.
+2. **대상 종류가 안 맞으면 거부한다** — `targetType="POST"`인 신고에 `HIDE_PLACE_NOTE`를 쓰면
+   `IllegalArgumentException`. (`HIDE_POST`가 `!"POST".equals(...)`로 막는 것과 같은 방식.
+   이 가드가 없으면 관리자가 게시글 id로 엉뚱한 노트를 숨길 수 있다.)
+3. 이미 처리된 신고에는 조치할 수 없다 — 기존 `getOpen` 동작이 그대로 유지되는지.
+4. 알 수 없는 action은 여전히 거부된다.
+
+- [ ] **Step 2: 실패를 확인한다**
+
+```
+gradle test --tests 'com.guidematch.admin.AdminReportServicePlaceNoteTest' --console=plain
+```
+Expected: "알 수 없는 조치입니다."로 FAIL (컴파일 에러가 아니라)
+
+- [ ] **Step 3: case를 추가한다**
+
+`AdminReportService`에 `PlaceNoteService`를 주입하고 `act`의 스위치에 추가한다:
+
+```java
+            case "HIDE_PLACE_NOTE" -> {
+                // 대상 종류를 확인하지 않으면 게시글 id로 엉뚱한 노트를 숨길 수 있다.
+                if (!"PLACE_NOTE".equals(r.getTargetType())) {
+                    throw new IllegalArgumentException("이 신고 대상은 장소 노트가 아닙니다.");
+                }
+                placeNoteService.hide(r.getTargetId());
+            }
+```
+
+`act`의 Javadoc에 새 action을 적는다. 생성자는 하나만 유지한다.
+
+- [ ] **Step 4: 프론트에 버튼을 단다**
+
+`app/admin/reports/page.tsx`에서 기존 조치 버튼(`HIDE_POST` 등)이 렌더되는 방식을 그대로 따라,
+`targetType === "PLACE_NOTE"`인 행에만 "노트 숨김" 버튼을 렌더한다.
+관리자 화면은 한국어 전용이므로 i18n 키가 필요 없다(기존 admin 페이지가 그렇다 — 확인할 것).
+
+- [ ] **Step 5: 통과 확인 + 커밋**
+
+```
+gradle test --console=plain
+```
+프론트: `npx tsc --noEmit` (app/frontend에서)
+
+```bash
+git commit -m "feat(admin): 신고된 장소 노트 숨김 조치"
+```
+
+---
+
 ## Self-Review 결과
 
 **1. 스펙 커버리지**
