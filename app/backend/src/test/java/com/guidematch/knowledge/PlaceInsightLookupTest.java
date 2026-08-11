@@ -153,4 +153,47 @@ class PlaceInsightLookupTest {
         assertThat(lookup.byPlaceIds(java.util.Arrays.asList(null, null), "ko")).isEmpty();
         verify(insightRepo, never()).findByPlaceIdIn(any());
     }
+
+    // ── 출처(publisher) 투영 ──────────────────────────────────────────
+    //
+    // TourAPI 계약이 attribution_required: true다. 출처를 못 싣으면 인사이트를
+    // 화면에 띄우는 것 자체가 의무 위반이 된다. 엔티티에는 evidence_publisher가
+    // 있는데 뷰가 떨어뜨리면, 화면에서는 "출처가 없는 자료"와 구분되지 않는다.
+
+    private PlaceInsight insightBy(long placeId, FactKind kind, String publisher) {
+        return new PlaceInsight("sha256:p" + kind, placeId, kind,
+                Map.of("spot", "정문"), Map.of("ko", "정문 앞"), 0.8,
+                "https://example.com/a", publisher, null, "tour_api", "insight-v4", "run-1");
+    }
+
+    @Test
+    void byPlaceIds는_출처_발행처를_뷰에_싣는다() {
+        when(insightRepo.findByPlaceIdIn(any()))
+                .thenReturn(List.of(insightBy(10L, FactKind.PHOTO_SPOT, "한국관광공사")));
+
+        assertThat(lookup.byPlaceIds(List.of(10L), "ko").get(10L).get(0).publisher())
+                .isEqualTo("한국관광공사");
+    }
+
+    /** 출처가 없는 사실도 조회는 되어야 한다 — 배지를 안 붙일 뿐이다(판단은 호출부). */
+    @Test
+    void 출처가_없으면_publisher는_null이고_조회는_정상이다() {
+        when(insightRepo.findByPlaceIdIn(any()))
+                .thenReturn(List.of(insightBy(10L, FactKind.VIBE, null)));
+
+        List<PlaceInsightLookup.InsightView> views = lookup.byPlaceIds(List.of(10L), "ko").get(10L);
+
+        assertThat(views).hasSize(1);
+        assertThat(views.get(0).publisher()).isNull();
+    }
+
+    @Test
+    void byKakaoPlaceIds도_출처를_싣는다() {
+        when(placeRepo.findAllByKakaoPlaceIdIn(any())).thenReturn(List.of(place(42L, "1234567")));
+        when(insightRepo.findByPlaceIdIn(any()))
+                .thenReturn(List.of(insightBy(42L, FactKind.BEST_TIME, "한국관광공사")));
+
+        assertThat(lookup.byKakaoPlaceIds(List.of("1234567"), "ko").get("1234567").get(0).publisher())
+                .isEqualTo("한국관광공사");
+    }
 }
