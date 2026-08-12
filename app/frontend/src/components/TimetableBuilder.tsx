@@ -57,6 +57,9 @@ type Place = {
   insights?: PlaceInsightView[];
   /** 추천순으로 앞에 세운 이유 (/api/places가 채운다). 없으면 빈 배열. */
   reasons?: RecReason[];
+  /** 여행자가 올린 대표 사진(400px 썸네일). 없으면 undefined — "0장"은 존재하지 않는다. */
+  coverPhotoUrl?: string | null;
+  photoCount?: number | null;
 };
 type PlacesResponse = { kakaoEnabled: boolean; places: Place[] };
 
@@ -630,6 +633,7 @@ export default function TimetableBuilder({
                           data={{ kind: "place", place: p }}
                           icon={categoryIcon(p.name, p.category, false)}
                           label={p.name} sub={p.address} detailLabel={li.detailsBtn}
+                          photoUrl={p.coverPhotoUrl} photoCount={p.photoCount}
                           onInfo={() => setDetailPlace(toModalPlace(p))} />
                         <ReasonChips reasons={p.reasons ?? []} lc={lc} />
                       </div>
@@ -838,9 +842,11 @@ function PaletteChip({ id, data, label, sub, isTour, isCompanion, onInfo, onRemo
   );
 }
 
-function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel }: {
+function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel, photoUrl, photoCount }: {
   id: string; data: ActiveData; icon: string; label: string; sub?: string | null; isTour?: boolean;
   onInfo?: () => void; detailLabel: string;
+  /** 여행자가 올린 대표 사진. 있으면 아이콘 자리를 대신한다. */
+  photoUrl?: string | null; photoCount?: number | null;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   return (
@@ -850,9 +856,21 @@ function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel }
       }`}>
       <button {...listeners} {...attributes} data-testid="palette-chip"
         className="flex min-w-0 cursor-grab touch-none items-center gap-2 text-left active:cursor-grabbing">
-        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ${
-          isTour ? "bg-amber-100" : "bg-sky-50"
-        }`}>{icon}</span>
+        {photoUrl ? (
+          <span className="relative block h-9 w-9 flex-shrink-0 overflow-hidden rounded-xl shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+            {photoCount != null && photoCount > 1 && (
+              <span className="absolute bottom-0 right-0 rounded-tl-md bg-black/60 px-0.5 text-[9px] font-semibold text-white">
+                {photoCount}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ${
+            isTour ? "bg-amber-100" : "bg-sky-50"
+          }`}>{icon}</span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-bold text-stone-800">{label}</span>
           {sub && <span className="block truncate text-[10px] text-stone-400">{sub}</span>}
