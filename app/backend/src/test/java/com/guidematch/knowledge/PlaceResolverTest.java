@@ -52,7 +52,7 @@ class PlaceResolverTest {
     /** tour_api 단서 — 외부 ID가 있어 새 노드를 만들 자격이 있다(그래서 의심 구간이 필요하다). */
     private PlaceClue tourClue(String name, Double lat, Double lng, String tourId) {
         return new PlaceClue(name, List.of(), "Seoul", "중구", lat, lng,
-                null, tourId, "A02>A0201>A02010700", "서울 중구 어딘가", "tour_api");
+                null, tourId, "A02>A0201>A02010700", "서울 중구 어딘가", "tour_api", null, null);
     }
 
     private PlaceClue clue(String name, Double lat, Double lng, String kakaoId) {
@@ -61,7 +61,7 @@ class PlaceResolverTest {
 
     private PlaceClue clue(String name, List<String> aliases, Double lat, Double lng, String kakaoId) {
         return new PlaceClue(name, aliases, "seoul", "성동구", lat, lng,
-                kakaoId, null, "음식점 > 카페 > 커피전문점", SEONGSU_ADDRESS, "kakao_local");
+                kakaoId, null, "음식점 > 카페 > 커피전문점", SEONGSU_ADDRESS, "kakao_local", null, null);
     }
 
     private void noNameMatches() {
@@ -90,7 +90,7 @@ class PlaceResolverTest {
         when(placeRepo.findByTourApiContentId("126508")).thenReturn(Optional.of(p));
 
         PlaceClue c = new PlaceClue("경복궁", List.of(), "seoul", "종로구", 37.5796, 126.9770,
-                null, "126508", "A02>A0201>A02010100", "서울 종로구 사직로 161", "tour_api");
+                null, "126508", "A02>A0201>A02010100", "서울 종로구 사직로 161", "tour_api", null, null);
 
         PlaceResolver.Resolution r = resolver.resolve(c);
 
@@ -172,7 +172,7 @@ class PlaceResolverTest {
 
         // 공원 반대편 — 약 450m
         PlaceClue farSide = new PlaceClue("서울숲", List.of(), "seoul", "성동구",
-                SEOUL_FOREST_LAT + 0.0040, SEOUL_FOREST_LNG, null, null, "공원", null, "kakao_local");
+                SEOUL_FOREST_LAT + 0.0040, SEOUL_FOREST_LNG, null, null, "공원", null, "kakao_local", null, null);
 
         assertThat(resolver.resolve(farSide).isResolved())
                 .as("기본 200m에서는 같은 공원인데도 갈라진다")
@@ -296,7 +296,7 @@ class PlaceResolverTest {
 
         PlaceResolver.Resolution r = resolver.resolve(new PlaceClue(
                 "어니언 성수", List.of(), "seoul", "성동구", 37.5444, 127.0374,
-                "k1", null, "음식점 > 카페 > 커피전문점", SEONGSU_ADDRESS, "kakao_local"));
+                "k1", null, "음식점 > 카페 > 커피전문점", SEONGSU_ADDRESS, "kakao_local", null, null));
 
         assertThat(r.isResolved()).isTrue();
         assertThat(r.place().getPlaceKind()).isEqualTo(PlaceKind.CAFE);
@@ -310,7 +310,7 @@ class PlaceResolverTest {
         when(placeRepo.findByKakaoPlaceId("k1")).thenReturn(Optional.of(p));
 
         resolver.resolve(new PlaceClue("어니언 성수", List.of(), "seoul", "성동구",
-                37.5444, 127.0374, "k1", null, "카페", "다른 주소", "tour_api"));
+                37.5444, 127.0374, "k1", null, "카페", "다른 주소", "tour_api", null, null));
 
         assertThat(p.getAddressKo()).isEqualTo(SEONGSU_ADDRESS);
     }
@@ -323,7 +323,7 @@ class PlaceResolverTest {
         when(placeRepo.findByKakaoPlaceId("k1")).thenReturn(Optional.of(p));
 
         resolver.resolve(new PlaceClue("어니언 성수", List.of(), "seoul", "성동구",
-                37.5444, 127.0374, "k1", null, "음식점 > 카페", SEONGSU_ADDRESS, "kakao_local"));
+                37.5444, 127.0374, "k1", null, "음식점 > 카페", SEONGSU_ADDRESS, "kakao_local", null, null));
 
         assertThat(p.getAddressKo()).isEqualTo(SEONGSU_ADDRESS);
     }
@@ -438,7 +438,7 @@ class PlaceResolverTest {
 
         PlaceResolver.Resolution r = resolver.resolve(
                 new PlaceClue("덕수궁", List.of(), "Seoul", "중구", 37.5656, 126.9749,
-                        "k1", null, "여행 > 관광,명소", "서울 중구", "kakao_local"), snap);
+                        "k1", null, "여행 > 관광,명소", "서울 중구", "kakao_local", null, null), snap);
 
         assertThat(r.isResolved()).isTrue();
         assertThat(r.place()).isSameAs(known);
@@ -461,7 +461,7 @@ class PlaceResolverTest {
 
         PlaceResolver.Resolution r = resolver.resolve(
                 new PlaceClue("간송미술관", List.of(), "Seoul", "중구", 37.5921, 126.9990,
-                        null, "130511", "A02>A0206>A02060500", null, "tour_api"), snap);
+                        null, "130511", "A02>A0206>A02060500", null, "tour_api", null, null), snap);
 
         assertThat(r.isResolved()).isTrue();
         assertThat(r.place()).isSameAs(known);
@@ -476,7 +476,7 @@ class PlaceResolverTest {
         when(placeRepo.save(any(Place.class))).thenAnswer(inv -> withId(inv.getArgument(0), 42L));
 
         PlaceClue first = new PlaceClue("남산골한옥마을", List.of(), "Seoul", "중구",
-                37.5594, 126.9940, "k7", null, "여행 > 관광,명소", "서울 중구", "kakao_local");
+                37.5594, 126.9940, "k7", null, "여행 > 관광,명소", "서울 중구", "kakao_local", null, null);
         PlaceResolver.Resolution a = resolver.resolve(first, snap);
         PlaceResolver.Resolution b = resolver.resolve(first, snap);
 
@@ -495,7 +495,7 @@ class PlaceResolverTest {
 
         PlaceResolver.Resolution r = resolver.resolve(
                 new PlaceClue("스타벅스", List.of(), "Seoul", "중구", 37.5636, 126.9827,
-                        null, "t1", "A05>A0502>A05020900", null, "tour_api"), snap);
+                        null, "t1", "A05>A0502>A05020900", null, "tour_api", null, null), snap);
 
         assertThat(r.isResolved()).isFalse();
         assertThat(r.unresolvedReason()).contains("ambiguous");
@@ -511,7 +511,7 @@ class PlaceResolverTest {
 
         PlaceResolver.Resolution r = resolver.resolve(
                 new PlaceClue("Onion Seongsu", List.of(), "seoul", "성동구", 37.5445, 127.0557,
-                        null, "t2", "음식점 > 카페", null, "tour_api"), snap);
+                        null, "t2", "음식점 > 카페", null, "tour_api", null, null), snap);
 
         assertThat(r.isResolved()).isTrue();
         assertThat(r.place()).isSameAs(p);

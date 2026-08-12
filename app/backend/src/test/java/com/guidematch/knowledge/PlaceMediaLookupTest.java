@@ -1,0 +1,336 @@
+package com.guidematch.knowledge;
+
+import com.guidematch.user.User;
+import com.guidematch.user.UserRepository;
+import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.springframework.test.util.ReflectionTestUtils;
+
+import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * 노트 읽기. <b>배치만 노출한다</b> — 소비자가 리포지토리를 직접 쓰면 루프 안에서 단건 조회를
+ * 하기 쉽고, Supabase가 시드니라 왕복이 250ms다. 목록 15곳이면 그것만으로 3.75초다.
+ */
+class PlaceMediaLookupTest {
+
+    private final PlaceNoteRepository repo = mock(PlaceNoteRepository.class);
+    private final PlaceRepository placeRepo = mock(PlaceRepository.class);
+    private final UserRepository userRepo = mock(UserRepository.class);
+    private final PlaceMediaLookup lookup = new PlaceMediaLookup(repo, placeRepo, userRepo);
+
+    private static final Instant BASE = Instant.parse("2026-01-01T00:00:00Z");
+
+    private PlaceNote note(long id, Long placeId, String kakaoId, String thumb, String tip) {
+        PlaceNote n = new PlaceNote(placeId, kakaoId, "장소", 3L,
+                thumb == null ? null : thumb.replace("_thumb", "_full"), thumb, tip);
+        ReflectionTestUtils.setField(n, "id", id);
+        // createdAt은 실제 시계(Instant.now())로 초기화되는데, 이 클래스 내에서 노트를
+        // 만드는 순서(호출 순서)와 id 순서가 항상 일치하진 않는다. id가 클수록 최신이라는
+        // 테스트 의도를 시계 타이밍이 아니라 id로 결정적으로 고정한다.
+        ReflectionTestUtils.setField(n, "createdAt", BASE.plusSeconds(id));
+        return n;
+    }
+
+    @Test
+    void 두_출신의_노트가_한_장소로_합쳐진다() {
+        // 이 테스트가 설계 §1 전체의 유일한 판별기다.
+        // 깨지면 사진이 갈라져 쌓이는데 화면에는 "사진이 좀 적네"로만 보인다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(2L, null, "8113954", "https://sb/b_thumb.jpg", null)   // Kakao 경로로 올림
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, null, "https://sb/a_thumb.jpg", null)         // 레지스트리 경로로 올림
+        ));
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers).containsKey("8113954");
+        assertThat(covers.get("8113954").photoCount())
+                .as("두 출신의 사진이 합쳐져야 한다").isEqualTo(2);
+    }
+
+    @Test
+    void 같은_노트가_양쪽_쿼리에_걸려도_한_번만_센다() {
+        // 두 키가 다 채워진 노트(백필이 place_id를 채운 뒤)는 두 쿼리에 모두 걸린다.
+        // 중복 제거가 없으면 사진 장수가 부풀려진다.
+        //
+        // 두 mock에 같은 인스턴스를 넘기면 identity 기반 dedupe로도 우연히 통과한다 — 실제로는
+        // Hibernate 1차 캐시가 같은 행에 대해 같은 인스턴스를 돌려줄 때가 많아 그 결함이 실사용에서도
+        // 안 보일 수 있다. 그래서 반드시 id는 같고 인스턴스는 다른 두 객체로 만든다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null)));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 17L, "8113954", "https://sb/a_thumb.jpg", null)));
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers.get("8113954").photoCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 대표_썸네일은_두_출신_중_더_최신_사진이다() {
+        // 두 쿼리 결과를 kakao 경로 먼저, 레지스트리 경로 나중에 concat하기 때문에 get(0)을 쓰면
+        // 항상 kakao 출신 사진이 이긴다 — 이 클래스가 두 출신을 대칭적으로 합치는 게 존재 이유인데
+        // 그 반대다. 오래된 kakao 사진과 더 최신인 레지스트리 사진을 섞어 max가 이겨야 함을 강제한다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", "https://sb/old_thumb.jpg", null)));   // Kakao 경로, 더 오래됨
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(2L, 17L, null, "https://sb/new_thumb.jpg", null)));        // 레지스트리 경로, 더 최신
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers.get("8113954").thumbUrl()).isEqualTo("https://sb/new_thumb.jpg");
+    }
+
+    @Test
+    void 요청한_여러_kakao_id_중_일부만_레지스트리에_걸려도_각각_올바르게_귀속된다() {
+        // "8113954"만 레지스트리에 걸리고 "9999999"는 안 걸린다 — 두 요청 id의 사진 수가
+        // 서로 오염되지 않아야 한다(귀속이 잘못되면 조용히 섞이거나 사라진다).
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", "https://sb/a_thumb.jpg", null),
+                note(2L, null, "9999999", "https://sb/z_thumb.jpg", null)
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(3L, 17L, null, "https://sb/b_thumb.jpg", null)   // 레지스트리 경로 — "8113954"에만 귀속돼야 한다
+        ));
+
+        Map<String, PlaceMediaLookup.Cover> covers =
+                lookup.coversByKakaoIds(List.of("8113954", "9999999"));
+
+        assertThat(covers.get("8113954").photoCount()).isEqualTo(2);
+        assertThat(covers.get("9999999").photoCount()).isEqualTo(1);
+    }
+
+    @Test
+    void 사진이_없으면_키가_아예_없다() {
+        // "0장"을 담은 항목을 만들면 프론트가 "사진 0장"을 렌더할 여지가 생긴다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", null, "팁만 있음")
+        ));
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("8113954"));
+
+        assertThat(covers).doesNotContainKey("8113954");
+    }
+
+    @Test
+    void 조회는_장소_수와_무관하게_고정_횟수다() {
+        // 레지스트리에 걸리는 장소가 없으면 place_id 쿼리는 아예 안 나간다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+
+        lookup.coversByKakaoIds(List.of("1", "2", "3", "4", "5", "6", "7", "8"));
+
+        ArgumentCaptor<Collection<String>> captor = ArgumentCaptor.forClass(Collection.class);
+        verify(repo, times(1)).findVisibleByKakaoIdIn(captor.capture());
+        assertThat(captor.getValue()).hasSize(8);
+        verify(repo, never()).findVisibleByPlaceIdIn(anyCollection());
+        verify(placeRepo, times(1)).findAllByKakaoPlaceIdIn(anyCollection());
+    }
+
+    @Test
+    void 빈_입력은_쿼리를_내지_않는다() {
+        assertThat(lookup.coversByKakaoIds(List.of())).isEmpty();
+        verifyNoInteractions(repo);
+        verifyNoInteractions(placeRepo);
+    }
+
+    @Test
+    void 상세는_사진과_팁을_모두_최신순으로_준다() {
+        // kakao 쿼리만 부르면 mock이 이미 원하는 순서로 반환하므로 sort()를 지워도 통과해
+        // 버린다(정렬 로직이 존재하는 이유인 "두 쿼리 결과 병합" 자체를 검증 못 함). placeId
+        // 쿼리에서도 노트 하나를 섞어 넣어, 그 노트의 createdAt이 kakao 쪽 두 노트 사이에
+        // 오도록(id=3 > id=2 > id=1) 만든다. concat 순서는 [3,1,2]이므로 sort가 없으면
+        // views.get(1)이 1이 되어 기대값 2와 어긋난다.
+        Place registryPlace = new Place("덕수궁", "Seoul", "중구", 37.5, 126.9,
+                "8113954", null, "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(registryPlace, "id", 17L);
+
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(registryPlace));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(3L, null, "8113954", "https://sb/b_thumb.jpg", null),   // 최신, kakao 경로
+                note(1L, null, "8113954", null, "돌담길이 예뻐요")             // 최고참, kakao 경로
+        ));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(2L, 17L, null, "https://sb/c_thumb.jpg", null)          // 중간, 레지스트리 경로
+        ));
+        User u = mock(User.class);
+        when(u.getId()).thenReturn(3L);
+        when(u.getHandle()).thenReturn("seoul_lover");
+        when(userRepo.findAllById(anyCollection())).thenReturn(List.of(u));
+
+        List<PlaceMediaLookup.NoteView> views = lookup.notesFor(null, "8113954");
+
+        assertThat(views).hasSize(3);
+        assertThat(views.get(0).id()).isEqualTo(3L);
+        assertThat(views.get(1).id()).isEqualTo(2L);
+        assertThat(views.get(2).id()).isEqualTo(1L);
+        assertThat(views).allMatch(v -> "seoul_lover".equals(v.authorHandle()));
+    }
+
+    @Test
+    void kakao_id가_없는_레지스트리_장소도_상세를_준다() {
+        // placeId=44 "개화"처럼 kakao_place_id가 비어 있는 레지스트리 장소가 실제로 있다.
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 44L, null, "https://sb/a_thumb.jpg", null)
+        ));
+        when(userRepo.findAllById(anyCollection())).thenReturn(List.of());
+
+        List<PlaceMediaLookup.NoteView> views = lookup.notesFor(44L, null);
+
+        assertThat(views).hasSize(1);
+        verify(repo, never()).findVisibleByKakaoIdIn(anyCollection());
+    }
+
+    // ── 공식 사진(시드) ────────────────────────────────────────────
+    // TourAPI가 준 사진은 `places.image_url`에 있다. 노트가 하나도 없는 장소가 절대다수이고
+    // (여행자가 아직 안 왔다) 그 장소들은 이게 없으면 목록에서 영원히 아이콘이다.
+
+    private Place seeded(long id, String kakaoId, String imageUrl, String publisher) {
+        Place p = new Place("한국금융사박물관", "Seoul", "중구", 37.5, 126.9,
+                kakaoId, "130157", "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(p, "id", id);
+        p.applyImage(imageUrl, publisher);
+        return p;
+    }
+
+    @Test
+    void 노트가_없으면_공식_사진이_대표가_된다() {
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "https://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("12110587"));
+
+        PlaceMediaLookup.Cover c = covers.get("12110587");
+        assertThat(c).isNotNull();
+        assertThat(c.thumbUrl()).isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialUrl()).isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialPublisher()).isEqualTo("한국관광공사");
+        // 사용자 사진은 0장이다. 0을 담아 보내면 프론트가 "사진 0장" 배지를 그릴 여지가 생긴다.
+        assertThat(c.photoCount()).isNull();
+    }
+
+    @Test
+    void 여행자_사진이_있으면_그쪽이_대표다() {
+        // 우리가 가진 것보다 여행자가 방금 찍은 것이 낫다 — 공식 사진은 상세에서 계속 보인다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "https://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "12110587", "https://sb/u_thumb.jpg", null)));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        PlaceMediaLookup.Cover c = lookup.coversByKakaoIds(List.of("12110587")).get("12110587");
+
+        assertThat(c.thumbUrl()).isEqualTo("https://sb/u_thumb.jpg");
+        assertThat(c.photoCount()).isEqualTo(1);
+        assertThat(c.officialUrl()).as("상세에서 쓰이므로 함께 실려 나간다")
+                .isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+    }
+
+    @Test
+    void 발행처_없는_공식_사진은_아예_실리지_않는다() {
+        // applyImage가 애초에 저장을 막지만, 예전 행이나 손으로 넣은 값이 있을 수 있다.
+        // 출처를 못 밝히는 사진은 띄우지 않는다 — 계약 §16.
+        Place p = seeded(74L, "12110587", null, null);
+        ReflectionTestUtils.setField(p, "imageUrl", "https://tong.visitkorea.or.kr/x.jpg");
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        assertThat(lookup.coversByKakaoIds(List.of("12110587"))).isEmpty();
+    }
+
+    @Test
+    void http_사진은_https로_올려서_내보낸다() {
+        // TourAPI는 http URL을 준다(실측: tong.visitkorea.or.kr). 배포는 https라
+        // 그대로 두면 mixed content로 브라우저가 차단한다 — 화면에서만 조용히 깨진다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "http://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        PlaceMediaLookup.Cover c = lookup.coversByKakaoIds(List.of("12110587")).get("12110587");
+
+        assertThat(c.officialUrl()).startsWith("https://");
+    }
+
+    // ── place id로 조회 (추천 정차지) ────────────────────────────
+    // 레지스트리 전용 장소는 kakao id가 없다(19곳 중 11곳). 코스 추천은 그런 정차지를
+    // 그대로 내보내므로, kakao 키로만 조회하는 경로로는 사진이 구조적으로 도달하지 못한다.
+
+    @Test
+    void placeId로도_공식_사진과_여행자_사진을_합쳐_준다() {
+        Place p = seeded(44L, null, "http://tong.visitkorea.or.kr/x.jpg", "한국관광공사");
+        when(placeRepo.findAllById(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 44L, null, "https://sb/u_thumb.jpg", null)));
+
+        Map<Long, PlaceMediaLookup.Cover> covers = lookup.coversByPlaceIds(List.of(44L));
+
+        PlaceMediaLookup.Cover c = covers.get(44L);
+        assertThat(c.thumbUrl()).as("여행자 사진이 대표다").isEqualTo("https://sb/u_thumb.jpg");
+        assertThat(c.photoCount()).isEqualTo(1);
+        assertThat(c.officialUrl()).as("https로 올려서 나간다").isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialPublisher()).isEqualTo("한국관광공사");
+    }
+
+    @Test
+    void placeId_조회도_사진이_없으면_키_자체가_없다() {
+        Place p = seeded(44L, null, null, null);
+        when(placeRepo.findAllById(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        assertThat(lookup.coversByPlaceIds(List.of(44L))).isEmpty();
+    }
+
+    @Test
+    void placeId가_없으면_쿼리를_내지_않는다() {
+        assertThat(lookup.coversByPlaceIds(List.of())).isEmpty();
+        verifyNoInteractions(placeRepo, repo);
+    }
+
+    @Test
+    void 작성자_조회도_배치_1회다() {
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "8113954", "https://sb/a_thumb.jpg", null),
+                note(2L, null, "8113954", "https://sb/b_thumb.jpg", null)
+        ));
+        when(userRepo.findAllById(anyCollection())).thenReturn(List.of());
+
+        lookup.notesFor(null, "8113954");
+
+        verify(userRepo, times(1)).findAllById(anyCollection());
+    }
+}

@@ -22,6 +22,12 @@ type Place = {
   longitude: number | null;
   placeUrl: string | null;
   distanceMeters: number | null;
+  /** 대표 사진(여행자 사진 우선, 없으면 공식 사진). 없으면 undefined — "0장"은 존재하지 않는다. */
+  coverPhotoUrl?: string | null;
+  photoCount?: number | null;
+  /** 공식 사진(TourAPI) — 상세 모달이 출처 배지와 함께 맨 앞에 띄운다. */
+  officialPhotoUrl?: string | null;
+  officialPhotoPublisher?: string | null;
 };
 
 type PlacesResponse = {
@@ -123,9 +129,24 @@ export default function ExplorePage() {
                     className="card-hover relative cursor-pointer p-4"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
-                        {activeCat.icon}
-                      </span>
+                      {/* 사진이 있으면 아이콘 대신 사진. 없으면 기존 아이콘 타일 그대로다 —
+                          "사진 없음" 자리를 따로 만들지 않는다. 개수 배지는 사진 칸 기준이라
+                          카드가 아니라 이 span이 relative를 가져야 한다. */}
+                      {p.coverPhotoUrl ? (
+                        <span className="relative mt-0.5 block h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl shadow-sm">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={p.coverPhotoUrl} alt="" className="h-full w-full object-cover" />
+                          {p.photoCount != null && p.photoCount > 1 && (
+                            <span className="absolute bottom-0 right-0 rounded-tl-lg bg-black/60 px-1 text-[10px] font-semibold text-white">
+                              {p.photoCount}
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
+                          {activeCat.icon}
+                        </span>
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-bold text-stone-900">{p.name}</p>
                         {p.category && (

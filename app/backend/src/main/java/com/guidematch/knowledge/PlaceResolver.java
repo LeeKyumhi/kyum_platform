@@ -184,11 +184,14 @@ public class PlaceResolver {
         if (!clue.hasExternalId()) {
             return Resolution.unresolved(reasonIfNotCreated);
         }
-        Place created = placeRepo.save(new Place(
+        Place fresh = new Place(
                 clue.nameRaw(), clue.city(), clue.district(),
                 clue.lat(), clue.lng(),
                 blankToNull(clue.kakaoPlaceId()), blankToNull(clue.tourApiContentId()),
-                clue.category(), blankToNull(clue.addressRaw())));
+                clue.category(), blankToNull(clue.addressRaw()));
+        // 저장 전에 붙인다 — 뒤에 채우면 INSERT 직후 UPDATE가 한 번 더 나간다(시드니 왕복 250ms).
+        fresh.applyImage(clue.imageUrl(), clue.imagePublisher());
+        Place created = placeRepo.save(fresh);
         // 장소를 처음 보는 순간이 곧 별칭을 배우는 순간이다. 여기서 안 남기면
         // 권위 있는 소스(Kakao·TourAPI)가 준 표기 변형을 통째로 버리게 된다.
         recordAliases(created, clue);
@@ -251,9 +254,13 @@ public class PlaceResolver {
     }
 
     private boolean enrich(Place p, PlaceClue clue) {
-        return p.enrichMissing(clue.lat(), clue.lng(),
+        boolean changed = p.enrichMissing(clue.lat(), clue.lng(),
                 blankToNull(clue.kakaoPlaceId()), blankToNull(clue.tourApiContentId()),
                 clue.category(), clue.city(), clue.district(), blankToNull(clue.addressRaw()));
+        // 사진은 enrichMissing이 모른다. 여기서 OR로 합치지 않으면 이미 아는 장소에
+        // 사진만 새로 들어온 재적재가 needsSave=false로 나와 조용히 버려진다.
+        if (p.applyImage(clue.imageUrl(), clue.imagePublisher())) changed = true;
+        return changed;
     }
 
     /**

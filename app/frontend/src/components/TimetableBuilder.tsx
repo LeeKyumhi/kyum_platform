@@ -57,6 +57,12 @@ type Place = {
   insights?: PlaceInsightView[];
   /** 추천순으로 앞에 세운 이유 (/api/places가 채운다). 없으면 빈 배열. */
   reasons?: RecReason[];
+  /** 대표 사진(여행자 사진 우선, 없으면 공식 사진). 없으면 undefined — "0장"은 존재하지 않는다. */
+  coverPhotoUrl?: string | null;
+  photoCount?: number | null;
+  /** 공식 사진(TourAPI) — 상세 모달이 출처 배지와 함께 맨 앞에 띄운다. */
+  officialPhotoUrl?: string | null;
+  officialPhotoPublisher?: string | null;
 };
 type PlacesResponse = { kakaoEnabled: boolean; places: Place[] };
 
@@ -85,6 +91,11 @@ type RecStop = {
   reasons: RecReason[];
   /** 상세 모달용 원본. reasons(앞면 요약)가 이걸 대체하지 않는다. */
   insights: PlaceInsightView[];
+  /** 대표 사진(여행자 우선, 없으면 공식) + 공식 사진·발행처. 백엔드가 규칙을 정한다. */
+  coverPhotoUrl: string | null;
+  photoCount: number | null;
+  officialPhotoUrl: string | null;
+  officialPhotoPublisher: string | null;
 };
 export type RecResponse = {
   city: string; district: string | null; theme: string; kakaoEnabled: boolean;
@@ -410,6 +421,10 @@ export default function TimetableBuilder({
       address: s.address, latitude: s.latitude, longitude: s.longitude, placeUrl: s.placeUrl,
       rec: { placeId: s.placeId, kakaoPlaceId: s.kakaoPlaceId },
       insights: s.insights ?? [],
+      coverPhotoUrl: s.coverPhotoUrl,
+      photoCount: s.photoCount,
+      officialPhotoUrl: s.officialPhotoUrl,
+      officialPhotoPublisher: s.officialPhotoPublisher,
     })), [rec]);
 
   function onDragStart(e: DragStartEvent) {
@@ -445,6 +460,17 @@ export default function TimetableBuilder({
       .sort((a, b) => (a.startHour! - b.startHour!) || ((a.laneIndex ?? 0) - (b.laneIndex ?? 0)))
       .map((it) => ({ key: it._k, name: it.placeName, latitude: it.latitude, longitude: it.longitude })),
   [placed]);
+
+  /**
+   * 팔레트 장소 → 상세 모달 입력.
+   *
+   * 모달은 노트를 두 식별자로 조회하는데, 레지스트리 id(`rec.placeId`)는 추천 정차지에만
+   * 있고 kakao id는 반대로 없을 수도 있다(레지스트리 전용 장소는 `id`가 빈 문자열).
+   * 여기서 옮겨 담지 않으면 그런 정차지는 조회 파라미터가 하나도 없어 조용히 빈 목록이 된다.
+   */
+  function toModalPlace(p: Place): ModalPlace {
+    return { ...p, placeId: p.rec?.placeId ?? null };
+  }
 
   function openDetail(it: BuilderItem) {
     if (it.sourceCourseId != null) {
@@ -619,7 +645,8 @@ export default function TimetableBuilder({
                           data={{ kind: "place", place: p }}
                           icon={categoryIcon(p.name, p.category, false)}
                           label={p.name} sub={p.address} detailLabel={li.detailsBtn}
-                          onInfo={() => setDetailPlace(p)} />
+                          photoUrl={p.coverPhotoUrl} photoCount={p.photoCount}
+                          onInfo={() => setDetailPlace(toModalPlace(p))} />
                         <ReasonChips reasons={p.reasons ?? []} lc={lc} />
                       </div>
                     ))}
@@ -674,7 +701,8 @@ export default function TimetableBuilder({
                             data={{ kind: "place", place: p }}
                             icon={categoryIcon(p.name, p.category, false)}
                             label={`${i + 1}. ${p.name}`} sub={p.address} detailLabel={li.detailsBtn}
-                            onInfo={() => setDetailPlace(p)} />
+                            photoUrl={p.coverPhotoUrl} photoCount={p.photoCount}
+                            onInfo={() => setDetailPlace(toModalPlace(p))} />
                           <ReasonChips reasons={rec.stops[i]?.reasons ?? []} lc={lc} />
                           <VibeLine insights={rec.stops[i]?.insights ?? []} />
                         </div>
@@ -827,9 +855,11 @@ function PaletteChip({ id, data, label, sub, isTour, isCompanion, onInfo, onRemo
   );
 }
 
-function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel }: {
+function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel, photoUrl, photoCount }: {
   id: string; data: ActiveData; icon: string; label: string; sub?: string | null; isTour?: boolean;
   onInfo?: () => void; detailLabel: string;
+  /** 여행자가 올린 대표 사진. 있으면 아이콘 자리를 대신한다. */
+  photoUrl?: string | null; photoCount?: number | null;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id, data });
   return (
@@ -839,9 +869,21 @@ function PaletteCard({ id, data, icon, label, sub, isTour, onInfo, detailLabel }
       }`}>
       <button {...listeners} {...attributes} data-testid="palette-chip"
         className="flex min-w-0 cursor-grab touch-none items-center gap-2 text-left active:cursor-grabbing">
-        <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ${
-          isTour ? "bg-amber-100" : "bg-sky-50"
-        }`}>{icon}</span>
+        {photoUrl ? (
+          <span className="relative block h-9 w-9 flex-shrink-0 overflow-hidden rounded-xl shadow-sm">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+            {photoCount != null && photoCount > 1 && (
+              <span className="absolute bottom-0 right-0 rounded-tl-md bg-black/60 px-0.5 text-[9px] font-semibold text-white">
+                {photoCount}
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl text-lg shadow-sm ${
+            isTour ? "bg-amber-100" : "bg-sky-50"
+          }`}>{icon}</span>
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate text-xs font-bold text-stone-800">{label}</span>
           {sub && <span className="block truncate text-[10px] text-stone-400">{sub}</span>}

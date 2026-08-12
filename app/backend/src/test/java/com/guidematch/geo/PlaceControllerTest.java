@@ -3,6 +3,7 @@ package com.guidematch.geo;
 import com.guidematch.knowledge.GuideCourseSignalLookup;
 import com.guidematch.knowledge.PlaceInsightLookup;
 import com.guidematch.knowledge.PlaceInsightLookup.InsightView;
+import com.guidematch.knowledge.PlaceMediaLookup;
 import com.guidematch.knowledge.TravelerSignalLookup;
 import org.junit.jupiter.api.Test;
 
@@ -27,13 +28,14 @@ class PlaceControllerTest {
     private final PlaceInsightLookup insightLookup = mock(PlaceInsightLookup.class);
     private final GuideCourseSignalLookup guideCourseLookup = mock(GuideCourseSignalLookup.class);
     private final TravelerSignalLookup travelerLookup = mock(TravelerSignalLookup.class);
+    private final PlaceMediaLookup mediaLookup = mock(PlaceMediaLookup.class);
 
     private final PlaceController controller = new PlaceController(
-            kakao, translationService, insightLookup, guideCourseLookup, travelerLookup);
+            kakao, translationService, insightLookup, guideCourseLookup, travelerLookup, mediaLookup);
 
     private KakaoLocalClient.Place place(String id, String name) {
         return new KakaoLocalClient.Place(id, name, "관광명소", "AT4", null,
-                "서울 중구", 37.56, 126.97, "http://place/" + id, null, List.of());
+                "서울 중구", 37.56, 126.97, "http://place/" + id, null, List.of(), null, null, null, null);
     }
 
     private void kakaoReturns(KakaoLocalClient.Place... places) {
@@ -137,5 +139,69 @@ class PlaceControllerTest {
     @Test
     void 알_수_없는_도시는_빈_목록을_돌려준다() {
         assertThat(controller.places("Atlantis", "attraction", null, "ko").places()).isEmpty();
+    }
+
+    @Test
+    void 목록에_노트_썸네일이_붙는다() {
+        kakaoReturns(place("a", "덕수궁"));
+        when(mediaLookup.coversByKakaoIds(anyCollection()))
+                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4, null, null)));
+
+        KakaoLocalClient.Place p = call().places().get(0);
+
+        assertThat(p.coverPhotoUrl()).isEqualTo("https://sb/t.jpg");
+        assertThat(p.photoCount()).isEqualTo(4);
+    }
+
+    @Test
+    void 사진이_없는_장소는_썸네일_필드가_null이다() {
+        kakaoReturns(place("a", "덕수궁"));
+        when(mediaLookup.coversByKakaoIds(anyCollection())).thenReturn(Map.of());
+
+        KakaoLocalClient.Place p = call().places().get(0);
+
+        // 0을 담은 값이 아니라 null이다 — 프론트가 "사진 0장"을 렌더할 여지를 없앤다.
+        assertThat(p.coverPhotoUrl()).isNull();
+        assertThat(p.photoCount()).isNull();
+    }
+
+    /** 비로그인도 쓰는 공개 경로다. 여기서 예외가 새면 탐색 화면이 통째로 깨진다. */
+    @Test
+    void 노트_조회가_죽어도_목록은_나간다() {
+        kakaoReturns(place("a", "덕수궁"));
+        when(mediaLookup.coversByKakaoIds(anyCollection()))
+                .thenThrow(new RuntimeException("DB 연결 끊김"));
+
+        PlaceController.PlacesResponse res = call();
+
+        assertThat(res.places()).hasSize(1);
+        assertThat(res.places().get(0).coverPhotoUrl()).isNull();
+    }
+
+    /**
+     * withMedia는 사진만 갈아끼우는 사본이어야 한다 — 근거(reasons)까지 지워버리면
+     * "사진이 붙은 장소는 왜 앞에 있는지 이유를 잃는다"는 조용한 결함이 된다.
+     */
+    @Test
+    void 사진을_붙여도_이유는_그대로_남는다() {
+        kakaoReturns(place("a", "가"));
+        when(travelerLookup.travelerCounts(anyCollection())).thenReturn(Map.of("a", 7));
+        when(mediaLookup.coversByKakaoIds(anyCollection()))
+                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4, null, null)));
+
+        KakaoLocalClient.Place p = call().places().get(0);
+
+        assertThat(p.coverPhotoUrl()).isEqualTo("https://sb/t.jpg");
+        assertThat(p.reasons()).extracting(CourseReasons.Reason::kind).containsExactly("traveler_saved");
+    }
+
+    @Test
+    void 노트_조회도_장소_수와_무관하게_1회다() {
+        kakaoReturns(place("a", "가"), place("b", "나"), place("c", "다"), place("d", "라"));
+        when(mediaLookup.coversByKakaoIds(anyCollection())).thenReturn(Map.of());
+
+        call();
+
+        verify(mediaLookup, times(1)).coversByKakaoIds(anyCollection());
     }
 }

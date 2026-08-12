@@ -215,7 +215,11 @@ public class IngestService {
                 text(n.path("external_ids").path("tour_api_content_id"), null),
                 text(n.path("category_raw"), null),
                 text(n.path("address_raw"), null),
-                sourceKind);
+                sourceKind,
+                // 사진과 발행처는 <b>같은 레코드의 다른 위치</b>에서 온다(image_url / source.publisher).
+                // 둘 중 하나만 실려 오면 Place.applyImage가 사진을 버린다 — 출처 없이는 띄울 수 없다.
+                text(n.path("image_url"), null),
+                text(n.path("source").path("publisher"), null));
 
         PlaceResolver.Resolution r = resolver.resolve(clue, snapshot);
         if (r.isResolved()) {
@@ -270,7 +274,9 @@ public class IngestService {
                 decimal(ref.path("lat")), decimal(ref.path("lng")),
                 text(ref.path("external_ids").path("kakao_place_id"), null),
                 text(ref.path("external_ids").path("tour_api_content_id"), null),
-                null, null, sourceKind), snapshot);
+                // 인사이트의 place_ref는 장소를 <b>가리키기만</b> 한다 — 카테고리·주소·사진은
+                // 장소 레코드가 정한다. 여기서 실어 보내면 사실 한 줄이 장소 속성을 바꾸게 된다.
+                null, null, sourceKind, null, null), snapshot);
 
         if (!r.isResolved()) {
             // 장소를 모르는 사실은 붙일 데가 없다. 버리지 말고 보관 — 나중에 장소가 확정되면 살릴 수 있다

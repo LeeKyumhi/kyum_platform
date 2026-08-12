@@ -1,5 +1,147 @@
 # PeerUp 인수인계서
 
+## 0. 재개 지점 (2026-08-12) — 장소 사진·노트, **구현 완료**
+
+### 먼저 알아야 할 것: 오래된 미커밋 더미가 사라졌다
+
+이 날 이전까지 `main` 작업트리에 **8/10 플라이휠 작업 30여 개 파일이 미커밋**으로 쌓여 있었다.
+전부 커밋해서 브랜치로 분리했다. `main`은 건드리지 않았다.
+
+| 브랜치 | 내용 | 상태 |
+|---|---|---|
+| `feat/course-planner-flywheel` | 코스 추천 플라이휠 1사이클(+2사이클 일부) — 그동안의 미커밋분 전부 | **12커밋, 260 tests green.** main 미머지 |
+| `feat/place-media-and-notes` | 장소 사진·한줄팁 (신규) | **24커밋, 335 tests green.** 16/16 완료 |
+
+`feat/place-media-and-notes`는 `feat/course-planner-flywheel`에서 분기했다 — 후자의 코드에
+얹혀 있으므로 **머지 순서를 지켜야 한다**(flywheel → main, 그다음 place-media → main).
+
+커밋 분리 과정에서 같이 정리한 것:
+- 리포 루트 잡파일 gitignore — `/node_modules`(26MB)·`/package.json`·`next-env.d.ts`·`.tmp/`·`*.pptx`
+- **모달이 화면 아래로 밀리던 버그 수정** (`fix(frontend): 모달이 화면 아래로 밀리던 원인 제거`).
+  원인은 모달이 아니라 `globals.css`의 `.animate-fade-up`이었다 — `fill-mode: both`의 `forwards`가
+  애니메이션 종료 후에도 `transform: translateY(0)`을 남기고, transform이 있는 요소는 자손
+  `position: fixed`의 컨테이닝 블록이 된다. `/trips/[id]`에서 오버레이가 뷰포트(772px)가 아니라
+  래퍼(1824px) 기준이 되어 세로로 밀렸다. `both` → `backwards` 한 줄로 해결(브라우저 A/B 2회 검증).
+
+### 이 브랜치의 작업: 장소 사진·노트
+
+- 설계: `docs/superpowers/specs/2026-08-11-place-media-and-notes-design.md`
+- 계획: `docs/superpowers/plans/2026-08-11-place-media-and-notes.md` (16개 태스크)
+- 방식: Task 1~8·16은 superpowers **subagent-driven-development**(구현자 1 + 리뷰어 1),
+  Task 9~15는 사용자 지시로 코디네이터가 직접 구현(리뷰어 없음, 각 태스크 실기동 검증으로 대체)
+- 워크트리: `.claude/worktrees/place-media-and-notes` (브랜치 `feat/place-media-and-notes`)
+- **원장(진행 기록): `.superpowers/sdd/2026-08-11-place-media-and-notes/progress.md`**
+  ⚠ 이 경로는 gitignore다. 태스크별 상세·이월 항목이 전부 여기 있으니 **재개 시 먼저 읽을 것.**
+  `git clean -fdx`를 돌리면 사라진다.
+
+**★ 계획서 16개 태스크 전부 완료 + 표시 경로·프롬프트 v6까지 (2026-08-12).**
+HEAD `4e38eca` · **346 tests / 0 failures** ·
+실 DB 스모크 `bash scripts/smoke/place-notes-smoke.sh <이메일인증계정> <비번>` **8/8**.
+
+| # | 내용 | 상태 |
+|---|---|---|
+| 1~8, 16 | 백엔드 UGC (엔티티·이미지 처리·서비스·컨트롤러·신고·관리자 숨김·배치 조회·목록 커버·상세 조회) | 2026-08-11 완료 |
+| 9 | 상세 모달 사진 스트립·팁 + i18n `placeNotes.*` ko/en/zh | 완료 |
+| 10 | `PlaceNoteComposer` 업로드 UI | 완료 |
+| 11 | 목록 카드 썸네일 (`/explore` · 팔레트) | 완료 |
+| 12 | 시드 필드 `places.image_url`·`image_publisher` + 계약·적재 배선 | 완료 |
+| 13 | 프롬프트 insight-v5 (`firstimage`) + CONTRACT §16 | 완료 |
+| 14 | 흡수 백필 `PlaceNoteBackfill` (기동 훅) | 완료 |
+| 15 | 실 DB 스모크 8개 어서션 | 완료 |
+
+**이제 실기동으로 증명된 것** (2026-08-11 판본의 "아직 아무도 실행하지 않은 것"은 전부 해소됐다):
+- `place_notes` 테이블이 `ddl-auto`로 생성됐고 리포지토리 JPQL이 실제로 파싱·실행된다.
+- Supabase Storage 업로드 + **공개 URL이 서명 없이 200 + image/jpeg로 열린다.** 3200px 원본 →
+  full 1600px / thumb 400px 실측.
+- 브라우저(`/explore`·`/trips/[id]`): 카드 썸네일·개수 배지, 상세 모달 사진·팁(@핸들),
+  등록 → 즉시 갱신, 상한 초과 시 백엔드 메시지 표시.
+- `places.image_url`·`image_publisher` 컬럼이 실 DB에 추가됐다(둘 다 nullable).
+- 백필이 기동 때 실제로 돌아 노트 1건을 레지스트리 장소에 연결했다(두 식별자가 모두
+  채워진 첫 행 — 그 상태의 읽기 중복 제거도 함께 확인).
+
+### 🙋 남은 것 — 사용자 작업
+1. **v5 재수집 1회.** 이걸 돌리기 전까지 `places.image_url`은 0건이고, 화면의 사진은
+   사용자가 올린 노트뿐이다.
+   ```
+   codex exec --cd ~/peerup-ingest --skip-git-repo-check \
+     --sandbox workspace-write -c sandbox_workspace_write.network_access=true \
+     < docs/ingest/codex-ingest-prompt.md
+   ```
+   확인: `select count(*) from places where image_url is not null;` > 0.
+   ⚠ `--cd` 없으면 쓰기 루트가 앱 리포가 되어 격리가 무너진다.
+   ⚠ `app/backend/src/main`을 고쳤으면 `./scripts/ingest/build-jar.sh` 먼저(안 하면 exit 3).
+2. **머지 결정.** 순서는 `feat/course-planner-flywheel` → main, 그다음 `feat/place-media-and-notes`.
+3. **테스트 오염 정리** — users 43 `note_smoke_*@test.com`, place_notes 1~11,
+   itinerary 32, Supabase Storage `credentials/place-notes/43/`.
+   그중 3건이 실제 장소 **하늘전망대**(kakao 1771512259)에 붙어 `/explore` 서울 관광명소에
+   테스트 사진으로 노출된다(사용자가 무방하다고 판단함).
+
+### 계획서 밖에서 추가로 한 일 (2026-08-12 오후)
+
+계획서 16태스크를 끝낸 뒤, 시드가 **화면에 도달하지 않는다**는 걸 발견해 이어서 했다.
+
+1. **공식 사진 표시 경로** (`31388c1`, `58e7693`) — Task 12~14는 `places.image_url`에
+   쓰기만 하고 읽는 코드가 없었다(스펙 §2·§4가 요구하는데 태스크가 없었다).
+   `PlaceMediaLookup`이 기존 place 배치 조회에서 사진을 함께 꺼내 목록 커버로 폴백하고,
+   상세 모달은 🏛 출처 배지와 함께 맨 앞에 띄운다. 쿼리 추가 0. http→https 승격 포함
+   (배포에서 mixed content로 조용히 깨질 자리). 대표 우선순위 = 여행자 사진 > 공식.
+2. **프롬프트 v6 + 상태 파일 확장** (`8a9d2d7`, `4606006`) — v5를 2회 돌려 드러난 결함 2개:
+   ① 씨앗 0인 (소스×범위)에서 27초 헛돌기 → 건너뛰고 다음 쌍으로.
+   ② tour_api id 보유 장소가 사진을 영원히 못 받음 → `tour_api_content_id`로
+      `detailCommon2` 직접 호출(장소당 1회). 이를 지시 가능하게 하려고
+      `registry-places.jsonl`에 `has_image`·`tour_api_content_id` 값을 싣는다.
+
+3. **추천 정차지 사진** (`4e38eca`) — `PlaceMediaLookup.coversByPlaceIds` 신설(place id 키).
+   kakao id 없는 레지스트리 전용 장소(19곳 중 11곳)도 사진을 받는다. 실기동 확인:
+   관훈동 민씨 가옥·개화(둘 다 kakao id null)가 공식 사진을 받고 팔레트에 썸네일이 뜬다.
+
+**v6 첫 실행 실측**(2026-08-12 15:27): 중구 tour_api에서 18곳 전부 사진 수집 →
+`places.image_url` **1 → 19**, insights 23 → 37. 목록·상세에서 실제로 보이는 것 확인.
+⚠ 그 실행에서 Codex 앱 에러로 에이전트가 `bin/ingest.sh`를 못 돌렸다 —
+파일은 온전했고 §15 절차대로 수동 적재해 복구했다(수집과 적재가 분리된 설계의 값).
+
+### ⚠ 아직 안 한 것
+
+- **EXIF Orientation이 붙은 실제 아이폰 사진.** 합성 이미지에는 Orientation 태그가 없어
+  스모크로는 증명할 수 없다. 회전 처리 코드(`PlaceImageProcessor`)는 단위 테스트로만 고정돼 있다.
+- 다른 구로 커버리지 확장 — kakao_local이 먼저 씨앗을 심어야 tour_api가 붙는다(v6 규칙이 그 순서를 만든다).
+
+### 재개 방법
+
+구현은 끝났다. 남은 건 위 "사용자 작업" 3가지다. 태스크별 판단·이월 항목의 상세는
+여전히 원장(`.superpowers/sdd/2026-08-11-place-media-and-notes/progress.md`, gitignore)에 있다.
+
+### ⚠ 계획서보다 실제 코드가 옳았던 것 (남은 태스크에도 적용됨)
+
+구현 중 브리프가 틀린 것으로 드러난 것들. 남은 태스크 브리프를 그대로 믿지 말 것:
+
+1. `User`·`UserRepository`는 `com.guidematch.auth`가 아니라 **`com.guidematch.user`**.
+2. 버킷 프로퍼티 키는 **`supabase.storage.credentials-bucket`** (`GuidePostService:36`과 동일).
+3. **에러 본문 키는 `error`** — `GlobalExceptionHandler`가 `IllegalArgumentException`을 이미
+   400 + `{"error": ...}`로 바꾼다. 컨트롤러에 로컬 try/catch를 두지 말 것.
+   **Task 10 프론트가 상한·형식 안내 메시지를 읽을 때 `error` 키를 파싱해야 한다.**
+4. Task 6·7의 쿼리 횟수 주석이 계획서엔 틀리게 적혀 있었다(실제 2~3회 / 최대 4회).
+
+### 이월된 판단거리 (최종 리뷰에서 정리)
+
+- `/api/places/nearby`·`/api/places/search`는 대표 사진을 안 붙인다(`recommendFirst`만 배선됨).
+  **Task 11이 그 경로를 쓰면 썸네일이 안 보인다** — 확인 필요.
+- 업로드 1건당 이미지를 4번 디코딩한다(`process`가 `scale`을 2번, 각 `scale`이 다시 디코딩).
+  폰 원본 4~8MB 경로라 CPU 낭비가 실재. 크기를 한 번만 재면 절반.
+- `_full` 업로드 성공 후 `_thumb` 실패 시 행은 안 생기고 full 객체만 고아로 남는다(미문서화).
+- 삭제·숨김은 DB 행만 건드리고 Supabase 객체는 안 지운다(설계상 수용, 정리 러너는 범위 밖).
+- 업로드 이미지는 EXIF를 지우지만 **Task 15 스모크 전까지 실 파일로 검증된 적은 없다.**
+
+### ⚠ 아직 아무도 실행하지 않은 것
+
+- **백엔드를 한 번도 기동하지 않았다.** 모든 테스트가 목 기반이고 이 리포에는 `@SpringBootTest`가
+  0개라, `PlaceNoteRepository`의 JPQL은 **런타임에 파싱된 적이 없다.** Spring Data는 컨텍스트
+  기동 시 `@Query`를 파싱하므로 백엔드가 처음 뜨는 순간 검증된다 — Task 15 스모크가 그 지점이다.
+- `place_notes` 테이블은 `ddl-auto: update`가 만들 예정이고 아직 실 DB에 없다.
+- 시드(Task 12~14)가 실제로 채워지려면 **사용자가 v5 재수집을 1회 실행**해야 한다.
+
+---
+
 > ## ⚠ 이 파일은 이 브랜치 기준으로 낡았다
 > 2026-08-07에 HANDOFF를 46KB→13KB로 정리한 판본은 **`feat/payment-completion-deploy`
 > 브랜치에 있다.** 이 브랜치는 그 이전 `main`에서 분기해서 아래 `## 0. 최신` 섹션이

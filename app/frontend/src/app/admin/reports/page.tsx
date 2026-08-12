@@ -55,7 +55,7 @@ export default function AdminReportsPage() {
     finally { setBusyId(null); }
   }
 
-  async function actOnTarget(reportId: number, action: "HIDE_POST" | "SUSPEND_USER") {
+  async function actOnTarget(reportId: number, action: "HIDE_POST" | "SUSPEND_USER" | "HIDE_PLACE_NOTE") {
     setError(""); setBusyId(reportId);
     try {
       await api(`/api/admin/reports/${reportId}/act`, { method: "POST", body: { action }, auth: true });
@@ -68,7 +68,9 @@ export default function AdminReportsPage() {
     if (it.targetType === "BOOKING") {
       return `${lr.booking} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
     }
-    return `${it.targetType} #${it.targetId}`;
+    // PLACE_NOTE 등 targetSummary가 채워진 다른 대상 종류도 미리보기를 붙인다 —
+    // 관리자가 뭘 숨기는지 안 보고 누르는 걸 막는다.
+    return `${it.targetType} #${it.targetId}${it.targetSummary ? ` · ${it.targetSummary}` : ""}`;
   }
 
   if (loading) return (
@@ -139,6 +141,12 @@ export default function AdminReportsPage() {
                     <button onClick={() => actOnTarget(it.id, "SUSPEND_USER")} disabled={busyId === it.id}
                       className="rounded-lg bg-red-100 px-3 py-1 text-sm text-red-700 disabled:opacity-60">
                       {t.admin.actSuspendUser}
+                    </button>
+                  )}
+                  {it.targetType === "PLACE_NOTE" && (
+                    <button onClick={() => actOnTarget(it.id, "HIDE_PLACE_NOTE")} disabled={busyId === it.id}
+                      className="rounded-lg bg-amber-100 px-3 py-1 text-sm text-amber-700 disabled:opacity-60">
+                      {t.admin.actHidePlaceNote}
                     </button>
                   )}
                 </div>

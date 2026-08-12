@@ -137,7 +137,9 @@ public class KakaoLocalClient {
                 parseDouble(d.x()),
                 d.placeUrl(),
                 parseInt(d.distance()),
-                java.util.List.of()   // 근거는 PlaceController가 채운다
+                java.util.List.of(),  // 근거는 PlaceController가 채운다
+                null, null,           // 여행자 사진도 PlaceController가 채운다
+                null, null            // 공식 사진(레지스트리 시드)도 마찬가지
         )).toList();
     }
 
@@ -165,12 +167,34 @@ public class KakaoLocalClient {
              * 추천 근거 (없으면 빈 목록). Kakao는 이 값을 주지 않는다 —
              * {@link PlaceController}가 우리 레지스트리를 조인해 채운다.
              */
-            java.util.List<CourseReasons.Reason> reasons
+            java.util.List<CourseReasons.Reason> reasons,
+            /**
+             * 사용자가 올린 대표 사진(400px 썸네일)과 장수. Kakao는 사진을 주지 않는다 —
+             * {@link PlaceController}가 우리 노트를 조인해 채운다.
+             * <b>사진이 없으면 둘 다 null이다</b>(0이 아니다) — "사진 0장"을 렌더할 여지를 없앤다.
+             */
+            String coverPhotoUrl,
+            Integer photoCount,
+            /**
+             * 공식 사진(TourAPI)과 그 발행처. <b>쌍으로만</b> 실린다 —
+             * 출처를 못 밝히는 사진은 띄우지 않는다(계약 §16).
+             */
+            String officialPhotoUrl,
+            String officialPhotoPublisher
     ) {
         /** 근거만 갈아끼운 사본. record라 값을 고치는 대신 새로 만든다. */
         public Place withReasons(java.util.List<CourseReasons.Reason> newReasons) {
             return new Place(id, name, category, categoryGroupCode, phone, address,
-                    latitude, longitude, placeUrl, distanceMeters, newReasons);
+                    latitude, longitude, placeUrl, distanceMeters, newReasons,
+                    coverPhotoUrl, photoCount, officialPhotoUrl, officialPhotoPublisher);
+        }
+
+        /** 사진(여행자 대표 + 공식)만 갈아끼운 사본. */
+        public Place withMedia(String newCoverPhotoUrl, Integer newPhotoCount,
+                               String newOfficialUrl, String newOfficialPublisher) {
+            return new Place(id, name, category, categoryGroupCode, phone, address,
+                    latitude, longitude, placeUrl, distanceMeters, reasons,
+                    newCoverPhotoUrl, newPhotoCount, newOfficialUrl, newOfficialPublisher);
         }
     }
 

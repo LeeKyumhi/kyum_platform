@@ -2,6 +2,7 @@ package com.guidematch.geo;
 
 import com.guidematch.knowledge.GuideCourseSignalLookup;
 import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.PlaceMediaLookup;
 import com.guidematch.knowledge.PlaceInsightLookup.InsightView;
 import com.guidematch.knowledge.SignalRecorder;
 import com.guidematch.knowledge.TravelerSignalLookup;
@@ -35,9 +36,12 @@ class CourseRecommendControllerTest {
     private final GuideCourseSignalLookup guideCourseLookup = mock(GuideCourseSignalLookup.class);
     private final TravelerSignalLookup travelerLookup = mock(TravelerSignalLookup.class);
     private final SignalRecorder signalRecorder = mock(SignalRecorder.class);
+    private final com.guidematch.knowledge.PlaceMediaLookup mediaLookup =
+            mock(com.guidematch.knowledge.PlaceMediaLookup.class);
 
     private final CourseRecommendController controller = new CourseRecommendController(
-            planner, translationService, insightLookup, guideCourseLookup, travelerLookup, signalRecorder);
+            planner, translationService, insightLookup, guideCourseLookup, travelerLookup,
+            signalRecorder, mediaLookup);
 
     private CoursePlanner.PlannedStop stop(Long placeId, String kakaoId, String name) {
         return new CoursePlanner.PlannedStop(placeId, kakaoId, name, "관광명소",
@@ -78,6 +82,54 @@ class CourseRecommendControllerTest {
 
         assertThat(recommend().stops().get(0).placeId()).isNull();
         assertThat(recommend().stops().get(0).kakaoPlaceId()).isEqualTo("999");
+    }
+
+    // ── 사진 ─────────────────────────────────────────────────────────
+
+    /**
+     * <b>레지스트리 전용 정차지(kakao id 없음)가 이 배선의 존재 이유다.</b>
+     * 실측 19곳 중 11곳이 그렇고, kakao 키로만 조회하면 그 장소들의 사진은
+     * 구조적으로 도달하지 못한다 — 화면에는 "아직 사진이 없네"로만 보인다.
+     */
+    @Test
+    void 레지스트리_전용_정차지도_사진을_받는다() {
+        planned(stop(44L, null, "간송미술관"));
+        when(mediaLookup.coversByPlaceIds(anyCollection())).thenReturn(Map.of(
+                44L, new PlaceMediaLookup.Cover("https://tong/x.jpg", null,
+                        "https://tong/x.jpg", "한국관광공사")));
+
+        CourseRecommendController.Stop s = recommend().stops().get(0);
+
+        assertThat(s.coverPhotoUrl()).isEqualTo("https://tong/x.jpg");
+        assertThat(s.officialPhotoPublisher()).isEqualTo("한국관광공사");
+        verify(mediaLookup, never()).coversByKakaoIds(anyCollection());
+    }
+
+    /** kakao id가 있으면 그 키로 간다 — 두 출신 노트를 합쳐 주는 경로가 그쪽이다. */
+    @Test
+    void kakao_id가_있는_정차지는_kakao_키로_조회한다() {
+        planned(stop(42L, "1234567", "경복궁"));
+        when(mediaLookup.coversByKakaoIds(anyCollection())).thenReturn(Map.of(
+                "1234567", new PlaceMediaLookup.Cover("https://sb/u_thumb.jpg", 2, null, null)));
+
+        CourseRecommendController.Stop s = recommend().stops().get(0);
+
+        assertThat(s.coverPhotoUrl()).isEqualTo("https://sb/u_thumb.jpg");
+        assertThat(s.photoCount()).isEqualTo(2);
+        assertThat(s.officialPhotoUrl()).isNull();
+    }
+
+    /** 사진 조회가 죽어도 추천은 나가야 한다 — 근거 집계와 같은 격리 원칙. */
+    @Test
+    void 사진_조회가_실패해도_코스는_나간다() {
+        planned(stop(44L, null, "간송미술관"));
+        when(mediaLookup.coversByPlaceIds(anyCollection()))
+                .thenThrow(new IllegalStateException("DB 일시 오류"));
+
+        CourseRecommendController.Stop s = recommend().stops().get(0);
+
+        assertThat(s.name()).isEqualTo("간송미술관");
+        assertThat(s.coverPhotoUrl()).isNull();
     }
 
     // ── 🎫 점등 ──────────────────────────────────────────────────────

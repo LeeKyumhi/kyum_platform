@@ -24,7 +24,11 @@ public record PlaceClue(
          * 번역하지 않는다: 택시·지도 앱에 그대로 넣을 수 있어야 한다.
          */
         String addressRaw,
-        String sourceKind
+        String sourceKind,
+        /** TourAPI firstimage. 발행처는 source.publisher에서 온다. */
+        String imageUrl,
+        /** 발행처. 없으면 {@link Place#applyImage}가 사진을 버린다 — 출처 없이는 띄울 수 없다. */
+        String imagePublisher
 ) {
     public PlaceClue {
         aliases = aliases == null ? List.of() : List.copyOf(aliases);
