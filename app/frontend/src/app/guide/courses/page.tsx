@@ -47,7 +47,8 @@ export default function GuideCoursesPage() {
   const [price, setPrice] = useState(50000);
   const [maxPeople, setMaxPeople] = useState(4);
   const [serviceCategory, setServiceCategory] = useState("");
-  const [verified, setVerified] = useState(false);
+  const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
+  const verified = verifyStatus === "VERIFIED";
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -68,7 +69,7 @@ export default function GuideCoursesPage() {
     load();
     // 관광 카테고리 선택 가능 여부(인증 상태) 확인
     api<{ verificationStatus: string }>("/api/guide-profiles/me", { auth: true })
-      .then((p) => setVerified(p.verificationStatus === "VERIFIED"))
+      .then((p) => setVerifyStatus(p.verificationStatus ?? "NONE"))
       .catch(() => {});
   }, [router, load]);
 
@@ -132,12 +133,26 @@ export default function GuideCoursesPage() {
     );
     setCity(rec.city);
     setDurationHours(rec.suggestedDurationHours || durationHours);
+    // ★ placeId는 반드시 Kakao 장소 id로 채운다.
+    // 예전엔 null이었다 — 오염은 아니지만 결과는 같다. 가이드가 추천대로 코스를 만들어도
+    // tour_course_waypoints.place_id가 비어서 🎫("인증 가이드가 담은 곳") 집계가 그 코스를
+    // 영영 세지 못한다. 코스 생성의 주 경로가 바로 여기라 플라이휠이 여기서 끊긴다.
     setItems(rec.stops.map((s, i) => ({
       _k: newItemKey(), dayIndex: 1, sortOrder: i,
-      placeId: null, placeName: s.name, category: s.category,
+      placeId: s.kakaoPlaceId, placeName: s.name, category: s.category,
       address: s.address, latitude: s.latitude, longitude: s.longitude, memo: null,
       startHour: Math.min(23, 10 + i), durationHours: 1, laneIndex: 0, laneSpan: 1, sourceCourseId: null,
     })));
+
+    // 추천을 통째로 코스에 담은 것 — 드래그 한 건보다 강한 "담았다" 신호다.
+    if (rec.courseRef) {
+      rec.stops.forEach((s) => {
+        api("/api/courses/recommend/signals", {
+          method: "POST", auth: true,
+          body: { placeId: s.placeId, kakaoPlaceId: s.kakaoPlaceId, courseRef: rec.courseRef },
+        }).catch(() => {});
+      });
+    }
     setRecFilled(true);
     formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -201,6 +216,27 @@ export default function GuideCoursesPage() {
 
         {error && (
           <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+        )}
+
+        {/*
+          미인증 안내 — 서버는 이미 관광 카테고리 코스 생성을 막고 있다(TourCourseService).
+          여기서 채우는 것은 "왜 막혀 있고 어떻게 여는가"뿐이다. 이 설명이 없으면
+          가이드는 잠긴 이유도, 인증하면 열린다는 사실도 알 방법이 없다.
+        */}
+        {verifyStatus && !verified && (
+          <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+            <p className="font-bold text-amber-900">🔒 {lc.lockedTitle}</p>
+            <p className="mt-1 text-sm leading-relaxed text-amber-800">{lc.lockedBody}</p>
+            {verifyStatus === "PENDING" ? (
+              <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                ⏳ {lc.lockedPending}
+              </p>
+            ) : (
+              <Link href="/guide/manage#verification" className="btn-primary mt-3 inline-block px-4 py-2 text-sm">
+                {lc.lockedCta}
+              </Link>
+            )}
+          </div>
         )}
 
         {/* ── 코스 메타 폼 ── */}

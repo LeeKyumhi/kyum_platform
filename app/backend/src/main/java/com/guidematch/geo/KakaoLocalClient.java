@@ -136,7 +136,8 @@ public class KakaoLocalClient {
                 parseDouble(d.y()),
                 parseDouble(d.x()),
                 d.placeUrl(),
-                parseInt(d.distance())
+                parseInt(d.distance()),
+                java.util.List.of()   // 근거는 PlaceController가 채운다
         )).toList();
     }
 
@@ -159,8 +160,19 @@ public class KakaoLocalClient {
             Double latitude,
             Double longitude,
             String placeUrl,
-            Integer distanceMeters
-    ) {}
+            Integer distanceMeters,
+            /**
+             * 추천 근거 (없으면 빈 목록). Kakao는 이 값을 주지 않는다 —
+             * {@link PlaceController}가 우리 레지스트리를 조인해 채운다.
+             */
+            java.util.List<CourseReasons.Reason> reasons
+    ) {
+        /** 근거만 갈아끼운 사본. record라 값을 고치는 대신 새로 만든다. */
+        public Place withReasons(java.util.List<CourseReasons.Reason> newReasons) {
+            return new Place(id, name, category, categoryGroupCode, phone, address,
+                    latitude, longitude, placeUrl, distanceMeters, newReasons);
+        }
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record PlaceSearchResponse(List<PlaceDoc> documents) {}

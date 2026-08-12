@@ -12,6 +12,18 @@ import { PinIcon } from "@/components/icons";
 import TripMap from "@/components/TripMap";
 import { matchSpot } from "@/lib/spots";
 
+/**
+ * 우리가 수집한 장소 지식 한 조각. Kakao가 주지 않는 유일한 정보라 여기서만 나온다.
+ * publisher가 없으면 표시하지 않는다 — 출처를 못 밝히는 자료는 띄우지 않는 것이
+ * TourAPI 계약(attribution_required)이자 신뢰의 조건이다.
+ */
+export type PlaceInsightView = {
+  kind: string;
+  note: string | null;
+  confidence: number | null;
+  publisher: string | null;
+};
+
 export type ModalPlace = {
   id: string;
   name: string;
@@ -22,6 +34,8 @@ export type ModalPlace = {
   longitude?: number | null;
   placeUrl?: string | null;
   distanceMeters?: number | null;
+  /** 추천 정차지에서 열었을 때만 있다. 없으면 이 영역 자체가 렌더되지 않는다. */
+  insights?: PlaceInsightView[];
 };
 
 type Props = {
@@ -44,6 +58,13 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
   const hasCoords = typeof place.latitude === "number" && typeof place.longitude === "number";
   const spot = matchSpot(place.name);
 
+  // 내용도 출처도 있는 것만. 둘 중 하나가 없으면 띄울 수 없는 사실이다.
+  const knownFacts = (place.insights ?? [])
+    .filter((f) => f.note && f.publisher)
+    .slice(0, 5);
+  const factLabel = (kind: string) =>
+    t.courses.reasonFacts[kind as keyof typeof t.courses.reasonFacts] ?? "";
+
   async function copyAddress() {
     if (!place.address) return;
     try {
@@ -55,10 +76,16 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
     }
   }
 
+  // 스크롤 위치와 무관하게 항상 화면 중앙에 띄운다.
+  //
+  // 예전에는 모바일에서 items-end(바텀시트) + max-h-[90vh]였다. vh는 "브라우저 툴바가
+  // 숨겨진 최대 뷰포트" 기준이라, 툴바가 보이는 동안 90vh가 실제 보이는 높이를 넘고
+  // 시트는 아래에 붙어 있어 하단(내용·버튼)이 화면 밖으로 잘렸다.
+  // → dvh(실제 보이는 높이) + 중앙 정렬 + p-4로 위아래 여백이 항상 남게 한다.
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 max-h-[90vh] w-full overflow-y-auto rounded-t-2xl bg-white shadow-2xl sm:max-w-lg sm:rounded-2xl">
+      <div className="relative z-10 flex max-h-[85dvh] w-full flex-col overflow-y-auto overscroll-contain rounded-2xl bg-white shadow-2xl sm:max-w-lg">
         {/* Header */}
         <div className="flex items-start justify-between gap-3 border-b border-stone-100 px-5 py-4">
           <div className="min-w-0">
@@ -120,6 +147,24 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
             <p className="text-sm text-stone-500">
               {pd.distance}: <span className="font-semibold text-sky-500">{(place.distanceMeters / 1000).toFixed(1)}km</span>
             </p>
+          )}
+
+          {knownFacts.length > 0 && (
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+              <p className="mb-2 text-xs font-bold text-emerald-800">💡 {pd.insightsTitle}</p>
+              <ul className="flex flex-col gap-2">
+                {knownFacts.map((f, i) => (
+                  <li key={i} className="text-xs leading-relaxed text-stone-700">
+                    <span className="mr-1 font-semibold text-emerald-700">
+                      {factLabel(f.kind)}
+                    </span>
+                    {f.note}
+                    {/* 출처는 장식이 아니라 의무다 — 이 배지가 없으면 사실을 띄울 수 없다 */}
+                    <span className="ml-1 whitespace-nowrap text-[10px] text-stone-400">· {f.publisher}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           {spot && (

@@ -1,6 +1,11 @@
 package com.guidematch.geo;
 
 import com.guidematch.geo.KakaoLocalClient.Place;
+import com.guidematch.knowledge.GuideCourseSignalLookup;
+import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.TravelerSignalLookup;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -8,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 지역 장소 검색 (공개, Phase 2).
@@ -20,6 +26,8 @@ import java.util.Map;
  */
 @RestController
 public class PlaceController {
+
+    private static final Logger log = LoggerFactory.getLogger(PlaceController.class);
 
     private static final int RADIUS_METERS = 20000;         // Kakao 최대 반경(20km) — 도시 전체
     private static final int DISTRICT_RADIUS_METERS = 6000;  // 구 단위로 좁힐 때 반경
@@ -39,10 +47,20 @@ public class PlaceController {
 
     private final KakaoLocalClient kakaoClient;
     private final TranslationService translationService;
+    private final PlaceInsightLookup insightLookup;
+    private final GuideCourseSignalLookup guideCourseLookup;
+    private final TravelerSignalLookup travelerLookup;
 
-    public PlaceController(KakaoLocalClient kakaoClient, TranslationService translationService) {
+    public PlaceController(KakaoLocalClient kakaoClient,
+                           TranslationService translationService,
+                           PlaceInsightLookup insightLookup,
+                           GuideCourseSignalLookup guideCourseLookup,
+                           TravelerSignalLookup travelerLookup) {
         this.kakaoClient = kakaoClient;
         this.translationService = translationService;
+        this.insightLookup = insightLookup;
+        this.guideCourseLookup = guideCourseLookup;
+        this.travelerLookup = travelerLookup;
     }
 
     @GetMapping("/api/places")
@@ -86,7 +104,7 @@ public class PlaceController {
             places = kakaoClient.searchByKeyword(keyword, lat, lng, radius);
         }
 
-        List<Place> result = translateIfNeeded(places, lang);
+        List<Place> result = recommendFirst(translateIfNeeded(places, lang), lang);
         return new PlacesResponse(target.key(), resolvedDistrict, category, kakaoClient.isEnabled(), result);
     }
 
@@ -132,6 +150,59 @@ public class PlaceController {
         return new PlacesResponse(null, null, null, kakaoClient.isEnabled(), result);
     }
 
+    /**
+     * 추천순으로 세우고 "왜 위에 있는지"를 각 장소에 붙인다.
+     *
+     * <p>Kakao 순서는 거리·정확도일 뿐이라 "왜 여기를 가야 하는가"에 답하지 못한다.
+     * 우리가 가진 근거로 앞에 세우되, <b>세운 이유를 그대로 화면에 싣는다</b> — 순서와 설명이
+     * 같은 규칙({@link PlaceRanking}·{@link CourseReasons})에서 나오므로 서로 어긋날 수 없다.
+     *
+     * <p>목록에는 이전 정차지가 없으므로 📍(도보) 근거는 만들지 않는다 — 기준 없는 숫자가 된다.
+     *
+     * <p><b>여기는 비로그인도 쓰는 공개 경로다.</b> 근거는 부가 정보라, 집계가 죽어도 목록은 나가야 한다.
+     * 예외가 새면 로그인조차 안 한 사용자에게 탐색 화면이 통째로 깨진다.
+     * 조회는 전부 배치 — 장소 수와 무관하게 최대 5회(인사이트 2 + 🎫 2 + 🧳 2 중 필요한 만큼)다.
+     */
+    private List<Place> recommendFirst(List<Place> places, String lang) {
+        if (places.isEmpty()) return places;
+        List<String> ids = places.stream().map(Place::id).filter(Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return places;
+
+        Map<String, Integer> guideCounts    = counts("가이드 코스", () -> guideCourseLookup.verifiedGuideCounts(ids));
+        Map<String, Integer> travelerCounts = counts("여행자 담기", () -> travelerLookup.travelerCounts(ids));
+        Map<String, List<PlaceInsightLookup.InsightView>> insights = insights(ids, lang);
+
+        List<Place> withReasons = places.stream().map(p -> p.withReasons(CourseReasons.build(
+                guideCounts.getOrDefault(p.id(), 0),
+                travelerCounts.getOrDefault(p.id(), 0),
+                insights.getOrDefault(p.id(), List.of()),
+                null   // 목록이라 이전 정차지가 없다
+        ))).toList();
+
+        return PlaceRanking.sort(withReasons, p -> new PlaceRanking.Signals(
+                guideCounts.getOrDefault(p.id(), 0),
+                travelerCounts.getOrDefault(p.id(), 0),
+                p.reasons().stream().anyMatch(r -> "official".equals(r.kind()))));
+    }
+
+    private Map<String, Integer> counts(String what, java.util.function.Supplier<Map<String, Integer>> lookup) {
+        try {
+            return lookup.get();
+        } catch (Exception e) {
+            log.warn("{} 근거 집계 실패 — 근거 없이 진행: {}", what, e.toString());
+            return Map.of();
+        }
+    }
+
+    private Map<String, List<PlaceInsightLookup.InsightView>> insights(List<String> ids, String lang) {
+        try {
+            return insightLookup.byKakaoPlaceIds(ids, lang);
+        } catch (Exception e) {
+            log.warn("인사이트 조회 실패 — 근거 없이 진행: {}", e.toString());
+            return Map.of();
+        }
+    }
+
     /** lang != "ko" 면 장소명/카테고리 번역 (캐시 우선, 원문 폴백). ko거나 결과가 없으면 그대로 반환. */
     private List<Place> translateIfNeeded(List<Place> places, String lang) {
         String googleLang = GoogleTranslateClient.toGoogleLang(lang);
@@ -150,7 +221,8 @@ public class PlaceController {
                     tCats.get(i).isBlank() ? p.category() : tCats.get(i),
                     p.categoryGroupCode(), p.phone(),
                     p.address(),   // 주소는 한국어 유지 (택시/지도 사용 편의)
-                    p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters()
+                    p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters(),
+                    p.reasons()   // 번역이 근거를 떨어뜨리면 안 된다
             ));
         }
         return result;

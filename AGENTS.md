@@ -14,8 +14,17 @@ A C2C local guide matching platform for foreign travelers in Korea. Travelers br
 | `developer` | New backend feature, API endpoint, business logic, Spring Boot bug | `app/backend/` |
 | `designer` | UI change, new page, Tailwind styling, UX flow, frontend bug | `app/frontend/` |
 | `dba` | Schema change, new entity, new column, query optimization, Supabase config | JPA entities, `application.yml` |
+| `marketing_lead` | Positioning, ICP, GTM plan, marketing roadmap, specialist coordination | Strategy, research, briefs |
+| `growth_marketer` | Acquisition, conversion, experiments, attribution, analytics, paid-growth plan | Funnel, measurement, campaign proposals |
+| `content_seo_marketer` | Content strategy, SEO, AI-search, site copy, organic growth | Content/SEO briefs and copy |
+| `lifecycle_community_marketer` | Email/SMS lifecycle, onboarding, retention, social, community, partnerships | CRM/community briefs and copy |
 
-**Coordinator responsibilities**: understand intent → sequence DBA → developer → designer → review output.
+**Coordinator responsibilities**: understand intent → route marketing strategy to `marketing_lead` → assign specialist marketing work → sequence DBA → developer → designer → review output. Marketing agents must not publish, spend budget, contact external parties, or modify production tracking without explicit user approval.
+
+### Marketing documentation
+- The user has approved recording finalized marketing strategies, campaign briefs, execution plans, research summaries, decisions, and metric reviews in the authenticated Notion MCP workspace.
+- Use the `notion` MCP server to create or update the `Kyum Marketing Log` parent page (create it if absent). Create one dated child page per deliverable with: objective, audience/market, recommendation, execution plan, metrics, assumptions/risks, decisions needed, and sources.
+- Never write credentials, access tokens, personal data, or unapproved external-contact details to Notion. If a write changes or archives an existing decision, state the change clearly in the page.
 
 ---
 

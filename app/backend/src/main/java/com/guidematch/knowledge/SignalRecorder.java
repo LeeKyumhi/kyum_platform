@@ -72,4 +72,37 @@ public class SignalRecorder {
             log.warn("추천 노출 신호 기록 실패 — 무시하고 진행: {}", e.toString());
         }
     }
+
+    /**
+     * 사용자가 추천 정차지를 일정·코스에 담았다.
+     *
+     * <p>이 신호가 2사이클의 🧳("여행자 N명이 담음")과 가이드용 수요 패널의 원천이다.
+     * 지금 심어두지 않으면 그때 0에서 시작해야 하고, 지나간 담기는 되찾을 수 없다.
+     *
+     * <p>{@code SHOWN}과 같은 {@code courseRef}로 남기므로 나중에
+     * "보여준 것 중 몇 개가 실제로 담겼나"를 셀 수 있다.
+     */
+    public void recordAdded(StopRef stop, String courseRef, Long userId) {
+        try {
+            if (stop == null) return;
+            Long placeId = stop.placeId();
+            if (placeId == null && notBlank(stop.kakaoPlaceId())) {
+                placeId = placeRepo.findAllByKakaoPlaceIdIn(List.of(stop.kakaoPlaceId()))
+                        .stream().findFirst().map(Place::getId).orElse(null);
+            }
+            // 레지스트리에 없는 장소도 남긴다(place_id만 null) — 추천에 나왔고 담기까지 된 장소는
+            // 지식이 없다는 사실 자체가 최우선 수집 대상이다. 다만 식별자가 아무것도 없으면
+            // 나중에 어떤 장소인지 알 방법이 없으므로 빈 행을 만들지 않는다.
+            if (placeId == null && !notBlank(stop.kakaoPlaceId())) return;
+
+            repo.saveAll(List.of(new RecommendationSignal(
+                    RecommendationSignal.EventType.ADDED, placeId, courseRef, userId)));
+        } catch (Exception e) {
+            log.warn("추천 담기 신호 기록 실패 — 무시하고 진행: {}", e.toString());
+        }
+    }
+
+    private static boolean notBlank(String s) {
+        return s != null && !s.isBlank();
+    }
 }

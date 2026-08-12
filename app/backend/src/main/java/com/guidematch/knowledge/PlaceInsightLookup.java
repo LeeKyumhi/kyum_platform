@@ -28,8 +28,15 @@ public class PlaceInsightLookup {
         this.insightRepo = insightRepo;
     }
 
-    /** 소비자에게 나가는 형태 — 내부 엔티티를 그대로 흘리지 않는다. */
-    public record InsightView(String kind, Map<String, Object> value, String note, Double confidence) {}
+    /**
+     * 소비자에게 나가는 형태 — 내부 엔티티를 그대로 흘리지 않는다.
+     *
+     * <p>{@code publisher}는 선택 항목이 아니라 <b>의무</b>다. TourAPI 계약이
+     * {@code attribution_required: true}라 출처 없이 사실만 띄우면 그 자체로 위반이다.
+     * 값이 null인 사실은 조회는 되지만 근거 배지로 쓰지 않는다(판단은 호출부).
+     */
+    public record InsightView(String kind, Map<String, Object> value, String note, Double confidence,
+                              String publisher) {}
 
     /**
      * Kakao place id들로 인사이트를 한 번에 가져온다. 쿼리 2회 고정(장소 조회 + 인사이트 조회).
@@ -92,6 +99,7 @@ public class PlaceInsightLookup {
                     .orElseGet(() -> Optional.ofNullable(notes.get("ko"))
                             .orElseGet(() -> notes.values().iterator().next()));
         }
-        return new InsightView(i.getFactKind().toWire(), i.getValue(), note, i.getConfidence());
+        return new InsightView(i.getFactKind().toWire(), i.getValue(), note, i.getConfidence(),
+                i.getEvidencePublisher());
     }
 }

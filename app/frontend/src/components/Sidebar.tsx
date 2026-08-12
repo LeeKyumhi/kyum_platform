@@ -66,13 +66,17 @@ export default function Sidebar() {
     router.push(next === "guide" ? "/guide" : "/traveler");
   }
 
-  const [verified, setVerified] = useState(false);
+  // 인증 상태 — 메뉴를 숨길지가 아니라 잠금 표시를 붙일지를 정한다.
+  // 예전에는 미인증이면 메뉴가 통째로 사라져서, 가이드 입장에선 그런 기능이 있는지도,
+  // 인증하면 열린다는 것도 알 방법이 없었다. 서버 게이팅은 그대로 두고 안내만 채운다.
+  const [verifyStatus, setVerifyStatus] = useState<string | null>(null);
   useEffect(() => {
-    if (!loggedIn || mode !== "guide") { setVerified(false); return; }
+    if (!loggedIn || mode !== "guide") { setVerifyStatus(null); return; }
     api<{ verificationStatus?: string }>("/api/guide-profiles/me", { auth: true })
-      .then((p) => setVerified(p.verificationStatus === "VERIFIED"))
-      .catch(() => setVerified(false));
+      .then((p) => setVerifyStatus(p.verificationStatus ?? "NONE"))
+      .catch(() => setVerifyStatus(null));
   }, [loggedIn, mode]);
+  const verified = verifyStatus === "VERIFIED";
 
   // 알림 배지 3종 — 30초 폴링 + 경로 변경 시 refetch (usePolledCount가 공통 처리)
   const pendingCount  = usePolledCount("/api/bookings/guide/pending-count",     loggedIn && mode === "guide");    // 가이드: 대기 중 예약 요청
@@ -123,8 +127,11 @@ export default function Sidebar() {
       { ...it("/messages", "💬", n.messages, under("/messages")), badge: unreadCount || undefined },
       it("/community", "👥", n.community, under("/community")),
       it("/guide/availability", "📅", n.availability, under("/guide/availability")),
-      // 투어 코스는 투어 세계 + 인증 가이드일 때만 (동행 세계엔 투어 흔적 없음)
-      ...(!inCompanionWorld && verified ? [it("/guide/courses", "🎫", n.courses, under("/guide/courses"))] : []),
+      // 투어 코스는 투어 세계에서만 (동행 세계엔 투어 흔적 없음).
+      // 미인증이면 숨기지 않고 🔒로 보여준다 — 진입하면 왜 잠겼는지와 여는 법을 알려준다.
+      ...(!inCompanionWorld
+        ? [it("/guide/courses", verified ? "🎫" : "🔒", n.courses, under("/guide/courses"))]
+        : []),
       it("/guide/manage", "⚙️", n.manage, under("/guide/manage")),
     ];
   } else {
