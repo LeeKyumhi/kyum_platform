@@ -61,6 +61,13 @@ public class IngestStateExporter {
                 row.put("place_kind", p.getPlaceKind() == null ? null : p.getPlaceKind().name());
                 row.put("has_kakao_id", p.getKakaoPlaceId() != null);
                 row.put("has_tour_api_id", p.getTourApiContentId() != null);
+                // contentId를 <b>값으로</b> 싣는다. boolean만으로는 "사진이 없는 장소를
+                // detailCommon2로 갱신하라"는 지시가 수행 불가능하다 — 검색부터 다시 해야 한다.
+                row.put("tour_api_content_id", p.getTourApiContentId());
+                // 사진 유무. 역방향 시딩이 tour_api id 보유 장소를 건너뛰는데, v5 이후로는
+                // "id는 있고 사진은 없는" 장소가 다수다(실측 21곳 중 1곳만 사진).
+                // 이 플래그가 없으면 그 장소들은 영원히 사진 없이 남는다.
+                row.put("has_image", p.getImageUrl() != null);
                 w.write(mapper.writeValueAsString(row));
                 w.newLine();
                 written++;

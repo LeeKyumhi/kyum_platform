@@ -196,6 +196,37 @@ class IngestStateExporterTest {
     }
 
     /**
+     * 사진 갱신은 <b>이 파일이 말해주지 않으면 불가능하다.</b>
+     *
+     * <p>역방향 시딩은 {@code has_tour_api_id: true}인 장소를 건너뛴다("이미 붙어 있으니
+     * 역조회할 이유가 없다"). 그런데 v5로 사진이 생기면서 <b>tour_api id는 있는데 사진은
+     * 없는</b> 장소가 다수가 됐다(실측 21/53이 id 보유, 사진은 1건). 에이전트가 그런 장소를
+     * 알아보려면 사진 유무와 <b>contentId 값 자체</b>가 필요하다 — 값이 있어야
+     * {@code detailCommon2}를 검색 없이 곧바로 부를 수 있다.
+     */
+    @Test
+    @DisplayName("레지스트리 목록에 사진 유무와 tour_api contentId가 실린다")
+    void registryPlaces_carryImageStateAndContentId(@TempDir Path dir) throws Exception {
+        Place withPhoto = new Place("한국금융사박물관", "Seoul", "중구", 37.5, 126.9,
+                "12110587", "130157", "관광명소", "서울 중구");
+        withPhoto.applyImage("https://tong.visitkorea.or.kr/x.jpg", "한국관광공사");
+        Place needsPhoto = new Place("남대문시장", "Seoul", "중구", 37.5, 126.9,
+                "8113954", "126510", "전통시장", "서울 중구");
+        when(placeRepo.findAll()).thenReturn(List.of(withPhoto, needsPhoto));
+        when(sourceRepo.findAll()).thenReturn(List.of());
+
+        Path stateFile = dir.resolve("state").resolve("ingested-sources.jsonl");
+        exporter.export(stateFile);
+
+        List<JsonNode> rows = readLines(stateFile.resolveSibling("registry-places.jsonl"));
+        assertThat(rows).hasSize(2);
+        assertThat(rows.get(0).get("has_image").asBoolean()).isTrue();
+        assertThat(rows.get(0).get("tour_api_content_id").asText()).isEqualTo("130157");
+        assertThat(rows.get(1).get("has_image").asBoolean()).isFalse();
+        assertThat(rows.get(1).get("tour_api_content_id").asText()).isEqualTo("126510");
+    }
+
+    /**
      * 정상이면 <b>빈 파일</b>이어야 한다 — 파일이 아예 없는 것과 다르다.
      * 항상 쓰기 때문에 "비어 있다"가 "중단된 적재가 없다"는 적극적 신호가 된다.
      */
