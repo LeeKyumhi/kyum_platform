@@ -91,6 +91,11 @@ type RecStop = {
   reasons: RecReason[];
   /** 상세 모달용 원본. reasons(앞면 요약)가 이걸 대체하지 않는다. */
   insights: PlaceInsightView[];
+  /** 대표 사진(여행자 우선, 없으면 공식) + 공식 사진·발행처. 백엔드가 규칙을 정한다. */
+  coverPhotoUrl: string | null;
+  photoCount: number | null;
+  officialPhotoUrl: string | null;
+  officialPhotoPublisher: string | null;
 };
 export type RecResponse = {
   city: string; district: string | null; theme: string; kakaoEnabled: boolean;
@@ -416,6 +421,10 @@ export default function TimetableBuilder({
       address: s.address, latitude: s.latitude, longitude: s.longitude, placeUrl: s.placeUrl,
       rec: { placeId: s.placeId, kakaoPlaceId: s.kakaoPlaceId },
       insights: s.insights ?? [],
+      coverPhotoUrl: s.coverPhotoUrl,
+      photoCount: s.photoCount,
+      officialPhotoUrl: s.officialPhotoUrl,
+      officialPhotoPublisher: s.officialPhotoPublisher,
     })), [rec]);
 
   function onDragStart(e: DragStartEvent) {
@@ -692,6 +701,7 @@ export default function TimetableBuilder({
                             data={{ kind: "place", place: p }}
                             icon={categoryIcon(p.name, p.category, false)}
                             label={`${i + 1}. ${p.name}`} sub={p.address} detailLabel={li.detailsBtn}
+                            photoUrl={p.coverPhotoUrl} photoCount={p.photoCount}
                             onInfo={() => setDetailPlace(toModalPlace(p))} />
                           <ReasonChips reasons={rec.stops[i]?.reasons ?? []} lc={lc} />
                           <VibeLine insights={rec.stops[i]?.insights ?? []} />

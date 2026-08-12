@@ -285,6 +285,41 @@ class PlaceMediaLookupTest {
         assertThat(c.officialUrl()).startsWith("https://");
     }
 
+    // ── place id로 조회 (추천 정차지) ────────────────────────────
+    // 레지스트리 전용 장소는 kakao id가 없다(19곳 중 11곳). 코스 추천은 그런 정차지를
+    // 그대로 내보내므로, kakao 키로만 조회하는 경로로는 사진이 구조적으로 도달하지 못한다.
+
+    @Test
+    void placeId로도_공식_사진과_여행자_사진을_합쳐_준다() {
+        Place p = seeded(44L, null, "http://tong.visitkorea.or.kr/x.jpg", "한국관광공사");
+        when(placeRepo.findAllById(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, 44L, null, "https://sb/u_thumb.jpg", null)));
+
+        Map<Long, PlaceMediaLookup.Cover> covers = lookup.coversByPlaceIds(List.of(44L));
+
+        PlaceMediaLookup.Cover c = covers.get(44L);
+        assertThat(c.thumbUrl()).as("여행자 사진이 대표다").isEqualTo("https://sb/u_thumb.jpg");
+        assertThat(c.photoCount()).isEqualTo(1);
+        assertThat(c.officialUrl()).as("https로 올려서 나간다").isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialPublisher()).isEqualTo("한국관광공사");
+    }
+
+    @Test
+    void placeId_조회도_사진이_없으면_키_자체가_없다() {
+        Place p = seeded(44L, null, null, null);
+        when(placeRepo.findAllById(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        assertThat(lookup.coversByPlaceIds(List.of(44L))).isEmpty();
+    }
+
+    @Test
+    void placeId가_없으면_쿼리를_내지_않는다() {
+        assertThat(lookup.coversByPlaceIds(List.of())).isEmpty();
+        verifyNoInteractions(placeRepo, repo);
+    }
+
     @Test
     void 작성자_조회도_배치_1회다() {
         when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());

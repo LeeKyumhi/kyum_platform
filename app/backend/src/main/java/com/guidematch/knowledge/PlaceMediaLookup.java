@@ -136,6 +136,56 @@ public class PlaceMediaLookup {
         return out;
     }
 
+    /**
+     * 레지스트리 장소 id들의 대표 사진. <b>코스 추천 정차지용</b>이다.
+     *
+     * <p>왜 kakao 경로로 안 되나: 레지스트리 전용 장소는 kakao id가 아예 없다(실측 19곳 중 11곳).
+     * 추천은 그런 정차지를 그대로 내보내므로, kakao 키로만 조회하면 그 장소들의 사진은
+     * <b>구조적으로 도달 불가</b>다 — 화면에는 "사진이 아직 없네"로만 보인다.
+     *
+     * <p>규칙(여행자 사진 우선 · 발행처 쌍 · https 승격 · 0은 키 없음)은
+     * {@link #coversByKakaoIds}와 <b>같은 것을 쓴다</b>. 두 벌로 갈라지면 같은 장소가 화면마다
+     * 다른 사진을 보여주게 된다.
+     *
+     * <p>쿼리 <b>2회 고정</b>(장소 배치 1 + 노트 배치 1) — 정차지 수와 무관하다.
+     */
+    public Map<Long, Cover> coversByPlaceIds(Collection<Long> placeIds) {
+        List<Long> ids = placeIds.stream().filter(java.util.Objects::nonNull).distinct().toList();
+        if (ids.isEmpty()) return Map.of();
+
+        Map<Long, String[]> officialByPlace = new LinkedHashMap<>();
+        for (Place p : placeRepo.findAllById(ids)) {
+            if (notBlank(p.getImageUrl()) && notBlank(p.getImagePublisher())) {
+                officialByPlace.put(p.getId(), new String[]{ https(p.getImageUrl()), p.getImagePublisher() });
+            }
+        }
+
+        Map<Long, List<PlaceNote>> byPlace = new LinkedHashMap<>();
+        for (PlaceNote n : repo.findVisibleByPlaceIdIn(ids)) {
+            if (n.getPhotoThumbUrl() == null) continue;
+            byPlace.computeIfAbsent(n.getPlaceId(), k -> new ArrayList<>()).add(n);
+        }
+
+        Map<Long, Cover> out = new LinkedHashMap<>();
+        Set<Long> keys = new LinkedHashSet<>(byPlace.keySet());
+        keys.addAll(officialByPlace.keySet());
+        for (Long placeId : keys) {
+            List<PlaceNote> withPhoto = byPlace.getOrDefault(placeId, List.of());
+            String[] official = officialByPlace.get(placeId);
+            if (withPhoto.isEmpty() && official == null) continue;
+            String thumb = withPhoto.isEmpty()
+                    ? official[0]
+                    : withPhoto.stream().max(Comparator.comparing(PlaceNote::getCreatedAt))
+                            .orElseThrow().getPhotoThumbUrl();
+            out.put(placeId, new Cover(
+                    thumb,
+                    withPhoto.isEmpty() ? null : withPhoto.size(),
+                    official == null ? null : official[0],
+                    official == null ? null : official[1]));
+        }
+        return out;
+    }
+
     private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
 
     /**

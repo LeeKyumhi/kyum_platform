@@ -2,6 +2,7 @@ package com.guidematch.geo;
 
 import com.guidematch.knowledge.GuideCourseSignalLookup;
 import com.guidematch.knowledge.PlaceInsightLookup;
+import com.guidematch.knowledge.PlaceMediaLookup;
 import com.guidematch.knowledge.SignalRecorder;
 import com.guidematch.knowledge.TravelerSignalLookup;
 import org.slf4j.Logger;
@@ -60,19 +61,22 @@ public class CourseRecommendController {
     private final GuideCourseSignalLookup guideCourseLookup;
     private final TravelerSignalLookup travelerLookup;
     private final SignalRecorder signalRecorder;
+    private final PlaceMediaLookup mediaLookup;
 
     public CourseRecommendController(CoursePlanner coursePlanner,
                                      TranslationService translationService,
                                      PlaceInsightLookup insightLookup,
                                      GuideCourseSignalLookup guideCourseLookup,
                                      TravelerSignalLookup travelerLookup,
-                                     SignalRecorder signalRecorder) {
+                                     SignalRecorder signalRecorder,
+                                     PlaceMediaLookup mediaLookup) {
         this.coursePlanner = coursePlanner;
         this.translationService = translationService;
         this.insightLookup = insightLookup;
         this.guideCourseLookup = guideCourseLookup;
         this.travelerLookup = travelerLookup;
         this.signalRecorder = signalRecorder;
+        this.mediaLookup = mediaLookup;
     }
 
     @GetMapping("/api/courses/recommend")
@@ -193,9 +197,25 @@ public class CourseRecommendController {
         Map<String, Integer> guideCounts   = counts("가이드 코스", kakaoIds, guideCourseLookup::verifiedGuideCounts);
         Map<String, Integer> travelerCounts = counts("여행자 담기", kakaoIds, travelerLookup::travelerCounts);
 
+        // 사진 — 정차지는 두 종류가 섞여 있다. kakao id가 있으면 그 키로(두 출신 노트를 합쳐서),
+        // 레지스트리 전용(kakao id 없음, 실측 19곳 중 11곳)은 place id로 조회한다.
+        // 후자를 빼면 그 장소들의 사진은 구조적으로 도달하지 못한다.
+        Map<String, PlaceMediaLookup.Cover> coversByKakao = media("kakao", () ->
+                kakaoIds.isEmpty() ? Map.<String, PlaceMediaLookup.Cover>of()
+                                   : mediaLookup.coversByKakaoIds(kakaoIds));
+        List<Long> registryOnlyIds = picked.stream()
+                .filter(p -> p.kakaoPlaceId() == null && p.placeId() != null)
+                .map(CoursePlanner.PlannedStop::placeId).distinct().toList();
+        Map<Long, PlaceMediaLookup.Cover> coversByPlace = media("registry", () ->
+                registryOnlyIds.isEmpty() ? Map.<Long, PlaceMediaLookup.Cover>of()
+                                          : mediaLookup.coversByPlaceIds(registryOnlyIds));
+
         List<Stop> stops = new ArrayList<>();
         for (int i = 0; i < picked.size(); i++) {
             CoursePlanner.PlannedStop p = picked.get(i);
+            PlaceMediaLookup.Cover cover = p.kakaoPlaceId() != null
+                    ? coversByKakao.get(p.kakaoPlaceId())
+                    : (p.placeId() == null ? null : coversByPlace.get(p.placeId()));
             List<PlaceInsightLookup.InsightView> insights = p.placeId() != null
                     ? byPlace.getOrDefault(p.placeId(), List.of())
                     : byKakao.getOrDefault(p.kakaoPlaceId(), List.of());
@@ -211,9 +231,27 @@ public class CourseRecommendController {
                     p.placeId(), p.kakaoPlaceId(),
                     insights,
                     // insights는 상세용 원본 그대로 남긴다 — reasons는 앞면 요약이지 대체가 아니다
-                    CourseReasons.build(guideCount, travelerCount, insights, legMeters.get(i))));
+                    CourseReasons.build(guideCount, travelerCount, insights, legMeters.get(i)),
+                    cover == null ? null : cover.thumbUrl(),
+                    cover == null ? null : cover.photoCount(),
+                    cover == null ? null : cover.officialUrl(),
+                    cover == null ? null : cover.officialPublisher()));
         }
         return stops;
+    }
+
+    /**
+     * 사진도 근거와 같다 — 없어도 추천은 나가야 한다. 사진 조회 실패로 코스가 통째로
+     * 비면 본말전도다({@code counts()}와 같은 격리 원칙).
+     */
+    private <K> Map<K, PlaceMediaLookup.Cover> media(
+            String what, java.util.function.Supplier<Map<K, PlaceMediaLookup.Cover>> lookup) {
+        try {
+            return lookup.get();
+        } catch (Exception e) {
+            log.warn("{} 정차지 사진 조회 실패 — 사진 없이 진행: {}", what, e.toString());
+            return Map.of();
+        }
     }
 
     /**
@@ -259,7 +297,17 @@ public class CourseRecommendController {
              * 앞면에 보여줄 추천 근거 (최대 2개, 없으면 빈 배열).
              * {@code insights}를 대체하지 않는다 — 상세 모달은 계속 원본을 쓴다.
              */
-            List<CourseReasons.Reason> reasons
+            List<CourseReasons.Reason> reasons,
+            /**
+             * 대표 사진 — 여행자 사진이 있으면 그 최신, 없으면 공식 사진. 없으면 null.
+             * (규칙은 {@link PlaceMediaLookup} 한 곳에서만 정한다)
+             */
+            String coverPhotoUrl,
+            /** 여행자 사진 수. 0이면 null — "0장"을 담아 보내지 않는다. */
+            Integer photoCount,
+            /** 공식 사진과 발행처. <b>쌍으로만</b> 실린다(계약 §16). */
+            String officialPhotoUrl,
+            String officialPhotoPublisher
     ) {}
 
     public record RecommendResponse(
