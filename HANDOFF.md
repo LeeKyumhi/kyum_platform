@@ -1,6 +1,6 @@
 # PeerUp 인수인계서
 
-## 0. 재개 지점 (2026-08-11) — 장소 사진·노트, 구현 진행 중
+## 0. 재개 지점 (2026-08-12) — 장소 사진·노트, **구현 완료**
 
 ### 먼저 알아야 할 것: 오래된 미커밋 더미가 사라졌다
 
@@ -10,7 +10,7 @@
 | 브랜치 | 내용 | 상태 |
 |---|---|---|
 | `feat/course-planner-flywheel` | 코스 추천 플라이휠 1사이클(+2사이클 일부) — 그동안의 미커밋분 전부 | **12커밋, 260 tests green.** main 미머지 |
-| `feat/place-media-and-notes` | 장소 사진·한줄팁 (신규) | **18커밋, 322 tests green.** 진행 중 |
+| `feat/place-media-and-notes` | 장소 사진·한줄팁 (신규) | **24커밋, 335 tests green.** 16/16 완료 |
 
 `feat/place-media-and-notes`는 `feat/course-planner-flywheel`에서 분기했다 — 후자의 코드에
 얹혀 있으므로 **머지 순서를 지켜야 한다**(flywheel → main, 그다음 place-media → main).
@@ -23,46 +23,66 @@
   `position: fixed`의 컨테이닝 블록이 된다. `/trips/[id]`에서 오버레이가 뷰포트(772px)가 아니라
   래퍼(1824px) 기준이 되어 세로로 밀렸다. `both` → `backwards` 한 줄로 해결(브라우저 A/B 2회 검증).
 
-### 진행 중인 작업: 장소 사진·노트
+### 이 브랜치의 작업: 장소 사진·노트
 
 - 설계: `docs/superpowers/specs/2026-08-11-place-media-and-notes-design.md`
 - 계획: `docs/superpowers/plans/2026-08-11-place-media-and-notes.md` (16개 태스크)
-- 방식: superpowers **subagent-driven-development** (태스크마다 구현자 1 + 리뷰어 1, 수정 루프)
+- 방식: Task 1~8·16은 superpowers **subagent-driven-development**(구현자 1 + 리뷰어 1),
+  Task 9~15는 사용자 지시로 코디네이터가 직접 구현(리뷰어 없음, 각 태스크 실기동 검증으로 대체)
 - 워크트리: `.claude/worktrees/place-media-and-notes` (브랜치 `feat/place-media-and-notes`)
 - **원장(진행 기록): `.superpowers/sdd/2026-08-11-place-media-and-notes/progress.md`**
   ⚠ 이 경로는 gitignore다. 태스크별 상세·이월 항목이 전부 여기 있으니 **재개 시 먼저 읽을 것.**
   `git clean -fdx`를 돌리면 사라진다.
 
-**완료: Task 1~8, 16 (백엔드 전부).** 322 tests green.
+**★ 계획서 16개 태스크 전부 완료 (2026-08-12).** HEAD `aed4160` · **335 tests / 0 failures** ·
+실 DB 스모크 `bash scripts/smoke/place-notes-smoke.sh <이메일인증계정> <비번>` **8/8**.
 
-| # | 내용 |
-|---|---|
-| 1 | `PlaceNote` 엔티티 — 두 장소 식별자(`place_id`/`kakao_place_id`)를 **둘 다** 저장 |
-| 2 | `PlaceImageProcessor` — EXIF 제거 + Orientation 회전 + 2크기(1600/400) |
-| 3 | `PlaceNoteService` — 검증·업로드·장소당 3개 상한 |
-| 4 | `PlaceNoteController` — POST/DELETE + `GET /api/places/notes` permitAll 등록 |
-| 5 | `PLACE_NOTE` 신고 대상 추가 (프로덕션 1줄) |
-| 16 | 관리자 숨김 조치 `HIDE_PLACE_NOTE` + 신고 목록에 노트 요약 |
-| 6 | `PlaceMediaLookup` — 두 식별자를 **읽기 시점에 합치는 유일한 지점** |
-| 7 | 장소 목록에 대표 사진 배선 (배치 1회, 실패해도 목록은 나감) |
-| 8 | 노트 상세 조회 (공개, 실패 시 빈 목록 degrade) |
+| # | 내용 | 상태 |
+|---|---|---|
+| 1~8, 16 | 백엔드 UGC (엔티티·이미지 처리·서비스·컨트롤러·신고·관리자 숨김·배치 조회·목록 커버·상세 조회) | 2026-08-11 완료 |
+| 9 | 상세 모달 사진 스트립·팁 + i18n `placeNotes.*` ko/en/zh | 완료 |
+| 10 | `PlaceNoteComposer` 업로드 UI | 완료 |
+| 11 | 목록 카드 썸네일 (`/explore` · 팔레트) | 완료 |
+| 12 | 시드 필드 `places.image_url`·`image_publisher` + 계약·적재 배선 | 완료 |
+| 13 | 프롬프트 insight-v5 (`firstimage`) + CONTRACT §16 | 완료 |
+| 14 | 흡수 백필 `PlaceNoteBackfill` (기동 훅) | 완료 |
+| 15 | 실 DB 스모크 8개 어서션 | 완료 |
 
-**남은 것: Task 9~15 (7개).**
+**이제 실기동으로 증명된 것** (2026-08-11 판본의 "아직 아무도 실행하지 않은 것"은 전부 해소됐다):
+- `place_notes` 테이블이 `ddl-auto`로 생성됐고 리포지토리 JPQL이 실제로 파싱·실행된다.
+- Supabase Storage 업로드 + **공개 URL이 서명 없이 200 + image/jpeg로 열린다.** 3200px 원본 →
+  full 1600px / thumb 400px 실측.
+- 브라우저(`/explore`·`/trips/[id]`): 카드 썸네일·개수 배지, 상세 모달 사진·팁(@핸들),
+  등록 → 즉시 갱신, 상한 초과 시 백엔드 메시지 표시.
+- `places.image_url`·`image_publisher` 컬럼이 실 DB에 추가됐다(둘 다 nullable).
+- 백필이 기동 때 실제로 돌아 노트 1건을 레지스트리 장소에 연결했다(두 식별자가 모두
+  채워진 첫 행 — 그 상태의 읽기 중복 제거도 함께 확인).
 
-| # | 내용 |
-|---|---|
-| 9 | i18n `placeNotes.*` ko/en/zh + `PlaceDetailModal`에 사진 스트립·팁 표시 |
-| 10 | `PlaceNoteComposer` 업로드 UI |
-| 11 | 목록 카드 썸네일 (`/explore`, `TimetableBuilder` 팔레트) |
-| 12 | 시드 — `place.schema.json` + `Place.imageUrl`·`imagePublisher` |
-| 13 | 프롬프트 insight-v5 (`detailCommon2`의 `firstimage`) + CONTRACT §16 |
-| 14 | 흡수 백필 — kakao 유래 노트에 `place_id` 채우기 |
-| 15 | 실 DB 스모크 (어서션 7개) |
+### 🙋 남은 것 — 사용자 작업
+1. **v5 재수집 1회.** 이걸 돌리기 전까지 `places.image_url`은 0건이고, 화면의 사진은
+   사용자가 올린 노트뿐이다.
+   ```
+   codex exec --cd ~/peerup-ingest --skip-git-repo-check \
+     --sandbox workspace-write -c sandbox_workspace_write.network_access=true \
+     < docs/ingest/codex-ingest-prompt.md
+   ```
+   확인: `select count(*) from places where image_url is not null;` > 0.
+   ⚠ `--cd` 없으면 쓰기 루트가 앱 리포가 되어 격리가 무너진다.
+   ⚠ `app/backend/src/main`을 고쳤으면 `./scripts/ingest/build-jar.sh` 먼저(안 하면 exit 3).
+2. **머지 결정.** 순서는 `feat/course-planner-flywheel` → main, 그다음 `feat/place-media-and-notes`.
+3. **테스트 오염 정리** — users 43 `note_smoke_*@test.com`, place_notes 1~11,
+   itinerary 32, Supabase Storage `credentials/place-notes/43/`.
+   그중 3건이 실제 장소 **하늘전망대**(kakao 1771512259)에 붙어 `/explore` 서울 관광명소에
+   테스트 사진으로 노출된다(사용자가 무방하다고 판단함).
+
+### ⚠ 아직 확인 못 한 것 하나
+**EXIF Orientation이 붙은 실제 아이폰 사진.** 합성 이미지에는 Orientation 태그가 없어
+스모크로는 증명할 수 없다. 회전 처리 코드(`PlaceImageProcessor`)는 단위 테스트로만 고정돼 있다.
 
 ### 재개 방법
 
-워크트리로 들어가서 원장을 읽고 Task 9부터 이어가면 된다. 계획서의 각 태스크는 브리프로 뽑아
-서브에이전트에 넘기는 구조다(`superpowers/.../scripts/task-brief <plan> <N>`).
+구현은 끝났다. 남은 건 위 "사용자 작업" 3가지다. 태스크별 판단·이월 항목의 상세는
+여전히 원장(`.superpowers/sdd/2026-08-11-place-media-and-notes/progress.md`, gitignore)에 있다.
 
 ### ⚠ 계획서보다 실제 코드가 옳았던 것 (남은 태스크에도 적용됨)
 
