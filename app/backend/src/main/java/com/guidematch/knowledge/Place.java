@@ -81,6 +81,17 @@ public class Place {
     @Column(name = "address_ko", columnDefinition = "TEXT")
     private String addressKo;
 
+    /** TourAPI detailCommon2의 firstimage. 발행처와 <b>쌍으로만</b> 저장된다. */
+    @Column(name = "image_url", columnDefinition = "TEXT")
+    private String imageUrl;
+
+    /**
+     * 사진 발행처(예: "한국관광공사"). 출처를 못 밝히면 사진을 띄우지 않기로 했으므로
+     * 이 값이 없는 이미지는 저장 자체를 하지 않는다 — 표시 시점에 되찾을 방법이 없다.
+     */
+    @Column(name = "image_publisher", length = 100)
+    private String imagePublisher;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -151,6 +162,23 @@ public class Place {
         return true;
     }
 
+    /**
+     * 공식 사진을 반영한다. <b>URL과 발행처가 둘 다 있을 때만</b> 저장한다 —
+     * 출처를 못 밝히는 사진은 띄울 수 없으므로(TourAPI {@code attribution_required})
+     * 저장해 둘 이유도 없다. 빈 값으로 기존 사진을 덮지도 않는다(재적재는 멱등해야 한다).
+     *
+     * @return 실제로 값이 바뀌었으면 true. 호출부가 이 값으로 저장 여부를 정하므로,
+     *         같은 사진의 재적재에 true를 내면 재적재가 매번 전체 쓰기가 된다.
+     */
+    public boolean applyImage(String url, String publisher) {
+        if (isBlank(url) || isBlank(publisher)) return false;
+        if (url.equals(this.imageUrl) && publisher.equals(this.imagePublisher)) return false;
+        this.imageUrl = url;
+        this.imagePublisher = publisher;
+        this.updatedAt = Instant.now();
+        return true;
+    }
+
     private static boolean isBlank(String s)  { return s == null || s.isBlank(); }
     private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
 
@@ -166,4 +194,6 @@ public class Place {
     public String getCategory()         { return category; }
     public PlaceKind getPlaceKind()     { return placeKind; }
     public String getAddressKo()        { return addressKo; }
+    public String getImageUrl()         { return imageUrl; }
+    public String getImagePublisher()   { return imagePublisher; }
 }

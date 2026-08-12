@@ -318,6 +318,51 @@ class IngestServiceTest {
         verify(runRepo).findByStatus(IngestRun.Status.STARTED);
     }
 
+    /**
+     * 사진은 JSONL의 <b>두 위치</b>에서 온다 — {@code image_url}과 {@code source.publisher}.
+     *
+     * <p>계약과 엔티티에 필드를 만들어도 여기서 읽지 않으면 사진은 영원히 null이고,
+     * 그 실패는 조용하다(적재는 성공으로 끝난다). 이 테스트가 그 배선을 고정한다.
+     */
+    @Test
+    void 장소_사진과_발행처를_적재한다() throws IOException {
+        manifest();
+        write("places.jsonl", """
+            {"record_id":"sha256:p9","record_type":"place","name_raw":"경복궁",\
+            "city":"seoul","district":"종로구","lat":37.5796,"lng":126.9770,\
+            "external_ids":{"tour_api_content_id":"126508"},"category_raw":"관광명소",\
+            "image_url":"https://tong.visitkorea.or.kr/gyeongbok.jpg",\
+            "source":{"url":"https://api.visitkorea.or.kr/x","publisher":"한국관광공사"},\
+            "confidence":0.9}""");
+
+        service.ingest(runDir);
+
+        ArgumentCaptor<Place> saved = ArgumentCaptor.forClass(Place.class);
+        verify(placeRepo, atLeastOnce()).save(saved.capture());
+        Place p = saved.getAllValues().get(saved.getAllValues().size() - 1);
+        assertThat(p.getImageUrl()).isEqualTo("https://tong.visitkorea.or.kr/gyeongbok.jpg");
+        assertThat(p.getImagePublisher()).isEqualTo("한국관광공사");
+    }
+
+    /** 발행처가 없으면 사진도 버린다 — 출처를 못 밝히는 사진은 띄울 수 없다(계약 §16). */
+    @Test
+    void 발행처_없는_사진은_적재하지_않는다() throws IOException {
+        manifest();
+        write("places.jsonl", """
+            {"record_id":"sha256:p10","record_type":"place","name_raw":"경복궁",\
+            "city":"seoul","district":"종로구","lat":37.5796,"lng":126.9770,\
+            "external_ids":{"tour_api_content_id":"126508"},"category_raw":"관광명소",\
+            "image_url":"https://tong.visitkorea.or.kr/gyeongbok.jpg",\
+            "source":{"url":"https://api.visitkorea.or.kr/x"},"confidence":0.9}""");
+
+        service.ingest(runDir);
+
+        ArgumentCaptor<Place> saved = ArgumentCaptor.forClass(Place.class);
+        verify(placeRepo, atLeastOnce()).save(saved.capture());
+        Place p = saved.getAllValues().get(saved.getAllValues().size() - 1);
+        assertThat(p.getImageUrl()).isNull();
+    }
+
     /** 경고 기능이 본 작업을 죽이면 본말전도다. */
     @Test
     void 중단_런_조회가_실패해도_적재는_계속된다() throws IOException {

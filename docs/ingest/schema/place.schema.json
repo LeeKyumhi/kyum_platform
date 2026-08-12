@@ -42,6 +42,14 @@
       "additionalProperties": true
     },
     "category_raw": { "type": ["string", "null"] },
+    "image_url": {
+      "type": ["string", "null"],
+      "description": "TourAPI detailCommon2의 firstimage. 발행처(source.publisher)와 쌍으로만 저장된다 — 하나라도 없으면 적재기가 사진을 버린다."
+    },
+    "image_source_url": {
+      "type": ["string", "null"],
+      "description": "이미지 원본 페이지. 출처 표시 링크용."
+    },
     "source": {
       "type": "object",
       "required": ["url"],
