@@ -2,9 +2,14 @@
 이 파일의 아래 본문을 Codex 앱의 "예약된 작업"에 붙여넣는다.
 원본은 여기서 버전 관리한다 — 앱에 붙여넣은 사본이 아니라 이 파일이 정본이다.
 
-prompt_version: insight-v4
+prompt_version: insight-v5
 바꿀 때마다 버전을 올리고, manifest.extractor.prompt_version에 그 값이 실리게 할 것.
 그래야 나중에 "이 버전으로 뽑은 것만 다시 뽑기"가 가능하다.
+
+v5 (2026-08-12) — 사진(`image_url` + `source.publisher`). detailCommon2를 이미 부르고
+있으므로 추가 호출이 없다. 계기: 장소 카드·상세에 띄울 사진이 레지스트리에 하나도 없었고,
+사용자 노트(UGC)만으로는 처음 방문하는 장소가 영원히 빈 칸이다. 발행처 없는 사진은
+적재기가 버린다 — 계약 §16.
 
 v4 (2026-08-09) — ① overview 강제 독해 ② 문장 틀 금지 ③ 역방향 시딩 ④ 행사 취급.
 계기: v2로 뽑은 인사이트 9건이 **전부 detailIntro2 유래**이고 detailCommon2(overview)
@@ -78,6 +83,20 @@ v2 (2026-07-31) — 계획 단위를 (소스 × 범위)로 바꿈. v1은 범위�
    - overview에서 뽑은 사실은 `evidence.url`에 **`detailCommon2` 호출 URL을 그대로** 실어라.
      완료 판정이 이 문자열로 질의하므로, 이게 없으면 검증 자체가 불가능하다.
    - 한 장소에서 아무 사실도 못 뽑았으면 **빈 채로 두어라.** 지어내는 것보다 낫다.
+
+   ### ★ 사진 (v5 신설)
+
+   `detailCommon2`를 이미 호출하고 있다(overview 때문에). **그 같은 응답의 `firstimage`를
+   장소 레코드의 `image_url`에 싣고, 호출 URL을 `image_source_url`에 싣는다.**
+   `firstimage2`(썸네일)는 무시한다. **API 호출을 추가하지 마라 — 이미 받은 응답 안에 있다.**
+
+   - `firstimage`가 빈 문자열이면 `null`로 싣는다. TourAPI는 사진이 없을 때 `""`를 준다.
+   - ⚠ **발행처를 반드시 `source.publisher`에 싣는다** (`"한국관광공사"`).
+     적재기는 `image_url`과 `source.publisher`가 **둘 다** 있을 때만 사진을 저장하고,
+     하나라도 없으면 **말없이 버린다**. `attribution_required: true`라 출처 없이 띄우는 것
+     자체가 계약 위반이고, 저장 시점에 버리지 않으면 나중에 "왜 사진이 안 보이지"의 원인이 된다.
+   - 사진은 **장소 레코드(`places.jsonl`)에만** 싣는다. 인사이트의 `place_ref`에 넣지 마라 —
+     사실 한 줄이 장소의 속성을 바꾸게 된다.
 
    ### ★ 역방향 시딩 (v4)
 
