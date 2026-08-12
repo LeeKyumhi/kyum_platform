@@ -9,6 +9,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -37,8 +38,17 @@ public class PlaceMediaLookup {
         this.userRepository = userRepository;
     }
 
-    /** 목록 카드용 — 대표 썸네일 1장과 사진 개수. 팁은 목록에 싣지 않는다. */
-    public record Cover(String thumbUrl, int photoCount) {}
+    /**
+     * 목록 카드용 — 대표 썸네일 1장과 사진 개수. 팁은 목록에 싣지 않는다.
+     *
+     * @param thumbUrl          대표 사진. 여행자 사진이 있으면 그 최신, 없으면 공식 사진.
+     * @param photoCount        <b>여행자</b> 사진 수. 0이면 null이다 — "0장"을 담아 보내면
+     *                          프론트가 그걸 렌더할 여지가 생긴다.
+     * @param officialUrl       공식 사진(TourAPI). 발행처와 <b>쌍으로만</b> 실린다.
+     * @param officialPublisher 공식 사진 발행처. 없으면 사진도 없다(계약 §16).
+     */
+    public record Cover(String thumbUrl, Integer photoCount,
+                        String officialUrl, String officialPublisher) {}
 
     /** 상세 모달용. {@code authorHandle}은 {@code User.getHandle()} 단일 소스. */
     public record NoteView(Long id, String photoUrl, String photoThumbUrl, String tip,
@@ -62,8 +72,17 @@ public class PlaceMediaLookup {
         // 어느 요청 id에 귀속시킬지 <b>추측 없이</b> 정할 수 있다.
         // (PlaceInsightLookup이 쓰는 것과 같은 2회 패턴)
         Map<Long, String> placeIdToKakao = new LinkedHashMap<>();
+        // 공식 사진(시드)도 같은 조회에서 함께 꺼낸다 — 쿼리를 늘리지 않는다.
+        // 노트가 하나도 없는 장소가 절대다수이고(여행자가 아직 안 왔다), 그 장소들은
+        // 이게 없으면 목록에서 영원히 아이콘으로 남는다.
+        Map<String, String[]> officialByKakao = new LinkedHashMap<>();
         for (Place p : placeRepo.findAllByKakaoPlaceIdIn(ids)) {
             placeIdToKakao.put(p.getId(), p.getKakaoPlaceId());
+            // 출처를 못 밝히는 사진은 띄우지 않는다 — 둘 다 있을 때만 싣는다(계약 §16).
+            if (notBlank(p.getImageUrl()) && notBlank(p.getImagePublisher())) {
+                officialByKakao.put(p.getKakaoPlaceId(),
+                        new String[]{ https(p.getImageUrl()), p.getImagePublisher() });
+            }
         }
 
         // 2회차: 두 키로 각각. 한 방 OR로 합치지 않는다 — 빈 컬렉션과 null 파라미터 타입
@@ -86,18 +105,46 @@ public class PlaceMediaLookup {
         }
 
         Map<String, Cover> out = new LinkedHashMap<>();
-        byKakao.forEach((kakaoId, notesForKakao) -> {
-            List<PlaceNote> withPhoto = notesForKakao.stream()
+        // 노트가 없는 장소도 공식 사진이 있으면 표시 대상이다 — 그래서 노트가 아니라
+        // "노트 ∪ 공식"을 순회한다. 노트 쪽만 돌면 시드 사진은 영원히 도달하지 못한다.
+        Set<String> keys = new LinkedHashSet<>(byKakao.keySet());
+        keys.addAll(officialByKakao.keySet());
+
+        for (String kakaoId : keys) {
+            List<PlaceNote> withPhoto = byKakao.getOrDefault(kakaoId, List.of()).stream()
                     .filter(n -> n.getPhotoThumbUrl() != null).toList();
-            if (withPhoto.isEmpty()) return;   // 규칙: 0은 표시하지 않는다
-            // 대표 썸네일은 최신 사진이어야 한다 — 두 쿼리 결과를 이 순서로 concat하기 때문에
-            // get(0)을 쓰면 kakao 출신 사진이 항상 이겨버린다. 이 클래스가 있는 이유(두 출신을
-            // 대칭적으로 합치는 것)와 정반대라 max로 명시적으로 고른다.
-            PlaceNote newest = withPhoto.stream()
-                    .max(Comparator.comparing(PlaceNote::getCreatedAt)).orElseThrow();
-            out.put(kakaoId, new Cover(newest.getPhotoThumbUrl(), withPhoto.size()));
-        });
+            String[] official = officialByKakao.get(kakaoId);
+            if (withPhoto.isEmpty() && official == null) continue;   // 규칙: 0은 표시하지 않는다
+
+            // 대표는 여행자 사진이 우선이다 — 우리가 가진 것보다 방금 다녀온 사람의 사진이 낫다.
+            // 공식 사진은 상세 스트립 맨 앞에서 계속 보인다.
+            //
+            // 대표 썸네일은 그중 최신이어야 한다. 두 쿼리 결과를 순서대로 concat하기 때문에
+            // get(0)을 쓰면 kakao 출신 사진이 항상 이겨버린다 — 두 출신을 대칭적으로 합친다는
+            // 이 클래스의 존재 이유와 정반대라 max로 명시적으로 고른다.
+            String thumb = withPhoto.isEmpty()
+                    ? official[0]
+                    : withPhoto.stream().max(Comparator.comparing(PlaceNote::getCreatedAt))
+                            .orElseThrow().getPhotoThumbUrl();
+
+            out.put(kakaoId, new Cover(
+                    thumb,
+                    withPhoto.isEmpty() ? null : withPhoto.size(),
+                    official == null ? null : official[0],
+                    official == null ? null : official[1]));
+        }
         return out;
+    }
+
+    private static boolean notBlank(String s) { return s != null && !s.isBlank(); }
+
+    /**
+     * TourAPI는 이미지 URL을 <b>http로</b> 준다(실측: {@code tong.visitkorea.or.kr}).
+     * 배포는 https라 그대로 내보내면 브라우저가 mixed content로 차단한다 — 서버는 정상이고
+     * 화면에서만 조용히 깨진다. 같은 URL이 https로도 200을 주는 것을 확인하고 올린다.
+     */
+    private static String https(String url) {
+        return url.startsWith("http://") ? "https://" + url.substring("http://".length()) : url;
     }
 
     /**

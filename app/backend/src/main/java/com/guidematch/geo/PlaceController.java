@@ -209,7 +209,8 @@ public class PlaceController {
         return places.stream().map(p -> {
             PlaceMediaLookup.Cover c = covers.get(p.id());
             // 없으면 null 유지 — 0을 담은 값을 만들지 않는다.
-            return c == null ? p : p.withMedia(c.thumbUrl(), c.photoCount());
+            return c == null ? p : p.withMedia(c.thumbUrl(), c.photoCount(),
+                    c.officialUrl(), c.officialPublisher());
         }).toList();
     }
 
@@ -251,7 +252,8 @@ public class PlaceController {
                     p.address(),   // 주소는 한국어 유지 (택시/지도 사용 편의)
                     p.latitude(), p.longitude(), p.placeUrl(), p.distanceMeters(),
                     p.reasons(),   // 번역이 근거를 떨어뜨리면 안 된다
-                    p.coverPhotoUrl(), p.photoCount()   // 번역이 사진을 떨어뜨리면 안 된다
+                    p.coverPhotoUrl(), p.photoCount(),   // 번역이 사진을 떨어뜨리면 안 된다
+                    p.officialPhotoUrl(), p.officialPhotoPublisher()
             ));
         }
         return result;

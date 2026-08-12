@@ -43,6 +43,12 @@ export type ModalPlace = {
   id: string;
   /** 레지스트리 장소일 때만 있다. 노트 조회·작성에 kakao id와 함께 쓴다. */
   placeId?: number | null;
+  /**
+   * 우리가 수집한 공식 사진(TourAPI). 발행처와 <b>쌍으로만</b> 온다 —
+   * 출처를 못 밝히는 사진은 백엔드가 애초에 안 실어 보낸다(계약 §16).
+   */
+  officialPhotoUrl?: string | null;
+  officialPhotoPublisher?: string | null;
   name: string;
   category?: string | null;
   phone?: string | null;
@@ -97,6 +103,17 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
 
   const photos = notes.filter((n) => n.photoUrl);
   const tips = notes.filter((n) => n.tip);
+
+  // 공식 사진은 URL과 발행처가 둘 다 있을 때만 존재한다. 라벨은 한국관광공사일 때만
+  // 번역어를 쓴다 — 다른 발행처가 생기면 그 이름을 그대로 밝히는 것이 정확하다.
+  const official = place.officialPhotoUrl && place.officialPhotoPublisher
+    ? {
+        url: place.officialPhotoUrl,
+        label: place.officialPhotoPublisher === "한국관광공사"
+          ? pn.official
+          : place.officialPhotoPublisher,
+      }
+    : null;
 
   const hasCoords = typeof place.latitude === "number" && typeof place.longitude === "number";
   const spot = matchSpot(place.name);
@@ -210,16 +227,35 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
             </div>
           )}
 
-          {/* 여행자 사진 — 0장이면 이 블록 자체가 렌더되지 않는다 */}
-          {photos.length > 0 && (
+          {/* 사진 스트립 — 공식(🏛) 먼저, 그다음 여행자 사진 최신순.
+              둘 다 없으면 이 블록 자체가 렌더되지 않는다. */}
+          {(photos.length > 0 || official) && (
             <div>
               <p className="mb-2 text-xs font-bold text-stone-500">
                 📷 {pn.photosTitle}
-                <span className="ml-1 font-normal text-stone-400">
-                  {pn.photoCount.replace("{n}", String(photos.length))}
-                </span>
+                {photos.length > 0 && (
+                  <span className="ml-1 font-normal text-stone-400">
+                    {pn.photoCount.replace("{n}", String(photos.length))}
+                  </span>
+                )}
               </p>
               <div className="flex gap-2 overflow-x-auto pb-1">
+                {official && (
+                  // 출처 배지는 장식이 아니라 의무다 — 발행처 없이는 이 사진을 띄울 수 없다
+                  // (공공누리 조건부 · sources.yml attribution_required).
+                  <a
+                    href={official.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="relative block h-28 w-28 flex-shrink-0 overflow-hidden rounded-xl"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={official.url} alt="" className="h-full w-full object-cover" />
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-[10px] text-white">
+                      🏛 {official.label}
+                    </span>
+                  </a>
+                )}
                 {photos.map((n) => (
                   // 스트립은 썸네일(400px)로 그린다 — 원본(1600px)을 112px 칸에 넣으면
                   // 목록 한 번 여는 데 수 MB를 내려받는다. 원본은 눌렀을 때만 연다.

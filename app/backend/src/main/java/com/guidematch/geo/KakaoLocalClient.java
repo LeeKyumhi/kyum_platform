@@ -138,7 +138,8 @@ public class KakaoLocalClient {
                 d.placeUrl(),
                 parseInt(d.distance()),
                 java.util.List.of(),  // 근거는 PlaceController가 채운다
-                null, null            // 사진도 PlaceController가 채운다
+                null, null,           // 여행자 사진도 PlaceController가 채운다
+                null, null            // 공식 사진(레지스트리 시드)도 마찬가지
         )).toList();
     }
 
@@ -173,20 +174,27 @@ public class KakaoLocalClient {
              * <b>사진이 없으면 둘 다 null이다</b>(0이 아니다) — "사진 0장"을 렌더할 여지를 없앤다.
              */
             String coverPhotoUrl,
-            Integer photoCount
+            Integer photoCount,
+            /**
+             * 공식 사진(TourAPI)과 그 발행처. <b>쌍으로만</b> 실린다 —
+             * 출처를 못 밝히는 사진은 띄우지 않는다(계약 §16).
+             */
+            String officialPhotoUrl,
+            String officialPhotoPublisher
     ) {
         /** 근거만 갈아끼운 사본. record라 값을 고치는 대신 새로 만든다. */
         public Place withReasons(java.util.List<CourseReasons.Reason> newReasons) {
             return new Place(id, name, category, categoryGroupCode, phone, address,
                     latitude, longitude, placeUrl, distanceMeters, newReasons,
-                    coverPhotoUrl, photoCount);
+                    coverPhotoUrl, photoCount, officialPhotoUrl, officialPhotoPublisher);
         }
 
-        /** 노트 사진만 갈아끼운 사본. */
-        public Place withMedia(String newCoverPhotoUrl, Integer newPhotoCount) {
+        /** 사진(여행자 대표 + 공식)만 갈아끼운 사본. */
+        public Place withMedia(String newCoverPhotoUrl, Integer newPhotoCount,
+                               String newOfficialUrl, String newOfficialPublisher) {
             return new Place(id, name, category, categoryGroupCode, phone, address,
                     latitude, longitude, placeUrl, distanceMeters, reasons,
-                    newCoverPhotoUrl, newPhotoCount);
+                    newCoverPhotoUrl, newPhotoCount, newOfficialUrl, newOfficialPublisher);
         }
     }
 

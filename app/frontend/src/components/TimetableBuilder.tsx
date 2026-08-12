@@ -57,9 +57,12 @@ type Place = {
   insights?: PlaceInsightView[];
   /** 추천순으로 앞에 세운 이유 (/api/places가 채운다). 없으면 빈 배열. */
   reasons?: RecReason[];
-  /** 여행자가 올린 대표 사진(400px 썸네일). 없으면 undefined — "0장"은 존재하지 않는다. */
+  /** 대표 사진(여행자 사진 우선, 없으면 공식 사진). 없으면 undefined — "0장"은 존재하지 않는다. */
   coverPhotoUrl?: string | null;
   photoCount?: number | null;
+  /** 공식 사진(TourAPI) — 상세 모달이 출처 배지와 함께 맨 앞에 띄운다. */
+  officialPhotoUrl?: string | null;
+  officialPhotoPublisher?: string | null;
 };
 type PlacesResponse = { kakaoEnabled: boolean; places: Place[] };
 

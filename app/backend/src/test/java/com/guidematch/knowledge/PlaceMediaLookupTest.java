@@ -211,6 +211,80 @@ class PlaceMediaLookupTest {
         verify(repo, never()).findVisibleByKakaoIdIn(anyCollection());
     }
 
+    // ── 공식 사진(시드) ────────────────────────────────────────────
+    // TourAPI가 준 사진은 `places.image_url`에 있다. 노트가 하나도 없는 장소가 절대다수이고
+    // (여행자가 아직 안 왔다) 그 장소들은 이게 없으면 목록에서 영원히 아이콘이다.
+
+    private Place seeded(long id, String kakaoId, String imageUrl, String publisher) {
+        Place p = new Place("한국금융사박물관", "Seoul", "중구", 37.5, 126.9,
+                kakaoId, "130157", "관광명소", "서울 중구");
+        ReflectionTestUtils.setField(p, "id", id);
+        p.applyImage(imageUrl, publisher);
+        return p;
+    }
+
+    @Test
+    void 노트가_없으면_공식_사진이_대표가_된다() {
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "https://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        Map<String, PlaceMediaLookup.Cover> covers = lookup.coversByKakaoIds(List.of("12110587"));
+
+        PlaceMediaLookup.Cover c = covers.get("12110587");
+        assertThat(c).isNotNull();
+        assertThat(c.thumbUrl()).isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialUrl()).isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+        assertThat(c.officialPublisher()).isEqualTo("한국관광공사");
+        // 사용자 사진은 0장이다. 0을 담아 보내면 프론트가 "사진 0장" 배지를 그릴 여지가 생긴다.
+        assertThat(c.photoCount()).isNull();
+    }
+
+    @Test
+    void 여행자_사진이_있으면_그쪽이_대표다() {
+        // 우리가 가진 것보다 여행자가 방금 찍은 것이 낫다 — 공식 사진은 상세에서 계속 보인다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "https://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of(
+                note(1L, null, "12110587", "https://sb/u_thumb.jpg", null)));
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        PlaceMediaLookup.Cover c = lookup.coversByKakaoIds(List.of("12110587")).get("12110587");
+
+        assertThat(c.thumbUrl()).isEqualTo("https://sb/u_thumb.jpg");
+        assertThat(c.photoCount()).isEqualTo(1);
+        assertThat(c.officialUrl()).as("상세에서 쓰이므로 함께 실려 나간다")
+                .isEqualTo("https://tong.visitkorea.or.kr/x.jpg");
+    }
+
+    @Test
+    void 발행처_없는_공식_사진은_아예_실리지_않는다() {
+        // applyImage가 애초에 저장을 막지만, 예전 행이나 손으로 넣은 값이 있을 수 있다.
+        // 출처를 못 밝히는 사진은 띄우지 않는다 — 계약 §16.
+        Place p = seeded(74L, "12110587", null, null);
+        ReflectionTestUtils.setField(p, "imageUrl", "https://tong.visitkorea.or.kr/x.jpg");
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(p));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        assertThat(lookup.coversByKakaoIds(List.of("12110587"))).isEmpty();
+    }
+
+    @Test
+    void http_사진은_https로_올려서_내보낸다() {
+        // TourAPI는 http URL을 준다(실측: tong.visitkorea.or.kr). 배포는 https라
+        // 그대로 두면 mixed content로 브라우저가 차단한다 — 화면에서만 조용히 깨진다.
+        when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of(
+                seeded(74L, "12110587", "http://tong.visitkorea.or.kr/x.jpg", "한국관광공사")));
+        when(repo.findVisibleByKakaoIdIn(anyCollection())).thenReturn(List.of());
+        when(repo.findVisibleByPlaceIdIn(anyCollection())).thenReturn(List.of());
+
+        PlaceMediaLookup.Cover c = lookup.coversByKakaoIds(List.of("12110587")).get("12110587");
+
+        assertThat(c.officialUrl()).startsWith("https://");
+    }
+
     @Test
     void 작성자_조회도_배치_1회다() {
         when(placeRepo.findAllByKakaoPlaceIdIn(anyCollection())).thenReturn(List.of());

@@ -35,7 +35,7 @@ class PlaceControllerTest {
 
     private KakaoLocalClient.Place place(String id, String name) {
         return new KakaoLocalClient.Place(id, name, "관광명소", "AT4", null,
-                "서울 중구", 37.56, 126.97, "http://place/" + id, null, List.of(), null, null);
+                "서울 중구", 37.56, 126.97, "http://place/" + id, null, List.of(), null, null, null, null);
     }
 
     private void kakaoReturns(KakaoLocalClient.Place... places) {
@@ -145,7 +145,7 @@ class PlaceControllerTest {
     void 목록에_노트_썸네일이_붙는다() {
         kakaoReturns(place("a", "덕수궁"));
         when(mediaLookup.coversByKakaoIds(anyCollection()))
-                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4)));
+                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4, null, null)));
 
         KakaoLocalClient.Place p = call().places().get(0);
 
@@ -187,7 +187,7 @@ class PlaceControllerTest {
         kakaoReturns(place("a", "가"));
         when(travelerLookup.travelerCounts(anyCollection())).thenReturn(Map.of("a", 7));
         when(mediaLookup.coversByKakaoIds(anyCollection()))
-                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4)));
+                .thenReturn(Map.of("a", new PlaceMediaLookup.Cover("https://sb/t.jpg", 4, null, null)));
 
         KakaoLocalClient.Place p = call().places().get(0);
 
