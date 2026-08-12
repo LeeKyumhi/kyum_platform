@@ -6,12 +6,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, getToken } from "@/lib/api";
 import { useLanguage } from "@/context/LanguageContext";
 import { useModalDismiss } from "@/lib/useModalDismiss";
 import { PinIcon } from "@/components/icons";
 import TripMap from "@/components/TripMap";
 import { matchSpot } from "@/lib/spots";
+import PlaceNoteComposer from "@/components/PlaceNoteComposer";
 
 /**
  * 우리가 수집한 장소 지식 한 조각. Kakao가 주지 않는 유일한 정보라 여기서만 나온다.
@@ -69,9 +70,15 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
   const [notes, setNotes] = useState<PlaceNote[]>([]);
+  const [composerOpen, setComposerOpen] = useState(false);
+  // 토큰은 localStorage에 있어 서버 렌더에는 없다 — 첫 렌더에서 읽으면 hydration이 어긋난다.
+  const [loggedIn, setLoggedIn] = useState(false);
 
-  useModalDismiss(onClose);
+  // 작성 모달이 열려 있는 동안의 Esc는 그쪽 것이다. 여기서도 닫으면 한 번의 Esc로
+  // 두 겹이 같이 사라져 사용자가 상세 화면까지 잃는다.
+  useModalDismiss(useCallback(() => { if (!composerOpen) onClose(); }, [composerOpen, onClose]));
   useEffect(() => { closeBtnRef.current?.focus(); }, []);
+  useEffect(() => { setLoggedIn(!!getToken()); }, []);
 
   // 노트 조회 — 두 식별자를 둘 다 실어 보낸다(둘 다 없으면 요청 자체를 안 한다).
   // 실패는 조용히 넘긴다: 사진이 없는 것과 요청이 실패한 것을 사용자가 구분할 방법이
@@ -223,6 +230,7 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
                     rel="noreferrer"
                     className="flex-shrink-0"
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={n.photoThumbUrl ?? n.photoUrl!}
                       alt=""
@@ -268,6 +276,17 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
             </button>
           )}
 
+          {/* 로그인한 사람만 남길 수 있다 — 비로그인에게 눌러도 실패하는 버튼을 보이지 않는다 */}
+          {loggedIn && (
+            <button
+              type="button"
+              onClick={() => setComposerOpen(true)}
+              className="btn-secondary w-full text-sm"
+            >
+              📷 {pn.addPhoto} · ✍️ {pn.addTip}
+            </button>
+          )}
+
           {place.placeUrl && (
             <a
               href={place.placeUrl}
@@ -280,6 +299,16 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
           )}
         </div>
       </div>
+
+      {composerOpen && (
+        <PlaceNoteComposer
+          placeId={place.placeId}
+          kakaoPlaceId={place.id}
+          placeName={place.name}
+          onClose={() => setComposerOpen(false)}
+          onCreated={loadNotes}
+        />
+      )}
     </div>
   );
 }
