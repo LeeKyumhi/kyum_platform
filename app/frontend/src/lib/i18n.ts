@@ -325,6 +325,7 @@ const t = {
     /* 장소 사진·한줄팁 (여행자가 남긴 것) */
     placeNotes: {
       photosTitle: "여행자 사진",
+      photosTitleAny: "사진",
       tipsTitle: "여행자 팁",
       addPhoto: "사진 올리기",
       addTip: "팁 남기기",
@@ -1614,6 +1615,7 @@ const t = {
     /* Place photos & one-line tips (posted by travelers) */
     placeNotes: {
       photosTitle: "Traveler photos",
+      photosTitleAny: "Photos",
       tipsTitle: "Traveler tips",
       addPhoto: "Add photo",
       addTip: "Add tip",
@@ -2885,6 +2887,7 @@ const t = {
     /* 地点照片·一句话贴士（旅行者上传） */
     placeNotes: {
       photosTitle: "旅行者照片",
+      photosTitleAny: "照片",
       tipsTitle: "旅行者小贴士",
       addPhoto: "上传照片",
       addTip: "留下贴士",

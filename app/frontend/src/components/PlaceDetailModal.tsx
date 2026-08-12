@@ -231,8 +231,9 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
               둘 다 없으면 이 블록 자체가 렌더되지 않는다. */}
           {(photos.length > 0 || official) && (
             <div>
+              {/* 공식 사진만 있는데 "여행자 사진"이라고 쓰면 출처를 잘못 말하는 것이다 */}
               <p className="mb-2 text-xs font-bold text-stone-500">
-                📷 {pn.photosTitle}
+                📷 {photos.length > 0 ? pn.photosTitle : pn.photosTitleAny}
                 {photos.length > 0 && (
                   <span className="ml-1 font-normal text-stone-400">
                     {pn.photoCount.replace("{n}", String(photos.length))}
