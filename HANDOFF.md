@@ -35,7 +35,7 @@
   `git clean -fdx`를 돌리면 사라진다.
 
 **★ 계획서 16개 태스크 전부 완료 + 표시 경로·프롬프트 v6까지 (2026-08-12).**
-HEAD `4606006` · **340 tests / 0 failures** ·
+HEAD `4e38eca` · **346 tests / 0 failures** ·
 실 DB 스모크 `bash scripts/smoke/place-notes-smoke.sh <이메일인증계정> <비번>` **8/8**.
 
 | # | 내용 | 상태 |
@@ -91,6 +91,10 @@ HEAD `4606006` · **340 tests / 0 failures** ·
       `detailCommon2` 직접 호출(장소당 1회). 이를 지시 가능하게 하려고
       `registry-places.jsonl`에 `has_image`·`tour_api_content_id` 값을 싣는다.
 
+3. **추천 정차지 사진** (`4e38eca`) — `PlaceMediaLookup.coversByPlaceIds` 신설(place id 키).
+   kakao id 없는 레지스트리 전용 장소(19곳 중 11곳)도 사진을 받는다. 실기동 확인:
+   관훈동 민씨 가옥·개화(둘 다 kakao id null)가 공식 사진을 받고 팔레트에 썸네일이 뜬다.
+
 **v6 첫 실행 실측**(2026-08-12 15:27): 중구 tour_api에서 18곳 전부 사진 수집 →
 `places.image_url` **1 → 19**, insights 23 → 37. 목록·상세에서 실제로 보이는 것 확인.
 ⚠ 그 실행에서 Codex 앱 에러로 에이전트가 `bin/ingest.sh`를 못 돌렸다 —
@@ -98,9 +102,6 @@ HEAD `4606006` · **340 tests / 0 failures** ·
 
 ### ⚠ 아직 안 한 것
 
-- **추천 정차지에는 사진이 안 뜬다.** `CourseRecommendController.Stop`에 사진 필드가 없어,
-  kakao id가 없는 레지스트리 전용 장소(19곳 중 11곳)의 공식 사진이 코스 추천 팔레트·모달에
-  도달하지 못한다. `Stop`에 officialPhotoUrl/publisher를 추가하면 즉시 보인다.
 - **EXIF Orientation이 붙은 실제 아이폰 사진.** 합성 이미지에는 Orientation 태그가 없어
   스모크로는 증명할 수 없다. 회전 처리 코드(`PlaceImageProcessor`)는 단위 테스트로만 고정돼 있다.
 - 다른 구로 커버리지 확장 — kakao_local이 먼저 씨앗을 심어야 tour_api가 붙는다(v6 규칙이 그 순서를 만든다).
