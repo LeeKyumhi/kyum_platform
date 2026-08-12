@@ -446,6 +446,17 @@ export default function TimetableBuilder({
       .map((it) => ({ key: it._k, name: it.placeName, latitude: it.latitude, longitude: it.longitude })),
   [placed]);
 
+  /**
+   * 팔레트 장소 → 상세 모달 입력.
+   *
+   * 모달은 노트를 두 식별자로 조회하는데, 레지스트리 id(`rec.placeId`)는 추천 정차지에만
+   * 있고 kakao id는 반대로 없을 수도 있다(레지스트리 전용 장소는 `id`가 빈 문자열).
+   * 여기서 옮겨 담지 않으면 그런 정차지는 조회 파라미터가 하나도 없어 조용히 빈 목록이 된다.
+   */
+  function toModalPlace(p: Place): ModalPlace {
+    return { ...p, placeId: p.rec?.placeId ?? null };
+  }
+
   function openDetail(it: BuilderItem) {
     if (it.sourceCourseId != null) {
       setDetailCourse(coursesById[it.sourceCourseId] ?? {
@@ -619,7 +630,7 @@ export default function TimetableBuilder({
                           data={{ kind: "place", place: p }}
                           icon={categoryIcon(p.name, p.category, false)}
                           label={p.name} sub={p.address} detailLabel={li.detailsBtn}
-                          onInfo={() => setDetailPlace(p)} />
+                          onInfo={() => setDetailPlace(toModalPlace(p))} />
                         <ReasonChips reasons={p.reasons ?? []} lc={lc} />
                       </div>
                     ))}
@@ -674,7 +685,7 @@ export default function TimetableBuilder({
                             data={{ kind: "place", place: p }}
                             icon={categoryIcon(p.name, p.category, false)}
                             label={`${i + 1}. ${p.name}`} sub={p.address} detailLabel={li.detailsBtn}
-                            onInfo={() => setDetailPlace(p)} />
+                            onInfo={() => setDetailPlace(toModalPlace(p))} />
                           <ReasonChips reasons={rec.stops[i]?.reasons ?? []} lc={lc} />
                           <VibeLine insights={rec.stops[i]?.insights ?? []} />
                         </div>
