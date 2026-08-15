@@ -63,7 +63,18 @@ export default function TripMap({ points, className = "" }: { points: MapPoint[]
         mapRef.current = new kakao.maps.Map(boxRef.current, {
           center: new kakao.maps.LatLng(located[0].latitude, located[0].longitude),
           level: 6,
+          // ★ 휠은 페이지 것이다. 카카오 기본값(scrollwheel=true)은 휠을 확대/축소로 가로채고
+          //   preventDefault까지 해서, 이 지도 위에 커서가 있으면 <b>페이지가 스크롤되지 않는다</b>.
+          //   이 지도는 페이지 한가운데 박혀 있는 256px 미리보기라(/trips/[id]에선 시간표 바로 아래,
+          //   모바일에선 화면 폭 전체) 내려가다 여기 걸리면 화면이 멈춘 것처럼 보인다.
+          //   확대/축소는 아래 ZoomControl과 더블클릭이 대신한다.
+          scrollwheel: false,
         });
+        // 휠 확대를 껐으니 조작 수단을 대신 준다 — 없으면 확대할 방법이 더블클릭뿐이다.
+        mapRef.current.addControl(
+          new kakao.maps.ZoomControl(),
+          kakao.maps.ControlPosition.RIGHT,
+        );
       }
       const map = mapRef.current;
 
