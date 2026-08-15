@@ -115,6 +115,10 @@ public class PlaceController {
     /**
      * 좌표 기준 주변 장소 검색 (공개). 명소 상세 페이지에서 "주변 식당/카페"용.
      * city/구 단위가 아니라 임의의 지점(lat,lng) 중심으로 좁게(기본 2km) 검색한다.
+     *
+     * <p><b>사진은 붙이고 순서는 건드리지 않는다.</b> {@code recommendFirst}를 부르지 않는 것은
+     * 의도다 — 여기서 순서가 뜻하는 것은 "명소에서 가까운 순"이고, 그 축을 추천 신호로
+     * 갈아끼우면 이 섹션이 답하던 질문("이 명소 옆에 뭐가 있나")이 사라진다.
      */
     @GetMapping("/api/places/nearby")
     public PlacesResponse nearby(
@@ -133,7 +137,7 @@ public class PlaceController {
             places = kakaoClient.searchByKeyword(keyword, lat, lng, radius);
         }
 
-        List<Place> result = translateIfNeeded(places, lang);
+        List<Place> result = attachMedia(translateIfNeeded(places, lang));
         return new PlacesResponse(null, null, category, kakaoClient.isEnabled(), result);
     }
 

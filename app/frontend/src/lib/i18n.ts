@@ -353,7 +353,7 @@ const t = {
     spotDetail: {
       back: "← 홈으로",
       about: "소개",
-      nearbyTitle: "주변 맛집·카페",
+      nearbyTitle: "주변 가볼 곳",
       nearbySub: "이 명소에서 가까운 곳들이에요 (반경 2km)",
       notFound: "명소를 찾을 수 없어요.",
       goExplore: "지역 둘러보기",
@@ -1643,7 +1643,7 @@ const t = {
     spotDetail: {
       back: "← Home",
       about: "About",
-      nearbyTitle: "Food & cafés nearby",
+      nearbyTitle: "Nearby places",
       nearbySub: "Places close to this landmark (within 2 km)",
       notFound: "Spot not found.",
       goExplore: "Explore the area",
@@ -2915,7 +2915,7 @@ const t = {
     spotDetail: {
       back: "← 首页",
       about: "简介",
-      nearbyTitle: "周边美食·咖啡",
+      nearbyTitle: "周边好去处",
       nearbySub: "这座地标附近的好去处（2公里范围内）",
       notFound: "未找到该景点。",
       goExplore: "探索地区",

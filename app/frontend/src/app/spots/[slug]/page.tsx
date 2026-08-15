@@ -1,7 +1,9 @@
 "use client";
 
 // 명소 상세 페이지 — 정적 데이터(src/lib/spots.ts) + 카카오 주변 검색(/api/places/nearby).
-// 주변 장소 UI는 /explore 페이지의 카드·칩 패턴을 그대로 재사용한다 (카카오는 사진 미제공).
+// 주변 장소 UI는 /explore 페이지의 카드·칩 패턴을 그대로 재사용한다.
+// 사진은 카카오가 아니라 우리 것이다 — 여행자 노트 사진과 수집한 공식 사진을
+// 백엔드(PlaceController.attachMedia)가 붙여 준다.
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -13,6 +15,7 @@ import GuideCard, { type GuideCardData } from "@/components/GuideCard";
 import CourseCard, { type CourseCardData } from "@/components/CourseCard";
 import { PinIcon, CompassIcon, SearchIcon } from "@/components/icons";
 import SaveButton from "@/components/SaveButton";
+import PlaceDetailModal from "@/components/PlaceDetailModal";
 
 type Place = {
   id: string;
@@ -25,6 +28,12 @@ type Place = {
   longitude: number | null;
   placeUrl: string | null;
   distanceMeters: number | null;
+  /** 대표 사진(여행자 사진 우선, 없으면 공식 사진). 없으면 undefined — "0장"은 존재하지 않는다. */
+  coverPhotoUrl?: string | null;
+  photoCount?: number | null;
+  /** 공식 사진(TourAPI) — 상세 모달이 출처 배지와 함께 맨 앞에 띄운다. */
+  officialPhotoUrl?: string | null;
+  officialPhotoPublisher?: string | null;
 };
 
 type NearbyResponse = {
@@ -37,9 +46,14 @@ type NearbyResponse = {
 type FunnelGuide = GuideCardData & { matchScore: number | null };
 type FunnelCourse = CourseCardData;
 
+// 라벨은 /explore와 같은 키를 쓴다(le = t.explore) — 같은 카테고리를 두 벌로 번역하지 않는다.
+// 관광명소·문화시설이 앞에 있는 이유: 이 섹션은 "명소 옆에 뭐가 있나"에 답하는 자리이고,
+// 우리가 사진·지식을 가진 장소도 대부분 그 두 종류다(식당·카페만 두면 화면이 늘 이모지다).
 const NEARBY_CATS = [
-  { key: "food", labelKey: "catFood", icon: "🍜" },
-  { key: "cafe", labelKey: "catCafe", icon: "☕" },
+  { key: "attraction", labelKey: "catAttraction", icon: "🏛️" },
+  { key: "culture",    labelKey: "catCulture",    icon: "🎭" },
+  { key: "food",       labelKey: "catFood",       icon: "🍜" },
+  { key: "cafe",       labelKey: "catCafe",       icon: "☕" },
 ] as const;
 
 type NearbyCat = (typeof NEARBY_CATS)[number]["key"];
@@ -53,10 +67,11 @@ export default function SpotDetailPage() {
   const ls = t.spotDetail;
   const le = t.explore;
 
-  const [category, setCategory] = useState<NearbyCat>("food");
+  const [category, setCategory] = useState<NearbyCat>("attraction");
   const [places, setPlaces] = useState<Place[]>([]);
   const [kakaoOn, setKakaoOn] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
 
   // 이 지역 가이드/코스 — spot.city.en이 KoreanCity의 key와 동일한 표기라 best-effort로 그대로 쓴다
   // (매칭 안 되면 빈 목록 → 섹션 자체를 숨겨 우아하게 저하시킨다)
@@ -209,10 +224,28 @@ export default function SpotDetailPage() {
           ) : (
             <div className="flex flex-col gap-3">
               {places.map((p) => (
-                <div key={p.id} className="card flex items-start gap-3 p-4">
-                  <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
-                    {activeCat.icon}
-                  </span>
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedPlace(p)}
+                  className="card-hover flex cursor-pointer items-start gap-3 p-4"
+                >
+                  {/* 사진이 있으면 아이콘 대신 사진. 없으면 기존 아이콘 타일 그대로다 —
+                      "사진 없음" 자리를 따로 만들지 않는다 (/explore와 같은 마크업). */}
+                  {p.coverPhotoUrl ? (
+                    <span className="relative mt-0.5 block h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={p.coverPhotoUrl} alt="" className="h-full w-full object-cover" />
+                      {p.photoCount != null && p.photoCount > 1 && (
+                        <span className="absolute bottom-0 right-0 rounded-tl-lg bg-black/60 px-1 text-[10px] font-semibold text-white">
+                          {p.photoCount}
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-cyan-400 text-lg shadow-sm">
+                      {activeCat.icon}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-bold text-stone-900">{p.name}</p>
                     {p.category && (
@@ -231,16 +264,9 @@ export default function SpotDetailPage() {
                       {p.phone && <span>{p.phone}</span>}
                     </div>
                   </div>
-                  {p.placeUrl && (
-                    <a
-                      href={p.placeUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-secondary flex-shrink-0 whitespace-nowrap px-3 py-1.5 text-xs"
-                    >
-                      {le.openMap}
-                    </a>
-                  )}
+                  {/* 카카오맵 링크는 모달 하단 보조 버튼으로 흡수됐다 (Wave 4가 /explore에서 내린 결정).
+                      카드가 밖으로 내보내면 여행자 사진·한줄팁에 닿을 길이 사라진다. */}
+                  <span className="mt-1 flex-shrink-0 text-xs text-stone-300">›</span>
                 </div>
               ))}
             </div>
@@ -289,6 +315,10 @@ export default function SpotDetailPage() {
           </>
         )}
       </div>
+
+      {selectedPlace && (
+        <PlaceDetailModal place={selectedPlace} onClose={() => setSelectedPlace(null)} />
+      )}
     </main>
   );
 }
