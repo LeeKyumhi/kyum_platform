@@ -169,9 +169,15 @@ export default function ChatRoom({
     catch (e) { setError(e instanceof Error ? e.message : t.common.error); }
     finally { setSettingId(null); }
   }
-  function openPlaceDetail(place: PlacePayload, id: number) {
+  function openPlaceDetail(place: PlacePayload) {
+    // ModalPlace.id는 <b>카카오 장소 id</b>다 — 모달이 그 값으로 노트를 조회하고, 작성 시에도
+    // 그대로 싣는다. 예전엔 여기에 <b>메시지 id</b>를 넣었다: 그 상태로 사진·팁을 남기면
+    // 어느 장소에도 붙지 않는(그리고 숫자가 겹치면 엉뚱한 장소에 붙는) 행이 생긴다.
+    // 장소 카드는 kakao id를 따로 싣지 않으므로 카카오맵 URL에서 되찾고, 없으면 빈 값이다
+    // (빈 값이면 모달이 조회도 작성 버튼도 내보내지 않는다).
+    const kakaoId = /place\.map\.kakao\.com\/(\d+)/.exec(place.url ?? "")?.[1] ?? "";
     setDetailPlace({
-      id: String(id), name: place.name, category: null, address: place.address ?? null,
+      id: kakaoId, name: place.name, category: null, address: place.address ?? null,
       latitude: place.lat, longitude: place.lng, placeUrl: place.url ?? null,
     });
   }
@@ -264,7 +270,7 @@ export default function ChatRoom({
                 {card?.kind === "place" ? (
                   <PlaceMessageCard
                     place={card.place} mine={mine} labels={t.placeCard}
-                    onOpen={() => openPlaceDetail(card.place, m.id)}
+                    onOpen={() => openPlaceDetail(card.place)}
                     canSetMeeting={!!onSetMeetingPlace}
                     done={meetingSetIds.includes(m.id)} busy={settingId === m.id}
                     onSetMeeting={() => setMeeting(m.id, card.place)}

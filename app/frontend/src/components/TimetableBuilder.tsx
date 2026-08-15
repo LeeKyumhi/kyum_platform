@@ -479,8 +479,15 @@ export default function TimetableBuilder({
         price: null, currency: null, guideName: null, waypoints: [],
       });
     } else {
+      // id는 <b>카카오 장소 id 아니면 빈 값</b>이어야 한다. 예전엔 없을 때 아이템 키(`new-3`)로
+      // 폴백했는데, 모달이 그걸 kakaoPlaceId로 삼아 노트를 조회하고 <b>작성까지</b> 했다 —
+      // 그렇게 저장된 노트는 어느 장소에도 붙지 않아 영영 도달 불가가 된다.
+      //
+      // 공식 사진은 여기서 못 넘긴다(시간표 아이템에 사진 필드가 없다) — 모달이 이 id로
+      // `/api/places/media`에 다시 물어본다. 레지스트리 전용 장소는 kakao id 자체가 저장되지
+      // 않으므로(placeModuleAt) 새로고침 후에는 물어볼 키가 없다 — 알려진 한계다.
       setDetailPlace({
-        id: it.placeId ?? it._k, name: it.placeName, category: it.category,
+        id: it.placeId ?? "", name: it.placeName, category: it.category,
         address: it.address, latitude: it.latitude, longitude: it.longitude,
         placeUrl: kakaoMapUrl(it),
       });
