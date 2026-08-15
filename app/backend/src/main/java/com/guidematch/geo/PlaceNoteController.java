@@ -93,4 +93,51 @@ public class PlaceNoteController {
             return List.of();
         }
     }
+
+    /** 사진이 하나도 없으면 전부 null인 200이다 — "없음"은 오류가 아니다. */
+    public record MediaResponse(String coverPhotoUrl, Integer photoCount,
+                                String officialPhotoUrl, String officialPhotoPublisher) {
+        static final MediaResponse EMPTY = new MediaResponse(null, null, null, null);
+    }
+
+    /**
+     * 장소 <b>한 곳</b>의 대표 사진. 목록은 {@link PlaceController}가 배치로 붙이므로
+     * 이 경로는 <b>목록에서 온 값을 잃어버린 화면</b>을 위한 것이다.
+     *
+     * <p>구체적으로는 일정 빌더다. 시간표에 담긴 아이템은 이름·좌표·kakao id만 저장하므로,
+     * 팔레트에서 보이던 공식 사진이 담는 순간(그리고 새로고침 후에는 영영) 사라진다.
+     * 사진은 {@code places.image_url}에 있는 서버 데이터라 id로 다시 물어보는 수밖에 없다.
+     *
+     * <p>규칙은 만들지 않고 {@link PlaceMediaLookup}의 것을 그대로 쓴다 — 여행자 사진 우선,
+     * 발행처와 쌍일 때만, https 승격, 0장은 없음. 같은 장소가 화면마다 다른 사진을 보여주면 안 된다.
+     *
+     * <p>노트 조회와 같은 이유로 <b>비로그인 공개 경로</b>이고 예외를 위로 던지지 않는다.
+     */
+    @GetMapping("/api/places/media")
+    public MediaResponse media(
+            @RequestParam(required = false) Long placeId,
+            @RequestParam(required = false) String kakaoPlaceId
+    ) {
+        boolean hasKakao = kakaoPlaceId != null && !kakaoPlaceId.isBlank();
+        if (placeId == null && !hasKakao) {
+            return MediaResponse.EMPTY;
+        }
+        try {
+            PlaceMediaLookup.Cover cover = null;
+            if (hasKakao) {
+                cover = mediaLookup.coversByKakaoIds(List.of(kakaoPlaceId)).get(kakaoPlaceId);
+            }
+            // kakao 쪽이 비었을 때만 레지스트리 id로 한 번 더. 레지스트리 전용 장소는
+            // kakao id가 아예 없고, 반대로 kakao 장소는 레지스트리에 없을 수 있다.
+            if (cover == null && placeId != null) {
+                cover = mediaLookup.coversByPlaceIds(List.of(placeId)).get(placeId);
+            }
+            return cover == null ? MediaResponse.EMPTY : new MediaResponse(
+                    cover.thumbUrl(), cover.photoCount(),
+                    cover.officialUrl(), cover.officialPublisher());
+        } catch (Exception e) {
+            log.warn("장소 대표 사진 조회 실패 — 사진 없이 진행: {}", e.toString());
+            return MediaResponse.EMPTY;
+        }
+    }
 }
