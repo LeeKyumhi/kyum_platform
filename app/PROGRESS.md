@@ -1,6 +1,6 @@
 # 개발 진행 상황 (이어서 작업용 메모)
 
-## 장소 사진 후속 배선 (2026-08-15, 브랜치 `feat/place-media-ui-followups`, **346 tests / 0 failures**, ⚠ 미커밋)
+## 장소 사진 후속 배선 (2026-08-15, 브랜치 `feat/place-media-ui-followups`, **346 tests / 0 failures**, ✅ 2026-08-19 main 머지·push `61e61f2`)
 
 사진 기능은 8/12에 끝났지만 **사진을 화면까지 잇는 배선이 화면마다 따로**여서, Task 11이 손댄
 `/explore`·타임테이블 팔레트에서만 사진이 보였다. 나머지 3곳을 이었다.

@@ -4,7 +4,11 @@
 
 사진 기능 자체는 8/12에 끝나 main에 있다. 다만 **사진을 화면까지 잇는 배선은 화면마다 따로**라
 Task 11이 손댄 두 경로만 사진이 보였다. 이월 항목("nearby·search는 대표 사진을 안 붙인다 — 확인 필요")을
-실제로 확인하면서 같은 성격의 구멍 2개를 더 찾아 함께 막았다. `main`에서 분기, **미커밋**.
+실제로 확인하면서 같은 성격의 구멍 2개를 더 찾아 함께 막았다.
+
+> **✅ 2026-08-19 — 이 브랜치는 `main`에 머지되고 push까지 끝났다** (`61e61f2`, origin/main 반영).
+> 머지 직전 재검증: **346 tests / 0 failures · tsc 0**. 브랜치는 관례대로 지우지 않고 남겨뒀다.
+> 아래 본문은 그때의 작업 기록이다.
 
 | 곳 | 있었던 일 | 고친 방법 |
 |---|---|---|
@@ -141,7 +145,8 @@ HEAD `4e38eca` · **346 tests / 0 failures** ·
    확인: `select count(*) from places where image_url is not null;` > 0.
    ⚠ `--cd` 없으면 쓰기 루트가 앱 리포가 되어 격리가 무너진다.
    ⚠ `app/backend/src/main`을 고쳤으면 `./scripts/ingest/build-jar.sh` 먼저(안 하면 exit 3).
-2. **머지 결정.** 순서는 `feat/course-planner-flywheel` → main, 그다음 `feat/place-media-and-notes`.
+2. ~~**머지 결정.**~~ → **완료.** flywheel·place-media는 2026-08-12에(`d6ecb74`),
+   place-media-ui-followups는 2026-08-19에(`61e61f2`) main에 들어갔고 origin에도 push됐다.
 3. **테스트 오염 정리** — users 43 `note_smoke_*@test.com`, **`media_smoke_1786791810@test.com`(2026-08-15,
    로그인 불가라 아무것도 안 한 행)**, place_notes 1~11,
    itinerary 32, Supabase Storage `credentials/place-notes/43/`.
