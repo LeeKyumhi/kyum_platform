@@ -101,20 +101,55 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
 
   useEffect(() => { loadNotes(); }, [loadNotes]);
 
+  // 공식 사진을 props로 못 받은 경로를 위한 폴백 조회.
+  //
+  // 목록(`/api/places`)은 사진을 배치로 실어 주지만, 일정 빌더처럼 목록에서 값을 옮겨
+  // 담았다가 잃어버리는 화면이 있다 — 시간표 아이템에는 이름·좌표·kakao id만 남아
+  // 팔레트에서 보이던 🏛 사진이 담는 순간 사라졌다. 사진은 서버 데이터이므로 id로 다시 묻는다.
+  //
+  // **null과 undefined를 구분하는 것이 이 조회의 조건이다.** 목록에서 온 장소는 사진이 없어도
+  // 키가 `null`로 실려 온다(서버가 "없다"고 말한 것) — 되물을 이유가 없다. 키 자체가 없는
+  // (`undefined`) 경우만이 "부른 쪽이 값을 가진 적 없다"는 뜻이다. `!officialPhotoUrl`로 재면
+  // 사진 없는 장소마다(=대부분) 쓸데없는 왕복이 하나씩 붙는다.
+  const [fetchedOfficial, setFetchedOfficial] =
+    useState<{ url: string; publisher: string } | null>(null);
+
+  useEffect(() => {
+    setFetchedOfficial(null);
+    if (place.officialPhotoUrl !== undefined) return;
+    const qs = new URLSearchParams();
+    if (place.placeId != null) qs.set("placeId", String(place.placeId));
+    if (place.id) qs.set("kakaoPlaceId", place.id);
+    if (!qs.toString()) return;
+    let cancelled = false;
+    api<{ officialPhotoUrl: string | null; officialPhotoPublisher: string | null }>(
+      `/api/places/media?${qs}`)
+      .then((r) => {
+        // 출처를 못 밝히는 사진은 띄우지 않는다 — 백엔드와 같은 규칙(쌍일 때만).
+        if (cancelled || !r?.officialPhotoUrl || !r.officialPhotoPublisher) return;
+        setFetchedOfficial({ url: r.officialPhotoUrl, publisher: r.officialPhotoPublisher });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [place.officialPhotoUrl, place.placeId, place.id]);
+
   const photos = notes.filter((n) => n.photoUrl);
   const tips = notes.filter((n) => n.tip);
 
   // 공식 사진은 URL과 발행처가 둘 다 있을 때만 존재한다. 라벨은 한국관광공사일 때만
   // 번역어를 쓴다 — 다른 발행처가 생기면 그 이름을 그대로 밝히는 것이 정확하다.
-  const official = place.officialPhotoUrl && place.officialPhotoPublisher
+  const officialUrl = place.officialPhotoUrl ?? fetchedOfficial?.url ?? null;
+  const officialPublisher = place.officialPhotoPublisher ?? fetchedOfficial?.publisher ?? null;
+  const official = officialUrl && officialPublisher
     ? {
-        url: place.officialPhotoUrl,
-        label: place.officialPhotoPublisher === "한국관광공사"
-          ? pn.official
-          : place.officialPhotoPublisher,
+        url: officialUrl,
+        label: officialPublisher === "한국관광공사" ? pn.official : officialPublisher,
       }
     : null;
 
+  // 식별자가 하나도 없으면 남긴 노트를 어느 장소에도 붙일 수 없다 — 백엔드가 400으로 막는다.
+  // 눌러도 실패하는 버튼을 보여주지 않는다(비로그인에게 안 보여주는 것과 같은 이유).
+  const hasIdentifier = place.placeId != null || !!place.id;
   const hasCoords = typeof place.latitude === "number" && typeof place.longitude === "number";
   const spot = matchSpot(place.name);
 
@@ -314,7 +349,7 @@ export default function PlaceDetailModal({ place, onClose, onAdd, addLabel }: Pr
           )}
 
           {/* 로그인한 사람만 남길 수 있다 — 비로그인에게 눌러도 실패하는 버튼을 보이지 않는다 */}
-          {loggedIn && (
+          {loggedIn && hasIdentifier && (
             <button
               type="button"
               onClick={() => setComposerOpen(true)}

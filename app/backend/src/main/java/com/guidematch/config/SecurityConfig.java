@@ -80,7 +80,7 @@ public class SecurityConfig {
                         // ⚠ 경로 정확 일치다. "/api/places/**"로 넓히면 앞으로 추가되는 GET 하위 경로가
                         //   의도치 않게 전부 공개된다 — 하나씩 명시한다. (POST/DELETE는 여기 없어 인증 필요)
                         .requestMatchers(HttpMethod.GET, "/api/cities", "/api/places", "/api/places/nearby",
-                                         "/api/places/notes").permitAll()
+                                         "/api/places/notes", "/api/places/media").permitAll()
                         // PortOne 웹훅 — 페이로드를 신뢰하지 않고 PortOne 재조회로만 확정하므로 public 안전
                         .requestMatchers(HttpMethod.POST, "/api/payments/webhook").permitAll()
                         // 운영자 전용 API — ROLE_ADMIN 권한(JWT role=ADMIN)이 있어야 접근 가능

@@ -168,7 +168,11 @@ export default function ExplorePage() {
                       <SaveButton
                         target={{ itemType: "PLACE", place: {
                           ref: `kakao:${p.id}`, name: p.name, category: p.category,
-                          address: p.address, lat: p.latitude, lng: p.longitude, image: null,
+                          address: p.address, lat: p.latitude, lng: p.longitude,
+                          // 찜 목록은 사진 그리드다(SavedGrid) — 여기서 안 담으면 그 화면은
+                          // 우리가 사진을 가진 장소도 영원히 이모지로만 보여준다.
+                          // 스냅샷이라 나중에 사진이 생겨도 소급되지 않는다(name·address와 같은 성질).
+                          image: p.coverPhotoUrl ?? p.officialPhotoUrl ?? null,
                         } }}
                         className="mt-0.5 flex-shrink-0"
                       />
